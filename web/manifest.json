@@ -1,6 +1,6 @@
 {
-    "name": "telas",
-    "short_name": "telas",
+    "name": "inv_telas",
+    "short_name": "inv_telas",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

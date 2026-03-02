@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "663339271798",
+    "project_id": "invtelas",
+    "storage_bucket": "invtelas.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:663339271798:android:3b3dc112cebf8551010157",
+        "android_client_info": {
+          "package_name": "com.example.inv_telas"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCvCR34-rEtEw6KS6w559CtObO8vVOXPwU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
