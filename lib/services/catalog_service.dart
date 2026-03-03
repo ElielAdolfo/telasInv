@@ -1,0 +1,60 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:inv_telas/models/models.dart';
+import 'firebase_service.dart';
+
+class CatalogService extends FirebaseService {
+  // Colecciones
+  final String _empresasCol = 'catalog_empresas';
+  final String _sucursalesCol = 'catalog_sucursales';
+  final String _coloresCol = 'catalog_colores';
+  final String _tiposCol = 'catalog_tipos_tela';
+
+  // EMPRESAS
+  Future<List<Empresa>> getEmpresas() async => await getAll<Empresa>(
+    collectionPath: _empresasCol,
+    fromJson: Empresa.fromJson,
+    orderBy: 'nombre',
+  );
+
+  Future<void> addEmpresa(Empresa empresa) async => await create(
+    collectionPath: _empresasCol,
+    id: empresa.id,
+    data: empresa.toJson(),
+  );
+
+  // SUCURSALES
+  Future<List<Sucursal>> getSucursales() async => await getAll<Sucursal>(
+    collectionPath: _sucursalesCol,
+    fromJson: Sucursal.fromJson,
+    orderBy: 'nombre',
+  );
+
+  Future<void> addSucursal(Sucursal sucursal) async => await create(
+    collectionPath: _sucursalesCol,
+    id: sucursal.id,
+    data: sucursal.toJson(),
+  );
+
+  // COLORES
+  Future<List<ColorTela>> getColores() async => await getAll<ColorTela>(
+    collectionPath: _coloresCol,
+    fromJson: ColorTela.fromJson,
+    orderBy: 'nombre',
+  );
+
+  Future<void> addColor(ColorTela color) async => await create(
+    collectionPath: _coloresCol,
+    id: color.id,
+    data: color.toJson(),
+  );
+
+  // TIPOS DE TELA
+  Future<List<TipoTela>> getTiposTela() async => await getAll<TipoTela>(
+    collectionPath: _tiposCol,
+    fromJson: TipoTela.fromJson,
+    orderBy: 'nombre',
+  );
+
+  Future<void> addTipoTela(TipoTela tipo) async =>
+      await create(collectionPath: _tiposCol, id: tipo.id, data: tipo.toJson());
+}

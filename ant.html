@@ -1,0 +1,1521 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventario de Rollos de Tela</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .modal-overlay {
+            animation: fadeIn 0.2s ease-out;
+        }
+        
+        .modal-content {
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes slideIn {
+            from { 
+                opacity: 0;
+                transform: scale(0.95) translateY(-10px);
+            }
+            to { 
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+        
+        .color-preview {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            border: 2px solid #e5e7eb;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        
+        .badge-stock {
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        
+        .stock-alto { background-color: #dcfce7; color: #166534; }
+        .stock-medio { background-color: #fef9c3; color: #854d0e; }
+        .stock-bajo { background-color: #fee2e2; color: #991b1b; }
+        
+        .sucursal-badge {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        
+        .sin-sucursal {
+            background-color: #f1f5f9;
+            color: #64748b;
+            border: 1px dashed #cbd5e1;
+        }
+        
+        .checkbox-rollo {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #3b82f6;
+        }
+        
+        .row-selected {
+            background-color: #eff6ff !important;
+        }
+        
+        .grupo-row {
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .grupo-row:hover {
+            background-color: #f8fafc;
+            transform: translateX(2px);
+        }
+        
+        .rollo-item {
+            transition: all 0.15s;
+        }
+        
+        .rollo-item:hover {
+            background-color: #f1f5f9;
+        }
+        
+        .rollo-item.selected {
+            background-color: #dbeafe;
+            border-left: 3px solid #3b82f6;
+        }
+        
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-blue-100 rounded-xl">
+                        <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold text-slate-800">Inventario de Rollos de Tela</h1>
+                        <p class="text-sm text-slate-500">Gestión de telas por empresa, sucursal y código de color</p>
+                    </div>
+                </div>
+                <button onclick="abrirModalNuevoRollo()" class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-5 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    Nuevo Rollo
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <!-- Estadísticas -->
+        <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition-shadow">
+                <div class="flex items-center gap-3">
+                    <div class="p-3 bg-blue-100 rounded-lg">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-sm text-slate-500">Total Rollos</p>
+                        <p id="stat-rollos" class="text-2xl font-bold text-slate-800">0</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition-shadow">
+                <div class="flex items-center gap-3">
+                    <div class="p-3 bg-green-100 rounded-lg">
+                        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-sm text-slate-500">Metraje Total</p>
+                        <p id="stat-metraje" class="text-2xl font-bold text-slate-800">0 m</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition-shadow">
+                <div class="flex items-center gap-3">
+                    <div class="p-3 bg-purple-100 rounded-lg">
+                        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-sm text-slate-500">Empresas</p>
+                        <p id="stat-empresas" class="text-2xl font-bold text-slate-800">0</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition-shadow">
+                <div class="flex items-center gap-3">
+                    <div class="p-3 bg-cyan-100 rounded-lg">
+                        <svg class="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-sm text-slate-500">Sucursales</p>
+                        <p id="stat-sucursales" class="text-2xl font-bold text-slate-800">0</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition-shadow">
+                <div class="flex items-center gap-3">
+                    <div class="p-3 bg-amber-100 rounded-lg">
+                        <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-sm text-slate-500">Colores</p>
+                        <p id="stat-colores" class="text-2xl font-bold text-slate-800">0</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filtros -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
+            <div class="flex flex-col lg:flex-row gap-4">
+                <div class="flex-1">
+                    <div class="relative">
+                        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                        <input type="text" id="busqueda" placeholder="Buscar por color, código, empresa o tipo de tela..." 
+                            class="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                            oninput="filtrarGrupos()">
+                    </div>
+                </div>
+                <div class="flex flex-wrap gap-3">
+                    <select id="filtro-sucursal" class="px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white min-w-[150px]" onchange="filtrarGrupos()">
+                        <option value="">Todas las sucursales</option>
+                    </select>
+                    <select id="filtro-empresa" class="px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white min-w-[150px]" onchange="filtrarGrupos()">
+                        <option value="">Todas las empresas</option>
+                    </select>
+                    <select id="filtro-color" class="px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white min-w-[150px]" onchange="filtrarGrupos()">
+                        <option value="">Todos los colores</option>
+                    </select>
+                    <select id="filtro-tipo-tela" class="px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white min-w-[150px]" onchange="filtrarGrupos()">
+                        <option value="">Todos los tipos</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabla de grupos -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-slate-50 border-b border-slate-200">
+                        <tr>
+                            <th class="px-4 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Nombre</th>
+                            <th class="px-4 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Color</th>
+                            <th class="px-4 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Código</th>
+                            <th class="px-4 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Empresa</th>
+                            <th class="px-4 py-4 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Cantidad</th>
+                            <th class="px-4 py-4 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Metraje Total</th>
+                            <th class="px-4 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Sucursales</th>
+                            <th class="px-4 py-4 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-grupos" class="divide-y divide-slate-200">
+                        <!-- Los grupos se cargarán dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Mensaje cuando no hay datos -->
+            <div id="sin-datos" class="hidden py-12 text-center">
+                <svg class="w-16 h-16 text-slate-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
+                </svg>
+                <p class="text-slate-500 text-lg">No hay rollos de tela registrados</p>
+                <p class="text-slate-400 text-sm mt-1">Haz clic en "Nuevo Rollo" para agregar el primero</p>
+            </div>
+        </div>
+
+        <!-- Footer con información -->
+        <div class="mt-4 text-center text-sm text-slate-500">
+            Mostrando <span id="mostrando">0</span> grupos
+        </div>
+    </main>
+
+    <!-- Modal Nuevo Rollo -->
+    <div id="modal-nuevo-rollo" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden modal-overlay">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg modal-content max-h-[90vh] overflow-y-auto">
+            <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white">
+                <h2 class="text-xl font-semibold text-slate-800">Nuevo Rollo de Tela</h2>
+                <button onclick="cerrarModalNuevoRollo()" class="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+                    <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <form id="form-rollo" class="p-6 space-y-4">
+                <!-- Cantidad de rollos -->
+                <div class="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                    <label class="block text-sm font-semibold text-blue-800 mb-2">
+                        📦 Cantidad de Rollos a Crear
+                    </label>
+                    <div class="flex items-center gap-4">
+                        <input type="number" id="rollo-cantidad" min="1" value="1" 
+                            class="w-24 px-4 py-2.5 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all text-center font-semibold text-lg bg-white"
+                            onchange="actualizarVistaPrevia()">
+                        <p class="text-sm text-blue-600">
+                            Se crearán <span id="preview-cantidad" class="font-bold">1</span> rollo(s)
+                        </p>
+                    </div>
+                </div>
+                
+                <!-- Tipo de Tela (Nombre) -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">
+                        Nombre de Tela
+                        <span class="text-slate-400 font-normal">(ej: Piel de Sirena, Razo, Magitex)</span>
+                    </label>
+                    <div class="flex gap-2">
+                        <select id="rollo-tipo-tela" class="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white">
+                            <option value="">Seleccionar tipo</option>
+                        </select>
+                        <button type="button" onclick="abrirModalTipoTela()" class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors" title="Nuevo tipo de tela">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Sucursal -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">
+                        Sucursal <span class="text-slate-400 font-normal">(opcional)</span>
+                    </label>
+                    <div class="flex gap-2">
+                        <select id="rollo-sucursal" class="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white">
+                            <option value="">Sin asignar</option>
+                        </select>
+                        <button type="button" onclick="abrirModalSucursal()" class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors" title="Nueva sucursal">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Empresa -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Empresa *</label>
+                    <div class="flex gap-2">
+                        <select id="rollo-empresa" class="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white" required onchange="actualizarCodigoColor()">
+                            <option value="">Seleccionar empresa</option>
+                        </select>
+                        <button type="button" onclick="abrirModalEmpresa()" class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors" title="Nueva empresa">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Color -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Color *</label>
+                    <div class="flex gap-2">
+                        <select id="rollo-color" class="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white" required onchange="actualizarCodigoColor()">
+                            <option value="">Seleccionar color</option>
+                        </select>
+                        <button type="button" onclick="abrirModalColor()" class="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors" title="Nuevo color">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Código Color -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Código de Color *</label>
+                    <input type="text" id="rollo-codigo" placeholder="Ej: AZ-001, RO-045" 
+                        class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all" required>
+                </div>
+
+                <!-- Metraje -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Metraje por Rollo (m) *</label>
+                    <input type="number" id="rollo-metraje" step="0.01" min="0" placeholder="0.00" 
+                        class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all" required
+                        onchange="actualizarVistaPrevia()">
+                    <p class="text-xs text-slate-500 mt-1">
+                        Metraje total: <span id="preview-metraje" class="font-semibold text-blue-600">0.00</span> m
+                    </p>
+                </div>
+
+                <!-- Fecha -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Fecha de Ingreso</label>
+                    <input type="date" id="rollo-fecha" 
+                        class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+                </div>
+
+                <!-- Notas -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Notas (opcional)</label>
+                    <textarea id="rollo-notas" rows="2" placeholder="Observaciones..." 
+                        class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none"></textarea>
+                </div>
+            </form>
+
+            <div class="px-6 py-4 bg-slate-50 rounded-b-2xl flex gap-3 justify-end sticky bottom-0">
+                <button onclick="cerrarModalNuevoRollo()" class="px-4 py-2 text-slate-600 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors font-medium">
+                    Cancelar
+                </button>
+                <button onclick="guardarRollo()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium">
+                    Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Detalle de Grupo -->
+    <div id="modal-detalle" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden modal-overlay">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl modal-content max-h-[90vh] overflow-hidden flex flex-col">
+            <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-white">
+                <div class="flex items-center gap-3">
+                    <div id="detalle-color-preview" class="color-preview"></div>
+                    <div>
+                        <h2 id="detalle-titulo" class="text-xl font-semibold text-slate-800">Detalle de Rollos</h2>
+                        <p id="detalle-subtitulo" class="text-sm text-slate-500"></p>
+                    </div>
+                </div>
+                <button onclick="cerrarModalDetalle()" class="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+                    <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Resumen -->
+            <div class="px-6 py-4 bg-slate-50 border-b border-slate-200">
+                <div class="grid grid-cols-3 gap-4 text-center">
+                    <div>
+                        <p class="text-2xl font-bold text-slate-800" id="detalle-cantidad">0</p>
+                        <p class="text-sm text-slate-500">Rollos</p>
+                    </div>
+                    <div>
+                        <p class="text-2xl font-bold text-slate-800" id="detalle-metraje">0 m</p>
+                        <p class="text-sm text-slate-500">Metraje Total</p>
+                    </div>
+                    <div>
+                        <p class="text-2xl font-bold text-slate-800" id="detalle-sucursales">0</p>
+                        <p class="text-sm text-slate-500">Sucursales</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filtro por sucursal -->
+            <div class="px-6 py-3 border-b border-slate-200 bg-white">
+                <div class="flex items-center gap-3">
+                    <label class="text-sm text-slate-600 whitespace-nowrap">Filtrar por sucursal:</label>
+                    <select id="detalle-filtro-sucursal" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white text-sm" onchange="filtrarRollosDetalle()">
+                        <option value="">Todas las sucursales</option>
+                        <option value="__sin__">Sin asignar</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Panel de selección -->
+            <div id="panel-seleccion" class="hidden px-6 py-3 bg-blue-50 border-b border-blue-200">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <span class="text-sm text-blue-800">
+                            <span id="seleccionados-count" class="font-bold">0</span> rollos seleccionados
+                        </span>
+                        <span class="text-xs text-blue-600">
+                            Metraje: <span id="seleccionados-metraje" class="font-semibold">0</span> m
+                        </span>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="abrirAsignacionDesdeDetalle()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors">
+                            Asignar a Sucursal
+                        </button>
+                        <button onclick="abrirTraspasoDesdeDetalle()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm rounded-lg transition-colors">
+                            Traspasar
+                        </button>
+                        <button onclick="limpiarSeleccionDetalle()" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm rounded-lg transition-colors">
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lista de rollos -->
+            <div class="flex-1 overflow-y-auto">
+                <div class="divide-y divide-slate-100" id="lista-rollos-detalle">
+                    <!-- Se llena dinámicamente -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Asignar/Traspasar -->
+    <div id="modal-mover" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden modal-overlay">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md modal-content">
+            <div class="px-6 py-4 border-b border-slate-200">
+                <h3 id="mover-titulo" class="text-lg font-semibold text-slate-800">Mover Rollos</h3>
+            </div>
+            <div class="p-6 space-y-4">
+                <div id="mover-info" class="bg-blue-50 rounded-lg p-4">
+                    <p class="text-sm text-blue-800">
+                        <span id="mover-count" class="font-bold text-lg">0</span> rollos seleccionados
+                    </p>
+                    <p class="text-xs text-blue-600 mt-1">
+                        Metraje total: <span id="mover-metraje" class="font-semibold">0</span> m
+                    </p>
+                </div>
+                
+                <div id="mover-origen-container">
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Sucursal Actual</label>
+                    <div id="mover-origen" class="px-4 py-2.5 bg-slate-100 rounded-lg text-slate-600">-</div>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Sucursal Destino *</label>
+                    <select id="mover-destino" class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white">
+                        <option value="">Seleccionar sucursal</option>
+                    </select>
+                </div>
+                
+                <div class="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <p class="text-sm text-amber-800">
+                        <strong>ℹ️ Nota:</strong> Los rollos se mueven completos. El metraje no puede modificarse.
+                    </p>
+                </div>
+            </div>
+            <div class="px-6 py-4 bg-slate-50 rounded-b-2xl flex gap-3 justify-end">
+                <button onclick="cerrarModalMover()" class="px-4 py-2 text-slate-600 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors font-medium">
+                    Cancelar
+                </button>
+                <button onclick="confirmarMover()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium">
+                    Mover Rollos
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Eliminar -->
+    <div id="modal-eliminar" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden modal-overlay">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm modal-content">
+            <div class="p-6 text-center">
+                <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-semibold text-slate-800 mb-2">¿Eliminar este rollo?</h3>
+                <p id="eliminar-info" class="text-slate-600 mb-6"></p>
+                <div class="flex gap-3 justify-center">
+                    <button onclick="cerrarModalEliminar()" class="px-4 py-2 text-slate-600 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors font-medium">
+                        Cancelar
+                    </button>
+                    <button onclick="confirmarEliminar()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-medium">
+                        Eliminar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Nueva Sucursal -->
+    <div id="modal-sucursal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden modal-overlay">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm modal-content">
+            <div class="px-6 py-4 border-b border-slate-200">
+                <h3 class="text-lg font-semibold text-slate-800">Nueva Sucursal</h3>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Nombre *</label>
+                    <input type="text" id="nueva-sucursal" placeholder="Ej: Sucursal Centro" 
+                        class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Color</label>
+                    <input type="color" id="nueva-sucursal-color" value="#3b82f6" 
+                        class="w-full h-10 border border-slate-300 rounded-lg cursor-pointer">
+                </div>
+            </div>
+            <div class="px-6 py-4 bg-slate-50 rounded-b-2xl flex gap-3 justify-end">
+                <button onclick="cerrarModalSucursal()" class="px-4 py-2 text-slate-600 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors font-medium">
+                    Cancelar
+                </button>
+                <button onclick="guardarSucursal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium">
+                    Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Nueva Empresa -->
+    <div id="modal-empresa" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden modal-overlay">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm modal-content">
+            <div class="px-6 py-4 border-b border-slate-200">
+                <h3 class="text-lg font-semibold text-slate-800">Nueva Empresa</h3>
+            </div>
+            <div class="p-6">
+                <label class="block text-sm font-medium text-slate-700 mb-1">Nombre *</label>
+                <input type="text" id="nueva-empresa" placeholder="Ej: Textiles del Norte" 
+                    class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+            </div>
+            <div class="px-6 py-4 bg-slate-50 rounded-b-2xl flex gap-3 justify-end">
+                <button onclick="cerrarModalEmpresa()" class="px-4 py-2 text-slate-600 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors font-medium">
+                    Cancelar
+                </button>
+                <button onclick="guardarEmpresa()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium">
+                    Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Nuevo Color -->
+    <div id="modal-color" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden modal-overlay">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm modal-content">
+            <div class="px-6 py-4 border-b border-slate-200">
+                <h3 class="text-lg font-semibold text-slate-800">Nuevo Color</h3>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Nombre *</label>
+                    <input type="text" id="nuevo-color-nombre" placeholder="Ej: Azul Marino" 
+                        class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Color Visual</label>
+                    <input type="color" id="nuevo-color-visual" value="#3b82f6" 
+                        class="w-full h-10 border border-slate-300 rounded-lg cursor-pointer">
+                </div>
+            </div>
+            <div class="px-6 py-4 bg-slate-50 rounded-b-2xl flex gap-3 justify-end">
+                <button onclick="cerrarModalColor()" class="px-4 py-2 text-slate-600 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors font-medium">
+                    Cancelar
+                </button>
+                <button onclick="guardarColor()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium">
+                    Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Nuevo Tipo de Tela -->
+    <div id="modal-tipo-tela" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden modal-overlay">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm modal-content">
+            <div class="px-6 py-4 border-b border-slate-200">
+                <h3 class="text-lg font-semibold text-slate-800">Nuevo Tipo de Tela</h3>
+            </div>
+            <div class="p-6">
+                <label class="block text-sm font-medium text-slate-700 mb-1">Nombre *</label>
+                <input type="text" id="nuevo-tipo-tela" placeholder="Ej: Piel de Sirena, Razo, Magitex" 
+                    class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+                <p class="text-xs text-slate-500 mt-2">Ejemplos: Piel de Sirena, Razo, Magitex, Crepé, Chifón, Satén</p>
+            </div>
+            <div class="px-6 py-4 bg-slate-50 rounded-b-2xl flex gap-3 justify-end">
+                <button onclick="cerrarModalTipoTela()" class="px-4 py-2 text-slate-600 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors font-medium">
+                    Cancelar
+                </button>
+                <button onclick="guardarTipoTela()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium">
+                    Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== DATOS ====================
+        let rollos = [];
+        let empresas = ['Textiles del Norte', 'Telas Premium', 'Fabrica Central', 'Textiles Sur'];
+        let sucursales = [
+            { nombre: 'Sucursal Central', color: '#3b82f6' },
+            { nombre: 'Sucursal Norte', color: '#10b981' },
+            { nombre: 'Sucursal Sur', color: '#f59e0b' },
+            { nombre: 'Bodega Principal', color: '#8b5cf6' }
+        ];
+        let colores = [
+            { nombre: 'Azul Marino', hex: '#1e3a5f' },
+            { nombre: 'Rojo Escarlata', hex: '#dc2626' },
+            { nombre: 'Verde Bosque', hex: '#166534' },
+            { nombre: 'Negro', hex: '#171717' },
+            { nombre: 'Blanco', hex: '#f5f5f5' },
+            { nombre: 'Gris Piedra', hex: '#6b7280' },
+            { nombre: 'Beige Arena', hex: '#d4b896' },
+            { nombre: 'Violeta', hex: '#7c3aed' }
+        ];
+        let tiposTela = [
+            'Piel de Sirena',
+            'Razo',
+            'Magitex',
+            'Crepé',
+            'Chifón',
+            'Seda Artificial',
+            'Satén',
+            'Tela Drill',
+            'Lino',
+            'Algodón',
+            'Poliéster',
+            'Jersey',
+            'Franela',
+            'Terciopelo',
+            'Oxford'
+        ];
+
+        let codigosPorEmpresa = {};
+        let rolloAEliminar = null;
+        let grupoActual = null;
+        let rollosSeleccionadosDetalle = new Set();
+        let modoMover = 'asignar';
+
+        // ==================== INICIALIZACIÓN ====================
+        function init() {
+            cargarDatos();
+            renderizarTodo();
+            document.getElementById('rollo-fecha').valueAsDate = new Date();
+        }
+
+        function cargarDatos() {
+            const datosGuardados = localStorage.getItem('inventario_rollos');
+            const empresasGuardadas = localStorage.getItem('inventario_empresas');
+            const sucursalesGuardadas = localStorage.getItem('inventario_sucursales');
+            const coloresGuardados = localStorage.getItem('inventario_colores');
+            const codigosGuardados = localStorage.getItem('inventario_codigos');
+            const tiposTelaGuardados = localStorage.getItem('inventario_tipos_tela');
+
+            if (datosGuardados) rollos = JSON.parse(datosGuardados);
+            if (empresasGuardadas) empresas = JSON.parse(empresasGuardadas);
+            if (sucursalesGuardadas) sucursales = JSON.parse(sucursalesGuardadas);
+            if (coloresGuardados) colores = JSON.parse(coloresGuardados);
+            if (codigosGuardados) codigosPorEmpresa = JSON.parse(codigosGuardados);
+            if (tiposTelaGuardados) tiposTela = JSON.parse(tiposTelaGuardados);
+        }
+
+        function guardarDatos() {
+            localStorage.setItem('inventario_rollos', JSON.stringify(rollos));
+            localStorage.setItem('inventario_empresas', JSON.stringify(empresas));
+            localStorage.setItem('inventario_sucursales', JSON.stringify(sucursales));
+            localStorage.setItem('inventario_colores', JSON.stringify(colores));
+            localStorage.setItem('inventario_codigos', JSON.stringify(codigosPorEmpresa));
+            localStorage.setItem('inventario_tipos_tela', JSON.stringify(tiposTela));
+        }
+
+        function renderizarTodo() {
+            actualizarSelectores();
+            renderizarGrupos();
+            actualizarEstadisticas();
+        }
+
+        // ==================== SELECTORES ====================
+        function actualizarSelectores() {
+            // Filtro de sucursales
+            const filtroSucursal = document.getElementById('filtro-sucursal');
+            filtroSucursal.innerHTML = '<option value="">Todas las sucursales</option>';
+            filtroSucursal.innerHTML += '<option value="__sin__">Sin sucursal</option>';
+            sucursales.forEach(s => {
+                filtroSucursal.innerHTML += `<option value="${s.nombre}">${s.nombre}</option>`;
+            });
+
+            // Filtro de empresas
+            const filtroEmpresa = document.getElementById('filtro-empresa');
+            filtroEmpresa.innerHTML = '<option value="">Todas las empresas</option>';
+            empresas.forEach(e => {
+                filtroEmpresa.innerHTML += `<option value="${e}">${e}</option>`;
+            });
+
+            // Filtro de colores
+            const filtroColor = document.getElementById('filtro-color');
+            filtroColor.innerHTML = '<option value="">Todos los colores</option>';
+            colores.forEach(c => {
+                filtroColor.innerHTML += `<option value="${c.nombre}">${c.nombre}</option>`;
+            });
+
+            // Filtro de tipo de tela
+            const filtroTipoTela = document.getElementById('filtro-tipo-tela');
+            if (filtroTipoTela) {
+                filtroTipoTela.innerHTML = '<option value="">Todos los tipos</option>';
+                tiposTela.forEach(t => {
+                    filtroTipoTela.innerHTML += `<option value="${t}">${t}</option>`;
+                });
+            }
+
+            // Formulario
+            const selectSucursal = document.getElementById('rollo-sucursal');
+            selectSucursal.innerHTML = '<option value="">Sin asignar</option>';
+            sucursales.forEach(s => {
+                selectSucursal.innerHTML += `<option value="${s.nombre}">${s.nombre}</option>`;
+            });
+
+            const selectEmpresa = document.getElementById('rollo-empresa');
+            selectEmpresa.innerHTML = '<option value="">Seleccionar empresa</option>';
+            empresas.forEach(e => {
+                selectEmpresa.innerHTML += `<option value="${e}">${e}</option>`;
+            });
+
+            const selectColor = document.getElementById('rollo-color');
+            selectColor.innerHTML = '<option value="">Seleccionar color</option>';
+            colores.forEach(c => {
+                selectColor.innerHTML += `<option value="${c.nombre}">${c.nombre}</option>`;
+            });
+
+            // Selector de tipo de tela
+            const selectTipoTela = document.getElementById('rollo-tipo-tela');
+            if (selectTipoTela) {
+                selectTipoTela.innerHTML = '<option value="">Seleccionar tipo</option>';
+                tiposTela.forEach(t => {
+                    selectTipoTela.innerHTML += `<option value="${t}">${t}</option>`;
+                });
+            }
+
+            // Modal mover
+            const selectDestino = document.getElementById('mover-destino');
+            selectDestino.innerHTML = '<option value="">Seleccionar sucursal</option>';
+            sucursales.forEach(s => {
+                selectDestino.innerHTML += `<option value="${s.nombre}">${s.nombre}</option>`;
+            });
+        }
+
+        // ==================== AGRUPACIÓN Y RENDERIZADO ====================
+        function getGrupos() {
+            const grupos = {};
+            rollos.forEach(rollo => {
+                const key = `${rollo.color}|${rollo.empresa}|${rollo.codigoColor}|${rollo.tipoTela || ''}`;
+                if (!grupos[key]) {
+                    grupos[key] = {
+                        color: rollo.color,
+                        empresa: rollo.empresa,
+                        codigoColor: rollo.codigoColor,
+                        tipoTela: rollo.tipoTela || '',
+                        rollos: [],
+                        metrajeTotal: 0,
+                        sucursales: new Set()
+                    };
+                }
+                grupos[key].rollos.push(rollo);
+                grupos[key].metrajeTotal += rollo.metraje;
+                if (rollo.sucursal) grupos[key].sucursales.add(rollo.sucursal);
+            });
+            return Object.values(grupos);
+        }
+
+        function renderizarGrupos() {
+            const grupos = getGrupos();
+            const busqueda = document.getElementById('busqueda').value.toLowerCase();
+            const filtroSucursal = document.getElementById('filtro-sucursal').value;
+            const filtroEmpresa = document.getElementById('filtro-empresa').value;
+            const filtroColor = document.getElementById('filtro-color').value;
+            const filtroTipoTela = document.getElementById('filtro-tipo-tela')?.value || '';
+
+            const gruposFiltrados = grupos.filter(grupo => {
+                // Filtrar rollos dentro del grupo según sucursal
+                let rollosFiltradosGrupo = grupo.rollos;
+                if (filtroSucursal === '__sin__') {
+                    rollosFiltradosGrupo = grupo.rollos.filter(r => !r.sucursal);
+                } else if (filtroSucursal) {
+                    rollosFiltradosGrupo = grupo.rollos.filter(r => r.sucursal === filtroSucursal);
+                }
+
+                if (rollosFiltradosGrupo.length === 0) return false;
+
+                const coincideBusqueda = 
+                    grupo.color.toLowerCase().includes(busqueda) ||
+                    grupo.codigoColor.toLowerCase().includes(busqueda) ||
+                    grupo.empresa.toLowerCase().includes(busqueda) ||
+                    (grupo.tipoTela && grupo.tipoTela.toLowerCase().includes(busqueda));
+                const coincideEmpresa = !filtroEmpresa || grupo.empresa === filtroEmpresa;
+                const coincideColor = !filtroColor || grupo.color === filtroColor;
+                const coincideTipoTela = !filtroTipoTela || grupo.tipoTela === filtroTipoTela;
+
+                return coincideBusqueda && coincideEmpresa && coincideColor && coincideTipoTela;
+            });
+
+            const tbody = document.getElementById('tabla-grupos');
+            const sinDatos = document.getElementById('sin-datos');
+
+            if (gruposFiltrados.length === 0) {
+                tbody.innerHTML = '';
+                sinDatos.classList.remove('hidden');
+                return;
+            }
+
+            sinDatos.classList.add('hidden');
+
+            tbody.innerHTML = gruposFiltrados.map(grupo => {
+                const colorData = colores.find(c => c.nombre === grupo.color) || { hex: '#94a3b8' };
+                
+                // Filtrar rollos según filtro de sucursal
+                let rollosMostrar = grupo.rollos;
+                if (filtroSucursal === '__sin__') {
+                    rollosMostrar = grupo.rollos.filter(r => !r.sucursal);
+                } else if (filtroSucursal) {
+                    rollosMostrar = grupo.rollos.filter(r => r.sucursal === filtroSucursal);
+                }
+                
+                const cantidad = rollosMostrar.length;
+                const metraje = rollosMostrar.reduce((acc, r) => acc + r.metraje, 0);
+                
+                // Contar rollos por sucursal (incluyendo sin asignar)
+                const conteoSucursales = {};
+                rollosMostrar.forEach(r => {
+                    const suc = r.sucursal || '__SIN_ASIGNAR__';
+                    conteoSucursales[suc] = (conteoSucursales[suc] || 0) + 1;
+                });
+
+                // Generar badges de sucursales con conteo
+                const sucursalesBadges = Object.entries(conteoSucursales).map(([suc, count]) => {
+                    if (suc === '__SIN_ASIGNAR__') {
+                        return `<span class="sucursal-badge sin-sucursal text-xs">Sin Asignar (${count})</span>`;
+                    } else {
+                        const sData = sucursales.find(x => x.nombre === suc);
+                        return `<span class="sucursal-badge text-white text-xs" style="background-color: ${sData?.color || '#6b7280'}">${suc} (${count})</span>`;
+                    }
+                }).join('');
+
+                return `
+                    <tr class="grupo-row border-b border-slate-100" onclick="abrirDetalleGrupo('${grupo.color}', '${grupo.empresa}', '${grupo.codigoColor}', '${grupo.tipoTela}')">
+                        <td class="px-4 py-4">
+                            <span class="font-medium text-slate-800">${grupo.tipoTela || '-'}</span>
+                        </td>
+                        <td class="px-4 py-4">
+                            <div class="flex items-center gap-3">
+                                <span class="color-preview" style="background-color: ${colorData.hex}"></span>
+                                <span class="font-medium text-slate-800">${grupo.color}</span>
+                            </div>
+                        </td>
+                        <td class="px-4 py-4">
+                            <code class="px-2 py-1 bg-slate-100 text-slate-700 rounded text-sm font-mono">${grupo.codigoColor}</code>
+                        </td>
+                        <td class="px-4 py-4 text-slate-600">${grupo.empresa}</td>
+                        <td class="px-4 py-4 text-center">
+                            <span class="inline-flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 text-blue-700 font-bold text-lg">${cantidad}</span>
+                        </td>
+                        <td class="px-4 py-4 text-center font-semibold text-slate-800">${metraje.toFixed(2)} m</td>
+                        <td class="px-4 py-4">
+                            <div class="flex flex-wrap gap-1">
+                                ${sucursalesBadges}
+                            </div>
+                        </td>
+                        <td class="px-4 py-4 text-center">
+                            <button onclick="event.stopPropagation(); abrirDetalleGrupo('${grupo.color}', '${grupo.empresa}', '${grupo.codigoColor}', '${grupo.tipoTela}')" 
+                                class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Ver detalles">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            document.getElementById('mostrando').textContent = gruposFiltrados.length;
+        }
+
+        function filtrarGrupos() {
+            renderizarGrupos();
+        }
+
+        // ==================== ESTADÍSTICAS ====================
+        function actualizarEstadisticas() {
+            document.getElementById('stat-rollos').textContent = rollos.length;
+            document.getElementById('stat-metraje').textContent = rollos.reduce((acc, r) => acc + r.metraje, 0).toFixed(2) + ' m';
+            document.getElementById('stat-empresas').textContent = [...new Set(rollos.map(r => r.empresa))].length;
+            document.getElementById('stat-sucursales').textContent = [...new Set(rollos.map(r => r.sucursal).filter(s => s))].length;
+            document.getElementById('stat-colores').textContent = [...new Set(rollos.map(r => r.color))].length;
+        }
+
+        // ==================== MODAL DETALLE GRUPO ====================
+        function abrirDetalleGrupo(color, empresa, codigoColor, tipoTela = '') {
+            grupoActual = { color, empresa, codigoColor, tipoTela };
+            rollosSeleccionadosDetalle.clear();
+
+            const rollosGrupo = rollos.filter(r => 
+                r.color === color && r.empresa === empresa && r.codigoColor === codigoColor && (r.tipoTela || '') === tipoTela
+            );
+
+            const colorData = colores.find(c => c.nombre === color) || { hex: '#94a3b8' };
+            
+            document.getElementById('detalle-color-preview').style.backgroundColor = colorData.hex;
+            document.getElementById('detalle-titulo').textContent = `${color}`;
+            document.getElementById('detalle-subtitulo').textContent = `${empresa} • ${codigoColor}${tipoTela ? ` • ${tipoTela}` : ''}`;
+            
+            document.getElementById('detalle-cantidad').textContent = rollosGrupo.length;
+            document.getElementById('detalle-metraje').textContent = rollosGrupo.reduce((acc, r) => acc + r.metraje, 0).toFixed(2) + ' m';
+            document.getElementById('detalle-sucursales').textContent = [...new Set(rollosGrupo.filter(r => r.sucursal).map(r => r.sucursal))].length || '-';
+
+            // Llenar filtro de sucursales
+            const filtroSucursal = document.getElementById('detalle-filtro-sucursal');
+            filtroSucursal.innerHTML = '<option value="">Todas las sucursales</option><option value="__sin__">Sin asignar</option>';
+            sucursales.forEach(s => {
+                filtroSucursal.innerHTML += `<option value="${s.nombre}">${s.nombre}</option>`;
+            });
+            filtroSucursal.value = '';
+
+            renderizarListaRollos(rollosGrupo);
+            actualizarPanelSeleccion();
+            document.getElementById('modal-detalle').classList.remove('hidden');
+        }
+
+        function filtrarRollosDetalle() {
+            if (!grupoActual) return;
+
+            const filtroSucursal = document.getElementById('detalle-filtro-sucursal').value;
+            
+            let rollosGrupo = rollos.filter(r => 
+                r.color === grupoActual.color && 
+                r.empresa === grupoActual.empresa && 
+                r.codigoColor === grupoActual.codigoColor && 
+                (r.tipoTela || '') === grupoActual.tipoTela
+            );
+
+            if (filtroSucursal === '__sin__') {
+                rollosGrupo = rollosGrupo.filter(r => !r.sucursal);
+            } else if (filtroSucursal) {
+                rollosGrupo = rollosGrupo.filter(r => r.sucursal === filtroSucursal);
+            }
+
+            renderizarListaRollos(rollosGrupo);
+        }
+
+        let rolloEditandoId = null;
+
+        function renderizarListaRollos(listaRollos) {
+            const container = document.getElementById('lista-rollos-detalle');
+            
+            container.innerHTML = listaRollos.map(rollo => {
+                const sucursalData = sucursales.find(s => s.nombre === rollo.sucursal);
+                const isSelected = rollosSeleccionadosDetalle.has(rollo.id);
+                const fechaFormateada = rollo.fecha ? new Date(rollo.fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
+                const estaEditando = rolloEditandoId === rollo.id;
+                
+                // Generar opciones del select de sucursales
+                const opcionesSucursal = `<option value="">Sin asignar</option>` + 
+                    sucursales.map(s => `<option value="${s.nombre}" ${rollo.sucursal === s.nombre ? 'selected' : ''}>${s.nombre}</option>`).join('');
+                
+                return `
+                    <div class="rollo-item px-6 py-4 flex items-center gap-4 ${isSelected ? 'selected' : ''}" data-id="${rollo.id}">
+                        <input type="checkbox" class="checkbox-rollo" ${isSelected ? 'checked' : ''} 
+                            onchange="toggleSeleccionDetalle('${rollo.id}')" ${estaEditando ? 'disabled' : ''}>
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="font-medium text-slate-800">${rollo.codigoColor}</span>
+                                <span class="text-slate-400">•</span>
+                                <span class="badge-stock ${getEstadoStockClass(rollo.metraje)}">${rollo.metraje.toFixed(2)} m</span>
+                            </div>
+                            <div class="flex items-center gap-3 text-sm text-slate-500">
+                                <span>📅 ${fechaFormateada}</span>
+                                ${rollo.notas ? `<span>📝 ${rollo.notas}</span>` : ''}
+                            </div>
+                        </div>
+                        <div id="sucursal-container-${rollo.id}">
+                            ${estaEditando 
+                                ? `<select id="select-sucursal-${rollo.id}" class="px-3 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-white min-w-[140px]">${opcionesSucursal}</select>`
+                                : rollo.sucursal 
+                                    ? `<span class="sucursal-badge text-white" style="background-color: ${sucursalData?.color || '#6b7280'}">${rollo.sucursal}</span>`
+                                    : `<span class="sucursal-badge sin-sucursal">Sin asignar</span>`
+                            }
+                        </div>
+                        <div class="flex items-center gap-1">
+                            ${estaEditando 
+                                ? `
+                                    <button onclick="event.stopPropagation(); guardarEdicionSucursal('${rollo.id}')" 
+                                        class="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors" title="Guardar">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                        </svg>
+                                    </button>
+                                    <button onclick="event.stopPropagation(); cancelarEdicionSucursal()" 
+                                        class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" title="Cancelar">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                        </svg>
+                                    </button>
+                                `
+                                : `
+                                    <button onclick="event.stopPropagation(); iniciarEdicionSucursal('${rollo.id}')" 
+                                        class="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Editar sucursal">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                        </svg>
+                                    </button>
+                                    <button onclick="event.stopPropagation(); eliminarRolloDirecto('${rollo.id}')" 
+                                        class="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                        </svg>
+                                    </button>
+                                `
+                            }
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function iniciarEdicionSucursal(id) {
+            rolloEditandoId = id;
+            filtrarRollosDetalle();
+        }
+
+        function cancelarEdicionSucursal() {
+            rolloEditandoId = null;
+            filtrarRollosDetalle();
+        }
+
+        function guardarEdicionSucursal(id) {
+            const nuevaSucursal = document.getElementById(`select-sucursal-${id}`).value;
+            const rollo = rollos.find(r => r.id === id);
+            
+            if (rollo) {
+                const origen = rollo.sucursal;
+                rollo.sucursal = nuevaSucursal;
+                
+                if (!rollo.historial) rollo.historial = [];
+                rollo.historial.push({
+                    tipo: 'edicion',
+                    sucursalOrigen: origen || 'Sin sucursal',
+                    sucursalDestino: nuevaSucursal || 'Sin sucursal',
+                    fecha: new Date().toISOString()
+                });
+                
+                guardarDatos();
+            }
+            
+            rolloEditandoId = null;
+            filtrarRollosDetalle();
+            renderizarGrupos();
+            actualizarEstadisticas();
+        }
+
+        function getEstadoStockClass(metraje) {
+            if (metraje >= 50) return 'stock-alto';
+            if (metraje >= 20) return 'stock-medio';
+            return 'stock-bajo';
+        }
+
+        function cerrarModalDetalle() {
+            document.getElementById('modal-detalle').classList.add('hidden');
+            grupoActual = null;
+            rollosSeleccionadosDetalle.clear();
+        }
+
+        // ==================== SELECCIÓN EN DETALLE ====================
+        function toggleSeleccionDetalle(id) {
+            if (rollosSeleccionadosDetalle.has(id)) {
+                rollosSeleccionadosDetalle.delete(id);
+            } else {
+                rollosSeleccionadosDetalle.add(id);
+            }
+            actualizarPanelSeleccion();
+            
+            // Actualizar visual
+            const item = document.querySelector(`.rollo-item[data-id="${id}"]`);
+            if (item) {
+                item.classList.toggle('selected', rollosSeleccionadosDetalle.has(id));
+                item.querySelector('.checkbox-rollo').checked = rollosSeleccionadosDetalle.has(id);
+            }
+        }
+
+        function actualizarPanelSeleccion() {
+            const panel = document.getElementById('panel-seleccion');
+            const count = rollosSeleccionadosDetalle.size;
+            
+            document.getElementById('seleccionados-count').textContent = count;
+            
+            let metrajeTotal = 0;
+            rollosSeleccionadosDetalle.forEach(id => {
+                const r = rollos.find(x => x.id === id);
+                if (r) metrajeTotal += r.metraje;
+            });
+            document.getElementById('seleccionados-metraje').textContent = metrajeTotal.toFixed(2);
+            
+            if (count > 0) {
+                panel.classList.remove('hidden');
+            } else {
+                panel.classList.add('hidden');
+            }
+        }
+
+        function limpiarSeleccionDetalle() {
+            rollosSeleccionadosDetalle.clear();
+            actualizarPanelSeleccion();
+            document.querySelectorAll('.rollo-item').forEach(item => {
+                item.classList.remove('selected');
+                item.querySelector('.checkbox-rollo').checked = false;
+            });
+        }
+
+        // ==================== MODAL MOVER (ASIGNAR/TRASPASAR) ====================
+        function abrirAsignacionDesdeDetalle() {
+            if (rollosSeleccionadosDetalle.size === 0) {
+                alert('Selecciona al menos un rollo');
+                return;
+            }
+            modoMover = 'asignar';
+            prepararModalMover();
+        }
+
+        function abrirTraspasoDesdeDetalle() {
+            if (rollosSeleccionadosDetalle.size === 0) {
+                alert('Selecciona al menos un rollo');
+                return;
+            }
+            
+            // Verificar misma sucursal
+            const rollosSel = rollos.filter(r => rollosSeleccionadosDetalle.has(r.id));
+            const sucursalesOrigen = [...new Set(rollosSel.map(r => r.sucursal || ''))];
+            
+            if (sucursalesOrigen.length > 1) {
+                alert('Solo puedes traspasar rollos de la misma sucursal');
+                return;
+            }
+            
+            modoMover = 'traspasar';
+            prepararModalMover();
+        }
+
+        function prepararModalMover() {
+            const rollosSel = rollos.filter(r => rollosSeleccionadosDetalle.has(r.id));
+            const metrajeTotal = rollosSel.reduce((acc, r) => acc + r.metraje, 0);
+            const sucursalOrigen = rollosSel[0]?.sucursal || '';
+            const sucursalesOrigen = [...new Set(rollosSel.map(r => r.sucursal || ''))];
+
+            document.getElementById('mover-titulo').textContent = modoMover === 'asignar' ? 'Asignar a Sucursal' : 'Traspasar Rollos';
+            document.getElementById('mover-count').textContent = rollosSel.length;
+            document.getElementById('mover-metraje').textContent = metrajeTotal.toFixed(2);
+            
+            // Mostrar/ocultar origen
+            const origenContainer = document.getElementById('mover-origen-container');
+            if (modoMover === 'traspasar') {
+                origenContainer.classList.remove('hidden');
+                document.getElementById('mover-origen').textContent = sucursalOrigen || 'Sin sucursal';
+                
+                // Actualizar select de destino
+                const selectDestino = document.getElementById('mover-destino');
+                selectDestino.innerHTML = '<option value="">Seleccionar destino</option>';
+                if (sucursalOrigen) {
+                    selectDestino.innerHTML += '<option value="">Sin sucursal</option>';
+                }
+                sucursales.forEach(s => {
+                    if (s.nombre !== sucursalOrigen) {
+                        selectDestino.innerHTML += `<option value="${s.nombre}">${s.nombre}</option>`;
+                    }
+                });
+            } else {
+                origenContainer.classList.add('hidden');
+                const selectDestino = document.getElementById('mover-destino');
+                selectDestino.innerHTML = '<option value="">Seleccionar sucursal</option>';
+                sucursales.forEach(s => {
+                    selectDestino.innerHTML += `<option value="${s.nombre}">${s.nombre}</option>`;
+                });
+            }
+            
+            document.getElementById('mover-destino').value = '';
+            document.getElementById('modal-mover').classList.remove('hidden');
+        }
+
+        function cerrarModalMover() {
+            document.getElementById('modal-mover').classList.add('hidden');
+        }
+
+        function confirmarMover() {
+            const destino = document.getElementById('mover-destino').value;
+            
+            if (!destino && modoMover === 'asignar') {
+                alert('Selecciona una sucursal destino');
+                return;
+            }
+
+            rollosSeleccionadosDetalle.forEach(id => {
+                const rollo = rollos.find(r => r.id === id);
+                if (rollo) {
+                    const origen = rollo.sucursal;
+                    rollo.sucursal = destino;
+                    
+                    if (!rollo.historial) rollo.historial = [];
+                    rollo.historial.push({
+                        tipo: modoMover,
+                        sucursalOrigen: origen || 'Sin sucursal',
+                        sucursalDestino: destino || 'Sin sucursal',
+                        fecha: new Date().toISOString()
+                    });
+                }
+            });
+
+            guardarDatos();
+            limpiarSeleccionDetalle();
+            cerrarModalMover();
+            
+            // Actualizar vista
+            if (grupoActual) {
+                const rollosGrupo = rollos.filter(r => 
+                    r.color === grupoActual.color && 
+                    r.empresa === grupoActual.empresa && 
+                    r.codigoColor === grupoActual.codigoColor
+                );
+                renderizarListaRollos(rollosGrupo);
+                actualizarPanelSeleccion();
+            }
+            
+            renderizarGrupos();
+            actualizarEstadisticas();
+        }
+
+        // ==================== MODAL NUEVO ROLLO ====================
+        function abrirModalNuevoRollo() {
+            document.getElementById('form-rollo').reset();
+            document.getElementById('rollo-cantidad').value = 1;
+            document.getElementById('rollo-fecha').valueAsDate = new Date();
+            actualizarVistaPrevia();
+            document.getElementById('modal-nuevo-rollo').classList.remove('hidden');
+        }
+
+        function cerrarModalNuevoRollo() {
+            document.getElementById('modal-nuevo-rollo').classList.add('hidden');
+        }
+
+        function actualizarVistaPrevia() {
+            const cantidad = parseInt(document.getElementById('rollo-cantidad').value) || 1;
+            const metraje = parseFloat(document.getElementById('rollo-metraje').value) || 0;
+            document.getElementById('preview-cantidad').textContent = cantidad;
+            document.getElementById('preview-metraje').textContent = (cantidad * metraje).toFixed(2);
+        }
+
+        function actualizarCodigoColor() {
+            const empresa = document.getElementById('rollo-empresa').value;
+            const color = document.getElementById('rollo-color').value;
+            if (empresa && color) {
+                const key = `${empresa}_${color}`;
+                if (codigosPorEmpresa[key]) {
+                    document.getElementById('rollo-codigo').value = codigosPorEmpresa[key];
+                }
+            }
+        }
+
+        function guardarRollo() {
+            const sucursal = document.getElementById('rollo-sucursal').value;
+            const empresa = document.getElementById('rollo-empresa').value;
+            const color = document.getElementById('rollo-color').value;
+            const codigoColor = document.getElementById('rollo-codigo').value.trim().toUpperCase();
+            const tipoTela = document.getElementById('rollo-tipo-tela')?.value || '';
+            const metraje = parseFloat(document.getElementById('rollo-metraje').value) || 0;
+            const fecha = document.getElementById('rollo-fecha').value;
+            const notas = document.getElementById('rollo-notas').value.trim();
+            const cantidad = parseInt(document.getElementById('rollo-cantidad').value) || 1;
+
+            if (!empresa || !color || !codigoColor || metraje <= 0) {
+                alert('Completa todos los campos requeridos');
+                return;
+            }
+
+            const key = `${empresa}_${color}`;
+            codigosPorEmpresa[key] = codigoColor;
+
+            for (let i = 0; i < cantidad; i++) {
+                rollos.push({
+                    id: generarId(),
+                    sucursal,
+                    empresa,
+                    color,
+                    codigoColor,
+                    tipoTela,
+                    metraje,
+                    fecha,
+                    notas,
+                    fechaCreacion: new Date().toISOString()
+                });
+            }
+
+            guardarDatos();
+            renderizarTodo();
+            cerrarModalNuevoRollo();
+        }
+
+        function generarId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        }
+
+        // ==================== ELIMINAR ====================
+        function eliminarRolloDirecto(id) {
+            rolloAEliminar = id;
+            const r = rollos.find(x => x.id === id);
+            document.getElementById('eliminar-info').innerHTML = 
+                `<strong>${r.color}</strong> - ${r.codigoColor}<br>
+                <span class="text-sm">${r.metraje.toFixed(2)}m | ${r.sucursal || 'Sin sucursal'}</span>`;
+            document.getElementById('modal-eliminar').classList.remove('hidden');
+        }
+
+        function cerrarModalEliminar() {
+            document.getElementById('modal-eliminar').classList.add('hidden');
+            rolloAEliminar = null;
+        }
+
+        function confirmarEliminar() {
+            if (rolloAEliminar) {
+                rollos = rollos.filter(r => r.id !== rolloAEliminar);
+                rollosSeleccionadosDetalle.delete(rolloAEliminar);
+                guardarDatos();
+                
+                // Actualizar modal detalle si está abierto
+                if (grupoActual) {
+                    const rollosGrupo = rollos.filter(r => 
+                        r.color === grupoActual.color && 
+                        r.empresa === grupoActual.empresa && 
+                        r.codigoColor === grupoActual.codigoColor
+                    );
+                    
+                    if (rollosGrupo.length === 0) {
+                        cerrarModalDetalle();
+                    } else {
+                        renderizarListaRollos(rollosGrupo);
+                        actualizarPanelSeleccion();
+                        
+                        // Actualizar resumen
+                        document.getElementById('detalle-cantidad').textContent = rollosGrupo.length;
+                        document.getElementById('detalle-metraje').textContent = rollosGrupo.reduce((acc, r) => acc + r.metraje, 0).toFixed(2) + ' m';
+                    }
+                }
+                
+                renderizarGrupos();
+                actualizarEstadisticas();
+            }
+            cerrarModalEliminar();
+        }
+
+        // ==================== GESTIÓN DE CATÁLOGOS ====================
+        function abrirModalSucursal() {
+            document.getElementById('nueva-sucursal').value = '';
+            document.getElementById('nueva-sucursal-color').value = '#3b82f6';
+            document.getElementById('modal-sucursal').classList.remove('hidden');
+        }
+        function cerrarModalSucursal() {
+            document.getElementById('modal-sucursal').classList.add('hidden');
+        }
+        function guardarSucursal() {
+            const nombre = document.getElementById('nueva-sucursal').value.trim();
+            const color = document.getElementById('nueva-sucursal-color').value;
+            if (!nombre) { alert('Ingresa el nombre'); return; }
+            if (sucursales.find(s => s.nombre.toLowerCase() === nombre.toLowerCase())) {
+                alert('Ya existe'); return;
+            }
+            sucursales.push({ nombre, color });
+            guardarDatos();
+            actualizarSelectores();
+            document.getElementById('rollo-sucursal').value = nombre;
+            cerrarModalSucursal();
+        }
+
+        function abrirModalEmpresa() {
+            document.getElementById('nueva-empresa').value = '';
+            document.getElementById('modal-empresa').classList.remove('hidden');
+        }
+        function cerrarModalEmpresa() {
+            document.getElementById('modal-empresa').classList.add('hidden');
+        }
+        function guardarEmpresa() {
+            const nombre = document.getElementById('nueva-empresa').value.trim();
+            if (!nombre) { alert('Ingresa el nombre'); return; }
+            if (empresas.includes(nombre)) { alert('Ya existe'); return; }
+            empresas.push(nombre);
+            guardarDatos();
+            actualizarSelectores();
+            document.getElementById('rollo-empresa').value = nombre;
+            cerrarModalEmpresa();
+        }
+
+        function abrirModalColor() {
+            document.getElementById('nuevo-color-nombre').value = '';
+            document.getElementById('nuevo-color-visual').value = '#3b82f6';
+            document.getElementById('modal-color').classList.remove('hidden');
+        }
+        function cerrarModalColor() {
+            document.getElementById('modal-color').classList.add('hidden');
+        }
+        function guardarColor() {
+            const nombre = document.getElementById('nuevo-color-nombre').value.trim();
+            const hex = document.getElementById('nuevo-color-visual').value;
+            if (!nombre) { alert('Ingresa el nombre'); return; }
+            if (colores.find(c => c.nombre.toLowerCase() === nombre.toLowerCase())) {
+                alert('Ya existe'); return;
+            }
+            colores.push({ nombre, hex });
+            guardarDatos();
+            actualizarSelectores();
+            document.getElementById('rollo-color').value = nombre;
+            cerrarModalColor();
+        }
+
+        // Tipo de Tela
+        function abrirModalTipoTela() {
+            document.getElementById('nuevo-tipo-tela').value = '';
+            document.getElementById('modal-tipo-tela').classList.remove('hidden');
+        }
+        function cerrarModalTipoTela() {
+            document.getElementById('modal-tipo-tela').classList.add('hidden');
+        }
+        function guardarTipoTela() {
+            const nombre = document.getElementById('nuevo-tipo-tela').value.trim();
+            if (!nombre) { alert('Ingresa el nombre'); return; }
+            if (tiposTela.find(t => t.toLowerCase() === nombre.toLowerCase())) {
+                alert('Ya existe'); return;
+            }
+            tiposTela.push(nombre);
+            guardarDatos();
+            actualizarSelectores();
+            document.getElementById('rollo-tipo-tela').value = nombre;
+            cerrarModalTipoTela();
+        }
+
+        // ==================== INICIAR ====================
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
