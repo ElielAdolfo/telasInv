@@ -6,8 +6,11 @@ import 'firebase_options.dart';
 
 import 'package:inv_telas/services/seed_service.dart';
 
-void main() {
+import 'package:intl/date_symbol_data_local.dart';
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('es', null);
   runApp(const ProviderScope(child: MyApp()));
 }
 
