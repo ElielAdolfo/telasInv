@@ -101,8 +101,13 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:inv_telas/screens/homeScreen.dart';
 import 'firebase_options.dart';
 
-void main() {
+import 'package:inv_telas/services/seed_service.dart';
+
+import 'package:intl/date_symbol_data_local.dart';
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('es', null);
   runApp(const ProviderScope(child: MyApp()));
 }
 
@@ -111,9 +116,14 @@ class MyApp extends StatelessWidget {
 
   // 🔥 Creamos el Future de inicialización
   Future<FirebaseApp> _initializeFirebase() async {
-    return await Firebase.initializeApp(
+    final app = await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+
+    // 🔥 Ejecuta precarga elimar esto para que no precarge datos
+    await SeedService().initialize();
+
+    return app;
   }
 
   @override
@@ -156,12 +166,39 @@ class MyApp extends StatelessWidget {
 }
 
 
+===== D:\inv\inv_telas\lib\config\seed_config.dart =====
+
+class SeedConfig {
+  /// ðŸ”¥ CAMBIAR A false PARA DESACTIVAR PRECARGA
+  static const bool enableSeedData = true;
+}
+
+
 ===== D:\inv\inv_telas\lib\models\catalogos.dart =====
 
 class Empresa { final String id; final String nombre; final DateTime? fechaCreacion; Empresa({required this.id, required this.nombre, this.fechaCreacion}); factory Empresa.fromJson(Map<String, dynamic> json) => Empresa(id: json['id'] ?? '', nombre: json['nombre'] ?? '', fechaCreacion: json['fechaCreacion'] != null ? DateTime.parse(json['fechaCreacion']) : null); Map<String, dynamic> toJson() => {'id': id, 'nombre': nombre, 'fechaCreacion': fechaCreacion?.toIso8601String()}; }
 class Sucursal { final String id; final String nombre; final String color; final DateTime? fechaCreacion; Sucursal({required this.id, required this.nombre, this.color = '#3b82f6', this.fechaCreacion}); factory Sucursal.fromJson(Map<String, dynamic> json) => Sucursal(id: json['id'] ?? '', nombre: json['nombre'] ?? '', color: json['color'] ?? '#3b82f6', fechaCreacion: json['fechaCreacion'] != null ? DateTime.parse(json['fechaCreacion']) : null); Map<String, dynamic> toJson() => {'id': id, 'nombre': nombre, 'color': color, 'fechaCreacion': fechaCreacion?.toIso8601String()}; }
 class ColorTela { final String id; final String nombre; final String hex; final DateTime? fechaCreacion; ColorTela({required this.id, required this.nombre, this.hex = '#3b82f6', this.fechaCreacion}); factory ColorTela.fromJson(Map<String, dynamic> json) => ColorTela(id: json['id'] ?? '', nombre: json['nombre'] ?? '', hex: json['hex'] ?? '#3b82f6', fechaCreacion: json['fechaCreacion'] != null ? DateTime.parse(json['fechaCreacion']) : null); Map<String, dynamic> toJson() => {'id': id, 'nombre': nombre, 'hex': hex, 'fechaCreacion': fechaCreacion?.toIso8601String()}; }
 class TipoTela { final String id; final String nombre; final DateTime? fechaCreacion; TipoTela({required this.id, required this.nombre, this.fechaCreacion}); factory TipoTela.fromJson(Map<String, dynamic> json) => TipoTela(id: json['id'] ?? '', nombre: json['nombre'] ?? '', fechaCreacion: json['fechaCreacion'] != null ? DateTime.parse(json['fechaCreacion']) : null); Map<String, dynamic> toJson() => {'id': id, 'nombre': nombre, 'fechaCreacion': fechaCreacion?.toIso8601String()}; }
+
+
+===== D:\inv\inv_telas\lib\models\filtros_model.dart =====
+
+class FiltrosModel {
+  final String busqueda;
+  final String sucursal;
+  final String empresa;
+  final String color;
+  final String tipoTela;
+
+  const FiltrosModel({
+    this.busqueda = '',
+    this.sucursal = '',
+    this.empresa = '',
+    this.color = '',
+    this.tipoTela = '',
+  });
+}
 
 
 ===== D:\inv\inv_telas\lib\models\models.dart =====
@@ -211,17 +248,77 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:inv_telas/models/models.dart';
 import 'package:inv_telas/services/services.dart';
 
+// --- SERVICES ---
 final rolloServiceProvider = Provider<RolloService>((ref) => RolloService());
+final catalogServiceProvider = Provider<CatalogService>(
+  (ref) => CatalogService(),
+);
+
+// --- CATALOGS STATE ---
+final empresasProvider =
+    StateNotifierProvider<CatalogNotifier<Empresa>, List<Empresa>>((ref) {
+      return CatalogNotifier<Empresa>(
+        ref.watch(catalogServiceProvider),
+        (s) => s.getEmpresas(),
+      );
+    });
+
+final sucursalesProvider =
+    StateNotifierProvider<CatalogNotifier<Sucursal>, List<Sucursal>>((ref) {
+      return CatalogNotifier<Sucursal>(
+        ref.watch(catalogServiceProvider),
+        (s) => s.getSucursales(),
+      );
+    });
+
+final coloresProvider =
+    StateNotifierProvider<CatalogNotifier<ColorTela>, List<ColorTela>>((ref) {
+      return CatalogNotifier<ColorTela>(
+        ref.watch(catalogServiceProvider),
+        (s) => s.getColores(),
+      );
+    });
+
+final tiposTelaProvider =
+    StateNotifierProvider<CatalogNotifier<TipoTela>, List<TipoTela>>((ref) {
+      return CatalogNotifier<TipoTela>(
+        ref.watch(catalogServiceProvider),
+        (s) => s.getTiposTela(),
+      );
+    });
+
+// Generic Catalog Notifier
+class CatalogNotifier<T> extends StateNotifier<List<T>> {
+  final CatalogService _service;
+  final Future<List<T>> Function(CatalogService) _fetcher;
+
+  CatalogNotifier(this._service, this._fetcher) : super([]) {
+    load();
+  }
+
+  Future<void> load() async {
+    state = await _fetcher(_service);
+  }
+
+  // Método genérico para agregar (se asume que el modelo tiene id y toJson)
+  Future<void> add(dynamic item, Future<void> Function() serviceAdd) async {
+    await serviceAdd();
+    await load();
+  }
+}
+
+// --- ROLLOS STATE ---
 final rollosProvider =
-    StateNotifierProvider<RollosNotifier, AsyncValue<List<Rollo>>>(
-      (ref) => RollosNotifier(ref.watch(rolloServiceProvider)),
-    );
+    StateNotifierProvider<RollosNotifier, AsyncValue<List<Rollo>>>((ref) {
+      return RollosNotifier(ref.watch(rolloServiceProvider));
+    });
 
 class RollosNotifier extends StateNotifier<AsyncValue<List<Rollo>>> {
   final RolloService _service;
   RollosNotifier(this._service) : super(const AsyncValue.loading()) {
     _load();
   }
+
   Future<void> _load() async {
     try {
       print("🔄 Intentando conectar a Firebase...");
@@ -242,6 +339,7 @@ class RollosNotifier extends StateNotifier<AsyncValue<List<Rollo>>> {
   }
 
   Future<void> refresh() async => await _load();
+
   Future<bool> crearRollos(List<Rollo> rollos) async {
     try {
       await _service.createRollos(rollos);
@@ -275,21 +373,36 @@ class RollosNotifier extends StateNotifier<AsyncValue<List<Rollo>>> {
       return false;
     }
   }
+
+  Future<bool> actualizarMetraje(String id, double metraje) async {
+    try {
+      await _service.updateMetraje(id, metraje);
+      await refresh();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 }
 
+// --- ESTADÍSTICAS ---
 final estadisticasProvider = Provider<Map<String, dynamic>>((ref) {
   final rollosState = ref.watch(rollosProvider);
   return rollosState.when(
-    data: (rollos) => {
-      'totalRollos': rollos.length,
-      'metrajeTotal': rollos.fold<double>(0, (s, r) => s + r.metraje),
-      'empresas': rollos.map((r) => r.empresa).toSet().length,
-      'sucursales': rollos
+    data: (rollos) {
+      final setEmpresas = rollos.map((r) => r.empresa).toSet();
+      final setSucursales = rollos
           .where((r) => r.sucursal != null)
           .map((r) => r.sucursal!)
-          .toSet()
-          .length,
-      'colores': rollos.map((r) => r.color).toSet().length,
+          .toSet();
+
+      return {
+        'totalRollos': rollos.length,
+        'metrajeTotal': rollos.fold<double>(0, (s, r) => s + r.metraje),
+        'empresas': setEmpresas.length,
+        'sucursales': setSucursales.length,
+        'colores': rollos.map((r) => r.color).toSet().length,
+      };
     },
     loading: () => {
       'totalRollos': 0,
@@ -313,12 +426,11 @@ final estadisticasProvider = Provider<Map<String, dynamic>>((ref) {
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import 'package:inv_telas/utils/constants.dart';
-import 'package:inv_telas/providers/providers.dart';
-import 'package:inv_telas/widgets/widgets.dart';
 import 'package:inv_telas/models/models.dart';
-import 'package:inv_telas/utils/helpers.dart';
+import 'package:inv_telas/providers/providers.dart';
+import 'package:inv_telas/utils/utils.dart';
+import 'package:inv_telas/widgets/widgets.dart';
+import 'package:collection/collection.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -328,145 +440,240 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  bool _isLoading = false;
-
-  final _empresaController = TextEditingController();
-  final _colorController = TextEditingController();
-  final _metrajeController = TextEditingController();
+  // Estado de filtros
+  String _busqueda = '';
+  String _filtroSucursal = '';
+  String _filtroEmpresa = '';
+  String _filtroColor = '';
+  String _filtroTipoTela = '';
 
   @override
   Widget build(BuildContext context) {
     final rollosState = ref.watch(rollosProvider);
+    final stats = ref.watch(estadisticasProvider);
 
-    return Stack(
-      children: [
-        Scaffold(
-          appBar: AppBar(title: const Text('Inventario de Rollos de Tela')),
-          body: rollosState.when(
-            data: (rollos) {
-              if (rollos.isEmpty) {
-                return const Center(child: Text("No hay rollos"));
-              }
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: _buildAppBar(),
+      body: rollosState.when(
+        data: (rollos) {
+          final rollosFiltrados = _filtrarRollos(rollos);
+          final grupos = _agruparRollos(rollosFiltrados);
 
-              return ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: rollos.length,
-                itemBuilder: (context, index) {
-                  final rollo = rollos[index];
-
-                  return Card(
-                    child: ListTile(
-                      title: Text(rollo.color),
-                      subtitle: Text(
-                        "${rollo.empresa} - ${rollo.metraje} metros",
-                      ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () => _eliminarRollo(rollo),
-                      ),
-                    ),
-                  );
-                },
-              );
-            },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(child: Text("Error: $e")),
-          ),
-          floatingActionButton: FloatingActionButton(
-            onPressed: _nuevoRollo,
-            child: const Icon(Icons.add),
-          ),
-        ),
-        if (_isLoading) const LoadingOverlay(mensaje: "Guardando..."),
-      ],
-    );
-  }
-
-  // ðŸ”¥ ESTE ES EL MODAL PARA CREAR
-  Future<void> _nuevoRollo() async {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Nuevo Rollo"),
-        content: SingleChildScrollView(
-          child: Column(
+          return ListView(
+            padding: const EdgeInsets.all(16),
             children: [
-              TextField(
-                controller: _empresaController,
-                decoration: const InputDecoration(labelText: "Empresa"),
+              HomeStats(stats: stats),
+              const SizedBox(height: 16),
+              HomeFilters(
+                busqueda: _busqueda,
+                filtroSucursal: _filtroSucursal,
+                filtroEmpresa: _filtroEmpresa,
+                filtroColor: _filtroColor,
+                filtroTipoTela: _filtroTipoTela,
+                onBusquedaChanged: (v) => setState(() => _busqueda = v),
+                onSucursalChanged: (v) =>
+                    setState(() => _filtroSucursal = v ?? ''),
+                onEmpresaChanged: (v) =>
+                    setState(() => _filtroEmpresa = v ?? ''),
+                onColorChanged: (v) => setState(() => _filtroColor = v ?? ''),
+                onTipoChanged: (v) => setState(() => _filtroTipoTela = v ?? ''),
               ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _colorController,
-                decoration: const InputDecoration(labelText: "Color"),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _metrajeController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: "Metraje"),
-              ),
+              const SizedBox(height: 16),
+              _buildListaGrupos(grupos),
             ],
-          ),
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text("Error: $e")),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => const NewRolloDialog(),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancelar"),
-          ),
-          ElevatedButton(
-            onPressed: _guardarRollo,
-            child: const Text("Guardar"),
-          ),
-        ],
+        backgroundColor: AppColors.primary,
+        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
 
-  // ðŸ”¥ GUARDA EN FIRESTORE
-  Future<void> _guardarRollo() async {
-    final empresa = _empresaController.text.trim();
-    final color = _colorController.text.trim();
-    final metraje = double.tryParse(_metrajeController.text.trim()) ?? 0;
+  AppBar _buildAppBar() {
+    return AppBar(
+      title: const Text(
+        'Inventario de Rollos de Tela',
+        style: AppTextStyles.heading2,
+      ),
+      centerTitle: false,
+      backgroundColor: Colors.white,
+      elevation: 1,
+      shadowColor: Colors.grey[200],
+    );
+  }
 
-    if (empresa.isEmpty || color.isEmpty || metraje <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Complete todos los campos correctamente"),
+  Widget _buildListaGrupos(List<Map<String, dynamic>> grupos) {
+    if (grupos.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(40),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Center(
+          child: Text("No hay rollos que coincidan con los filtros."),
         ),
       );
-      return;
     }
 
-    Navigator.pop(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: grupos.length,
+        separatorBuilder: (_, __) => const Divider(height: 1),
+        itemBuilder: (context, index) {
+          final grupo = grupos[index];
+          return GroupListTile(
+            grupo: grupo,
+            onTap: () => showDialog(
+              context: context,
+              builder: (_) => GroupDetailDialog(grupo: grupo),
+            ),
+          );
+        },
+      ),
+    );
+  }
 
-    setState(() => _isLoading = true);
+  // --- LOGICA DE NEGOCIO ---
 
-    final nuevoRollo = Rollo(
-      id: Helpers.generarId(),
-      empresa: empresa,
-      color: color,
-      codigoColor: "",
-      metraje: metraje,
-      fechaCreacion: DateTime.now(),
+  List<Rollo> _filtrarRollos(List<Rollo> rollos) {
+    return rollos.where((r) {
+      final matchBusqueda =
+          _busqueda.isEmpty ||
+          r.color.toLowerCase().contains(_busqueda.toLowerCase()) ||
+          r.codigoColor.toLowerCase().contains(_busqueda.toLowerCase()) ||
+          r.empresa.toLowerCase().contains(_busqueda.toLowerCase()) ||
+          (r.tipoTela?.toLowerCase().contains(_busqueda.toLowerCase()) ??
+              false);
+
+      final matchSucursal =
+          _filtroSucursal.isEmpty || r.sucursal == _filtroSucursal;
+      final matchEmpresa =
+          _filtroEmpresa.isEmpty || r.empresa == _filtroEmpresa;
+      final matchColor = _filtroColor.isEmpty || r.color == _filtroColor;
+      final matchTipo =
+          _filtroTipoTela.isEmpty || r.tipoTela == _filtroTipoTela;
+
+      return matchBusqueda &&
+          matchSucursal &&
+          matchEmpresa &&
+          matchColor &&
+          matchTipo;
+    }).toList();
+  }
+
+  List<Map<String, dynamic>> _agruparRollos(List<Rollo> rollos) {
+    final map = groupBy(
+      rollos,
+      (Rollo r) =>
+          "${r.color}|${r.empresa}|${r.codigoColor}|${r.tipoTela ?? ''}",
     );
 
-    await ref.read(rollosProvider.notifier).crearRollos([nuevoRollo]);
+    return map.entries.map((entry) {
+      final parts = entry.key.split('|');
+      final listaRollos = entry.value;
 
-    _empresaController.clear();
-    _colorController.clear();
-    _metrajeController.clear();
-
-    setState(() => _isLoading = false);
+      return {
+        'color': parts[0],
+        'empresa': parts[1],
+        'codigoColor': parts[2],
+        'tipoTela': parts[3],
+        'rollos': listaRollos,
+        'cantidad': listaRollos.length,
+        'metrajeTotal': listaRollos.fold<double>(
+          0,
+          (sum, r) => sum + r.metraje,
+        ),
+        'sucursales': listaRollos
+            .where((r) => r.sucursal != null)
+            .map((r) => r.sucursal)
+            .toSet()
+            .toList(),
+      };
+    }).toList();
   }
+}
 
-  Future<void> _eliminarRollo(Rollo rollo) async {
-    setState(() => _isLoading = true);
 
-    await ref.read(rollosProvider.notifier).eliminarRollo(rollo.id);
+===== D:\inv\inv_telas\lib\services\catalog_service.dart =====
 
-    setState(() => _isLoading = false);
-  }
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:inv_telas/models/models.dart';
+import 'firebase_service.dart';
+
+class CatalogService extends FirebaseService {
+  // Colecciones
+  final String _empresasCol = 'catalog_empresas';
+  final String _sucursalesCol = 'catalog_sucursales';
+  final String _coloresCol = 'catalog_colores';
+  final String _tiposCol = 'catalog_tipos_tela';
+
+  // EMPRESAS
+  Future<List<Empresa>> getEmpresas() async => await getAll<Empresa>(
+    collectionPath: _empresasCol,
+    fromJson: Empresa.fromJson,
+    orderBy: 'nombre',
+  );
+
+  Future<void> addEmpresa(Empresa empresa) async => await create(
+    collectionPath: _empresasCol,
+    id: empresa.id,
+    data: empresa.toJson(),
+  );
+
+  // SUCURSALES
+  Future<List<Sucursal>> getSucursales() async => await getAll<Sucursal>(
+    collectionPath: _sucursalesCol,
+    fromJson: Sucursal.fromJson,
+    orderBy: 'nombre',
+  );
+
+  Future<void> addSucursal(Sucursal sucursal) async => await create(
+    collectionPath: _sucursalesCol,
+    id: sucursal.id,
+    data: sucursal.toJson(),
+  );
+
+  // COLORES
+  Future<List<ColorTela>> getColores() async => await getAll<ColorTela>(
+    collectionPath: _coloresCol,
+    fromJson: ColorTela.fromJson,
+    orderBy: 'nombre',
+  );
+
+  Future<void> addColor(ColorTela color) async => await create(
+    collectionPath: _coloresCol,
+    id: color.id,
+    data: color.toJson(),
+  );
+
+  // TIPOS DE TELA
+  Future<List<TipoTela>> getTiposTela() async => await getAll<TipoTela>(
+    collectionPath: _tiposCol,
+    fromJson: TipoTela.fromJson,
+    orderBy: 'nombre',
+  );
+
+  Future<void> addTipoTela(TipoTela tipo) async =>
+      await create(collectionPath: _tiposCol, id: tipo.id, data: tipo.toJson());
 }
 
 
@@ -569,12 +776,92 @@ class RolloService extends FirebaseService {
 
   Future<void> deleteRollo(String id) async =>
       await delete(collectionPath: _collection, id: id);
+
+  Future<void> updateMetraje(String rolloId, double metraje) async {
+    await update(
+      collectionPath: _collection,
+      id: rolloId,
+      data: {'metraje': metraje},
+    );
+  }
+}
+
+
+===== D:\inv\inv_telas\lib\services\seed_service.dart =====
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:inv_telas/models/models.dart';
+import 'package:inv_telas/services/rollo_service.dart';
+import 'package:inv_telas/utils/helpers.dart';
+import '../config/seed_config.dart';
+
+class SeedService {
+  final RolloService _rolloService = RolloService();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  Future<void> initialize() async {
+    if (!SeedConfig.enableSeedData) {
+      print("â›” Precarga desactivada");
+      return;
+    }
+
+    print("ðŸ”Ž Verificando si existen datos en Firebase...");
+
+    final snapshot = await _firestore.collection('rollos').limit(1).get();
+
+    if (snapshot.docs.isNotEmpty) {
+      print("ðŸ“¦ Ya existen datos en Firebase. No se crea nada.");
+      return;
+    }
+
+    print("ðŸš€ No existen datos. Creando datos de ejemplo...");
+
+    final ejemplos = _datosEjemplo();
+
+    await _rolloService.createRollos(ejemplos);
+
+    print("âœ… Datos de ejemplo creados correctamente");
+  }
+
+  List<Rollo> _datosEjemplo() {
+    return [
+      Rollo(
+        id: Helpers.generarId(),
+        empresa: "Textiles Bolivia",
+        color: "Rojo CarmesÃ­",
+        codigoColor: "#B91C1C",
+        tipoTela: "AlgodÃ³n",
+        metraje: 120,
+        fechaCreacion: DateTime.now(),
+      ),
+      Rollo(
+        id: Helpers.generarId(),
+        empresa: "Importadora Andina",
+        color: "Azul Marino",
+        codigoColor: "#1E3A8A",
+        tipoTela: "PoliÃ©ster",
+        metraje: 85,
+        fechaCreacion: DateTime.now(),
+      ),
+      Rollo(
+        id: Helpers.generarId(),
+        empresa: "FÃ¡brica La Paz",
+        color: "Verde Esmeralda",
+        codigoColor: "#065F46",
+        tipoTela: "Lino",
+        metraje: 60,
+        fechaCreacion: DateTime.now(),
+      ),
+    ];
+  }
 }
 
 
 ===== D:\inv\inv_telas\lib\services\services.dart =====
 
-export 'firebase_service.dart'; export 'rollo_service.dart';
+export 'firebase_service.dart';
+export 'rollo_service.dart';
+export 'catalog_service.dart';
 
 
 ===== D:\inv\inv_telas\lib\utils\constants.dart =====
@@ -848,6 +1135,328 @@ class DeleteConfirmDialog extends StatelessWidget {
 }
 
 
+===== D:\inv\inv_telas\lib\widgets\group_list_tile.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/models/models.dart';
+import 'package:inv_telas/providers/providers.dart';
+import 'package:inv_telas/utils/utils.dart';
+
+class GroupListTile extends ConsumerWidget {
+  final Map<String, dynamic> grupo;
+  final VoidCallback onTap;
+
+  const GroupListTile({super.key, required this.grupo, required this.onTap});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colores = ref.watch(coloresProvider);
+    final sucursales = ref.watch(sucursalesProvider);
+
+    final colorHex = colores
+        .firstWhere(
+          (c) => c.nombre == grupo['color'],
+          orElse: () => ColorTela(id: '', nombre: '', hex: '#94a3b8'),
+        )
+        .hex;
+
+    final badges = (grupo['sucursales'] as List).map((s) {
+      final sColor = sucursales
+          .firstWhere(
+            (su) => su.nombre == s,
+            orElse: () => Sucursal(id: '', nombre: '', color: '#6b7280'),
+          )
+          .color;
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: Helpers.hexToColorFlutter(sColor),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text(
+          s,
+          style: const TextStyle(color: Colors.white, fontSize: 10),
+        ),
+      );
+    }).toList();
+
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Helpers.hexToColorFlutter(colorHex),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "${grupo['tipoTela'] ?? 'Sin Tipo'} - ${grupo['color']}",
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    "${grupo['empresa']} â€¢ ${grupo['codigoColor']}",
+                    style: AppTextStyles.caption,
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                "${grupo['cantidad']}",
+                style: const TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            SizedBox(
+              width: 80,
+              child: Text(
+                "${(grupo['metrajeTotal'] as double).toStringAsFixed(1)} m",
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            Expanded(
+              child: Wrap(
+                spacing: 4,
+                runSpacing: 4,
+                children: badges.isEmpty
+                    ? [
+                        const Text(
+                          "Sin asignar",
+                          style: TextStyle(color: Colors.grey, fontSize: 10),
+                        ),
+                      ]
+                    : badges,
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.grey),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+===== D:\inv\inv_telas\lib\widgets\home_filters.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/providers/providers.dart';
+
+class HomeFilters extends ConsumerWidget {
+  final String busqueda;
+  final String filtroSucursal;
+  final String filtroEmpresa;
+  final String filtroColor;
+  final String filtroTipoTela;
+  final ValueChanged<String> onBusquedaChanged;
+  final ValueChanged<String?> onSucursalChanged;
+  final ValueChanged<String?> onEmpresaChanged;
+  final ValueChanged<String?> onColorChanged;
+  final ValueChanged<String?> onTipoChanged;
+
+  const HomeFilters({
+    super.key,
+    required this.busqueda,
+    required this.filtroSucursal,
+    required this.filtroEmpresa,
+    required this.filtroColor,
+    required this.filtroTipoTela,
+    required this.onBusquedaChanged,
+    required this.onSucursalChanged,
+    required this.onEmpresaChanged,
+    required this.onColorChanged,
+    required this.onTipoChanged,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sucursales = ref.watch(sucursalesProvider);
+    final empresas = ref.watch(empresasProvider);
+    final colores = ref.watch(coloresProvider);
+    final tipos = ref.watch(tiposTelaProvider);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        children: [
+          TextField(
+            decoration: InputDecoration(
+              hintText: 'Buscar por color, cÃ³digo, empresa o tipo...',
+              prefixIcon: const Icon(Icons.search),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 0,
+              ),
+              filled: true,
+              fillColor: Colors.grey[50],
+            ),
+            onChanged: onBusquedaChanged,
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _buildDropdown(
+                'Sucursal',
+                filtroSucursal,
+                sucursales.map((e) => e.nombre).toList(),
+                onSucursalChanged,
+              ),
+              _buildDropdown(
+                'Empresa',
+                filtroEmpresa,
+                empresas.map((e) => e.nombre).toList(),
+                onEmpresaChanged,
+              ),
+              _buildDropdown(
+                'Color',
+                filtroColor,
+                colores.map((e) => e.nombre).toList(),
+                onColorChanged,
+              ),
+              _buildDropdown(
+                'Tipo',
+                filtroTipoTela,
+                tipos.map((e) => e.nombre).toList(),
+                onTipoChanged,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDropdown(
+    String label,
+    String value,
+    List<String> items,
+    ValueChanged<String?> onChanged,
+  ) {
+    return SizedBox(
+      width: 150,
+      child: DropdownButtonFormField<String>(
+        value: value.isEmpty ? null : value,
+        isExpanded: true,
+        decoration: InputDecoration(
+          labelText: label,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 0,
+          ),
+          filled: true,
+          fillColor: Colors.grey[50],
+        ),
+        items: [
+          const DropdownMenuItem(value: '', child: Text("Todos")),
+          ...items.map((e) => DropdownMenuItem(value: e, child: Text(e))),
+        ],
+        onChanged: onChanged,
+      ),
+    );
+  }
+}
+
+
+===== D:\inv\inv_telas\lib\widgets\home_stats.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:inv_telas/widgets/stat_card.dart';
+
+class HomeStats extends StatelessWidget {
+  final Map<String, dynamic> stats;
+
+  const HomeStats({super.key, required this.stats});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        int crossAxisCount = constraints.maxWidth > 1100
+            ? 5
+            : (constraints.maxWidth > 600 ? 3 : 2);
+        return GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: crossAxisCount,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 1.5,
+          children: [
+            StatCard(
+              title: "Total Rollos",
+              value: "${stats['totalRollos']}",
+              icon: Icons.inventory_2,
+              color: Colors.blue,
+            ),
+            StatCard(
+              title: "Metraje Total",
+              value: "${stats['metrajeTotal'].toStringAsFixed(1)} m",
+              icon: Icons.straighten,
+              color: Colors.green,
+            ),
+            StatCard(
+              title: "Empresas",
+              value: "${stats['empresas']}",
+              icon: Icons.business,
+              color: Colors.purple,
+            ),
+            StatCard(
+              title: "Sucursales",
+              value: "${stats['sucursales']}",
+              icon: Icons.store,
+              color: Colors.cyan,
+            ),
+            StatCard(
+              title: "Colores",
+              value: "${stats['colores']}",
+              icon: Icons.palette,
+              color: Colors.amber,
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+
 ===== D:\inv\inv_telas\lib\widgets\loading_overlay.dart =====
 
 import 'package:flutter/material.dart';
@@ -895,6 +1504,610 @@ class ButtonLoading extends StatelessWidget {
 }
 
 
+===== D:\inv\inv_telas\lib\widgets\stat_card.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:inv_telas/utils/utils.dart';
+
+class StatCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  const StatCard({
+    super.key,
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  title,
+                  style: AppTextStyles.caption,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
 ===== D:\inv\inv_telas\lib\widgets\widgets.dart =====
 
-export 'loading_overlay.dart'; export 'confirm_dialog.dart';
+export 'loading_overlay.dart';
+export 'confirm_dialog.dart';
+export 'stat_card.dart';
+export 'home_stats.dart';
+export 'home_filters.dart';
+export 'group_list_tile.dart';
+export 'dialogs/new_rollo_dialog.dart';
+export 'dialogs/group_detail_dialog.dart';
+
+
+===== D:\inv\inv_telas\lib\widgets\dialogs\group_detail_dialog.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/models/models.dart';
+import 'package:inv_telas/providers/providers.dart';
+import 'package:inv_telas/utils/utils.dart';
+import 'package:inv_telas/widgets/widgets.dart';
+
+class GroupDetailDialog extends ConsumerWidget {
+  final Map<String, dynamic> grupo;
+  const GroupDetailDialog({super.key, required this.grupo});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rollos = grupo['rollos'] as List<Rollo>;
+
+    return Dialog(
+      child: Container(
+        width: 600,
+        height: 500,
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "Rollos: ${grupo['color']}",
+                  style: AppTextStyles.heading2,
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+            const Divider(),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _InfoBox(label: "Rollos", value: "${grupo['cantidad']}"),
+                _InfoBox(
+                  label: "Metraje",
+                  value:
+                      "${(grupo['metrajeTotal'] as double).toStringAsFixed(1)} m",
+                ),
+                _InfoBox(
+                  label: "Sucursales",
+                  value: "${(grupo['sucursales'] as List).length}",
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: ListView.separated(
+                itemCount: rollos.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (ctx, i) {
+                  final r = rollos[i];
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: AppColors.primary.withOpacity(0.1),
+                      child: Text(
+                        "${i + 1}",
+                        style: const TextStyle(color: AppColors.primary),
+                      ),
+                    ),
+                    title: Text(
+                      "${r.codigoColor} - ${r.sucursal ?? 'Sin Asignar'}",
+                    ),
+                    subtitle: Text("${r.metraje} m"),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.edit_location_alt,
+                            color: Colors.blue,
+                          ),
+                          onPressed: () => _editSucursal(context, ref, r),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => _delete(context, ref, r.id),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _editSucursal(BuildContext context, WidgetRef ref, Rollo rollo) async {
+    final sucursales = ref.read(sucursalesProvider);
+    String? selected = rollo.sucursal;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Mover Rollo"),
+        content: DropdownButtonFormField<String>(
+          value: selected,
+          items: sucursales
+              .map(
+                (s) => DropdownMenuItem(value: s.nombre, child: Text(s.nombre)),
+              )
+              .toList(),
+          onChanged: (v) => selected = v,
+          decoration: const InputDecoration(labelText: "Sucursal Destino"),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancelar"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              await ref
+                  .read(rollosProvider.notifier)
+                  .actualizarSucursal(rollo.id, selected);
+              Navigator.pop(ctx);
+              Navigator.pop(context); // Cerrar detalle para refrescar
+            },
+            child: const Text("Mover"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _delete(BuildContext context, WidgetRef ref, String id) async {
+    final confirm = await ConfirmDialog.show(
+      context: context,
+      titulo: "Â¿Eliminar?",
+      mensaje: "Esta acciÃ³n no se puede deshacer",
+      isDanger: true,
+    );
+    if (confirm == true) {
+      await ref.read(rollosProvider.notifier).eliminarRollo(id);
+      if (context.mounted) Navigator.pop(context);
+    }
+  }
+}
+
+class _InfoBox extends StatelessWidget {
+  final String label;
+  final String value;
+  const _InfoBox({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        Text(label, style: AppTextStyles.caption),
+      ],
+    );
+  }
+}
+
+
+===== D:\inv\inv_telas\lib\widgets\dialogs\new_rollo_dialog.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/models/models.dart';
+import 'package:inv_telas/providers/providers.dart';
+import 'package:inv_telas/utils/utils.dart';
+import 'package:inv_telas/widgets/widgets.dart';
+
+class NewRolloDialog extends ConsumerStatefulWidget {
+  const NewRolloDialog({super.key});
+
+  @override
+  ConsumerState<NewRolloDialog> createState() => _NewRolloDialogState();
+}
+
+class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
+  final _formKey = GlobalKey<FormState>();
+  int _cantidad = 1;
+  String? _tipoTela;
+  String? _sucursal;
+  String? _empresa;
+  String? _color;
+  String _codigoColor = '';
+  double _metraje = 0.0;
+  DateTime? _fecha;
+
+  @override
+  Widget build(BuildContext context) {
+    final tipos = ref.watch(tiposTelaProvider);
+    final sucursales = ref.watch(sucursalesProvider);
+    final empresas = ref.watch(empresasProvider);
+    final colores = ref.watch(coloresProvider);
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.9,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        children: [
+          _buildHeader(),
+          Expanded(
+            child: Form(
+              key: _formKey,
+              child: ListView(
+                padding: const EdgeInsets.all(20),
+                children: [
+                  _buildCantidadSelector(),
+                  const SizedBox(height: 12),
+                  _buildDropdownWithAdd(
+                    "Tipo de Tela",
+                    tipos.map((e) => e.nombre).toList(),
+                    _tipoTela,
+                    (v) => setState(() => _tipoTela = v),
+                    _addTipoTela,
+                  ),
+                  _buildDropdownWithAdd(
+                    "Sucursal",
+                    sucursales.map((e) => e.nombre).toList(),
+                    _sucursal,
+                    (v) => setState(() => _sucursal = v),
+                    _addSucursal,
+                  ),
+                  _buildDropdownWithAdd(
+                    "Empresa",
+                    empresas.map((e) => e.nombre).toList(),
+                    _empresa,
+                    (v) {
+                      setState(() {
+                        _empresa = v;
+                        _autoFillCodigo();
+                      });
+                    },
+                    _addEmpresa,
+                  ),
+                  _buildDropdownWithAdd(
+                    "Color",
+                    colores.map((e) => e.nombre).toList(),
+                    _color,
+                    (v) {
+                      setState(() {
+                        _color = v;
+                        _autoFillCodigo();
+                      });
+                    },
+                    _addColor,
+                  ),
+                  TextFormField(
+                    decoration: const InputDecoration(
+                      labelText: "CÃ³digo de Color *",
+                    ),
+                    initialValue: _codigoColor,
+                    onChanged: (v) => _codigoColor = v,
+                    validator: (v) => v!.isEmpty ? 'Requerido' : null,
+                  ),
+                  TextFormField(
+                    decoration: const InputDecoration(
+                      labelText: "Metraje por Rollo (m) *",
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    onChanged: (v) => _metraje = double.tryParse(v) ?? 0,
+                    validator: (v) => v!.isEmpty ? 'Requerido' : null,
+                  ),
+                  _buildDateSelector(),
+                ],
+              ),
+            ),
+          ),
+          _buildActions(),
+        ],
+      ),
+    );
+  }
+
+  // Helper methods for UI
+  Widget _buildHeader() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text("Nuevo Rollo de Tela", style: AppTextStyles.heading2),
+          IconButton(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.close),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCantidadSelector() {
+    return InputDecorator(
+      decoration: const InputDecoration(border: OutlineInputBorder()),
+      child: Row(
+        children: [
+          const Expanded(child: Text("Cantidad de Rollos")),
+          IconButton(
+            onPressed: () => setState(() => _cantidad++),
+            icon: const Icon(Icons.add_circle_outline),
+          ),
+          Text(
+            "$_cantidad",
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          IconButton(
+            onPressed: () => setState(() {
+              if (_cantidad > 1) _cantidad--;
+            }),
+            icon: const Icon(Icons.remove_circle_outline),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDateSelector() {
+    return InputDecorator(
+      decoration: const InputDecoration(labelText: "Fecha de Ingreso"),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(_fecha == null ? 'Seleccionar' : Helpers.formatearFecha(_fecha)),
+          IconButton(
+            icon: const Icon(Icons.calendar_today),
+            onPressed: _pickDate,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActions() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        border: Border(top: BorderSide(color: Colors.grey[200]!)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancelar"),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ElevatedButton(
+              onPressed: _guardar,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+              ),
+              child: const Text(
+                "Guardar",
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDropdownWithAdd(
+    String label,
+    List<String> items,
+    String? value,
+    ValueChanged<String?> onChanged,
+    VoidCallback onAdd,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              value: value,
+              items: items
+                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                  .toList(),
+              onChanged: onChanged,
+              decoration: InputDecoration(
+                labelText: label,
+                border: const OutlineInputBorder(),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 14,
+                ),
+              ),
+              hint: Text("Seleccionar $label"),
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            onPressed: onAdd,
+            icon: const Icon(Icons.add_box_outlined),
+            color: AppColors.primary,
+            tooltip: "Nuevo $label",
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Logic methods
+  void _autoFillCodigo() {
+    if (_empresa != null && _color != null) {
+      final rollos = ref
+          .read(rollosProvider)
+          .maybeWhen(data: (d) => d, orElse: () => []);
+      try {
+        final lastRollo = rollos.firstWhere(
+          (r) => r.empresa == _empresa && r.color == _color,
+        );
+        setState(() => _codigoColor = lastRollo.codigoColor);
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _pickDate() async {
+    final d = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+    if (d != null) setState(() => _fecha = d);
+  }
+
+  void _guardar() async {
+    if (_formKey.currentState!.validate()) {
+      final rollosToCreate = List.generate(
+        _cantidad,
+        (i) => Rollo(
+          id: Helpers.generarId(),
+          sucursal: _sucursal,
+          empresa: _empresa!,
+          color: _color!,
+          codigoColor: _codigoColor,
+          tipoTela: _tipoTela ?? '',
+          metraje: _metraje,
+          fecha: _fecha?.toIso8601String(),
+          fechaCreacion: DateTime.now(),
+        ),
+      );
+      final ok = await ref
+          .read(rollosProvider.notifier)
+          .crearRollos(rollosToCreate);
+      if (ok && mounted) Navigator.pop(context);
+    }
+  }
+
+  // Quick Adds
+  void _addTipoTela() =>
+      _showQuickAddDialog("Nuevo Tipo de Tela", (name) async {
+        await ref
+            .read(catalogServiceProvider)
+            .addTipoTela(TipoTela(id: Helpers.generarId(), nombre: name));
+        ref.refresh(tiposTelaProvider);
+      });
+  void _addSucursal() => _showQuickAddDialog("Nueva Sucursal", (name) async {
+    await ref
+        .read(catalogServiceProvider)
+        .addSucursal(Sucursal(id: Helpers.generarId(), nombre: name));
+    ref.refresh(sucursalesProvider);
+  });
+  void _addEmpresa() => _showQuickAddDialog("Nueva Empresa", (name) async {
+    await ref
+        .read(catalogServiceProvider)
+        .addEmpresa(Empresa(id: Helpers.generarId(), nombre: name));
+    ref.refresh(empresasProvider);
+  });
+  void _addColor() => _showQuickAddDialog("Nuevo Color", (name) async {
+    await ref
+        .read(catalogServiceProvider)
+        .addColor(
+          ColorTela(id: Helpers.generarId(), nombre: name, hex: '#3b82f6'),
+        );
+    ref.refresh(coloresProvider);
+  });
+
+  void _showQuickAddDialog(String title, Function(String) onSave) {
+    final ctrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: ctrl,
+          decoration: const InputDecoration(labelText: "Nombre"),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancelar"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (ctrl.text.isNotEmpty) {
+                onSave(ctrl.text);
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text("Guardar"),
+          ),
+        ],
+      ),
+    );
+  }
+}

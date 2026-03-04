@@ -14,3 +14,14 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+
+
+Get-ChildItem -Path .\lib -Recurse -File | 
+ForEach-Object {
+    "`n`n===== $($_.FullName) =====`n"
+    Get-Content $_.FullName
+} | Out-File lib_completo.txt -Encoding UTF8
+
+
+
+tree lib /F /A

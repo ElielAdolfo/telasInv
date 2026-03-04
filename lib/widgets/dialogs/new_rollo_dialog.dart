@@ -4,6 +4,7 @@ import 'package:inv_telas/models/models.dart';
 import 'package:inv_telas/providers/providers.dart';
 import 'package:inv_telas/utils/utils.dart';
 import 'package:inv_telas/widgets/widgets.dart';
+import 'package:flex_color_picker/flex_color_picker.dart';
 
 class NewRolloDialog extends ConsumerStatefulWidget {
   const NewRolloDialog({super.key});
@@ -14,14 +15,36 @@ class NewRolloDialog extends ConsumerStatefulWidget {
 
 class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   final _formKey = GlobalKey<FormState>();
+
   int _cantidad = 1;
   String? _tipoTela;
   String? _sucursal;
   String? _empresa;
   String? _color;
-  String _codigoColor = '';
-  double _metraje = 0.0;
   DateTime? _fecha;
+
+  bool _isSavingCatalog = false;
+
+  late TextEditingController _codigoController;
+  late TextEditingController _metrajeController;
+
+  @override
+  void initState() {
+    super.initState();
+    _codigoController = TextEditingController();
+    _metrajeController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _codigoController.dispose();
+    _metrajeController.dispose();
+    super.dispose();
+  }
+
+  String _normalize(String text) {
+    return text.trim().toLowerCase();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -47,62 +70,69 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                 children: [
                   _buildCantidadSelector(),
                   const SizedBox(height: 12),
+
                   _buildDropdownWithAdd(
                     "Tipo de Tela",
                     tipos.map((e) => e.nombre).toList(),
                     _tipoTela,
-                    (v) => setState(() => _tipoTela = v),
-                    _addTipoTela,
+                    (v) {
+                      setState(() => _tipoTela = v);
+                      _autoFillData();
+                    },
+                    () => _addTipoTela(tipos),
                   ),
+
                   _buildDropdownWithAdd(
                     "Sucursal",
                     sucursales.map((e) => e.nombre).toList(),
                     _sucursal,
                     (v) => setState(() => _sucursal = v),
-                    _addSucursal,
+                    () => _addSucursal(sucursales),
                   ),
+
                   _buildDropdownWithAdd(
                     "Empresa",
                     empresas.map((e) => e.nombre).toList(),
                     _empresa,
                     (v) {
-                      setState(() {
-                        _empresa = v;
-                        _autoFillCodigo();
-                      });
+                      setState(() => _empresa = v);
+                      _autoFillData();
                     },
-                    _addEmpresa,
+                    () => _addEmpresa(empresas),
                   ),
+
                   _buildDropdownWithAdd(
                     "Color",
                     colores.map((e) => e.nombre).toList(),
                     _color,
                     (v) {
-                      setState(() {
-                        _color = v;
-                        _autoFillCodigo();
-                      });
+                      setState(() => _color = v);
+                      _autoFillData();
                     },
-                    _addColor,
+                    () => _addColor(colores),
                   ),
+
                   TextFormField(
+                    controller: _codigoController,
                     decoration: const InputDecoration(
                       labelText: "Código de Color *",
                     ),
-                    initialValue: _codigoColor,
-                    onChanged: (v) => _codigoColor = v,
-                    validator: (v) => v!.isEmpty ? 'Requerido' : null,
+                    validator: (v) =>
+                        v == null || v.trim().isEmpty ? 'Requerido' : null,
                   ),
+
                   TextFormField(
+                    controller: _metrajeController,
                     decoration: const InputDecoration(
                       labelText: "Metraje por Rollo (m) *",
                     ),
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
-                    onChanged: (v) => _metraje = double.tryParse(v) ?? 0,
-                    validator: (v) => v!.isEmpty ? 'Requerido' : null,
+                    validator: (v) =>
+                        v == null || v.trim().isEmpty ? 'Requerido' : null,
                   ),
+
                   _buildDateSelector(),
                 ],
               ),
@@ -114,13 +144,49 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     );
   }
 
-  // Helper methods for UI
+  void _autoFillData() {
+    if (_empresa != null && _tipoTela != null && _color != null) {
+      final rollos = ref
+          .read(rollosProvider)
+          .maybeWhen(data: (d) => d, orElse: () => <Rollo>[]);
+
+      final matches = rollos
+          .where(
+            (r) =>
+                r.empresa == _empresa &&
+                r.tipoTela == _tipoTela &&
+                r.color == _color,
+          )
+          .toList();
+
+      if (matches.isNotEmpty) {
+        final codigo = matches.first.codigoColor;
+        final metraje = _calcularMetrajeMasFrecuente(matches);
+
+        setState(() {
+          _codigoController.text = codigo;
+          if (metraje != null) {
+            _metrajeController.text = metraje % 1 == 0
+                ? metraje.toInt().toString()
+                : metraje.toString();
+          }
+        });
+      }
+    }
+  }
+
+  double? _calcularMetrajeMasFrecuente(List<Rollo> rollos) {
+    if (rollos.isEmpty) return null;
+    final Map<double, int> frecuencias = {};
+    for (var r in rollos) {
+      frecuencias[r.metraje] = (frecuencias[r.metraje] ?? 0) + 1;
+    }
+    return frecuencias.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+  }
+
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.grey[200]!)),
-      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -142,17 +208,14 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
           const Expanded(child: Text("Cantidad de Rollos")),
           IconButton(
             onPressed: () => setState(() => _cantidad++),
-            icon: const Icon(Icons.add_circle_outline),
+            icon: const Icon(Icons.add),
           ),
-          Text(
-            "$_cantidad",
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
+          Text("$_cantidad"),
           IconButton(
-            onPressed: () => setState(() {
-              if (_cantidad > 1) _cantidad--;
-            }),
-            icon: const Icon(Icons.remove_circle_outline),
+            onPressed: () {
+              if (_cantidad > 1) setState(() => _cantidad--);
+            },
+            icon: const Icon(Icons.remove),
           ),
         ],
       ),
@@ -176,35 +239,9 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   }
 
   Widget _buildActions() {
-    return Container(
+    return Padding(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        border: Border(top: BorderSide(color: Colors.grey[200]!)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: OutlinedButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cancelar"),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: ElevatedButton(
-              onPressed: _guardar,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-              ),
-              child: const Text(
-                "Guardar",
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-          ),
-        ],
-      ),
+      child: ElevatedButton(onPressed: _guardar, child: const Text("Guardar")),
     );
   }
 
@@ -216,7 +253,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     VoidCallback onAdd,
   ) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         children: [
           Expanded(
@@ -229,39 +266,13 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
               decoration: InputDecoration(
                 labelText: label,
                 border: const OutlineInputBorder(),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 14,
-                ),
               ),
-              hint: Text("Seleccionar $label"),
             ),
           ),
-          const SizedBox(width: 8),
-          IconButton(
-            onPressed: onAdd,
-            icon: const Icon(Icons.add_box_outlined),
-            color: AppColors.primary,
-            tooltip: "Nuevo $label",
-          ),
+          IconButton(onPressed: onAdd, icon: const Icon(Icons.add)),
         ],
       ),
     );
-  }
-
-  // Logic methods
-  void _autoFillCodigo() {
-    if (_empresa != null && _color != null) {
-      final rollos = ref
-          .read(rollosProvider)
-          .maybeWhen(data: (d) => d, orElse: () => []);
-      try {
-        final lastRollo = rollos.firstWhere(
-          (r) => r.empresa == _empresa && r.color == _color,
-        );
-        setState(() => _codigoColor = lastRollo.codigoColor);
-      } catch (_) {}
-    }
   }
 
   Future<void> _pickDate() async {
@@ -275,80 +286,358 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   }
 
   void _guardar() async {
-    if (_formKey.currentState!.validate()) {
-      final rollosToCreate = List.generate(
-        _cantidad,
-        (i) => Rollo(
-          id: Helpers.generarId(),
-          sucursal: _sucursal,
-          empresa: _empresa!,
-          color: _color!,
-          codigoColor: _codigoColor,
-          tipoTela: _tipoTela ?? '',
-          metraje: _metraje,
-          fecha: _fecha?.toIso8601String(),
-          fechaCreacion: DateTime.now(),
-        ),
-      );
-      final ok = await ref
-          .read(rollosProvider.notifier)
-          .crearRollos(rollosToCreate);
-      if (ok && mounted) Navigator.pop(context);
-    }
+    if (!_formKey.currentState!.validate()) return;
+
+    final codigo = _codigoController.text.trim();
+    final metraje = double.tryParse(_metrajeController.text) ?? 0;
+
+    final rollos = List.generate(
+      _cantidad,
+      (_) => Rollo(
+        id: Helpers.generarId(),
+        sucursal: _sucursal,
+        empresa: _empresa!,
+        color: _color!,
+        codigoColor: codigo,
+        tipoTela: _tipoTela ?? '',
+        metraje: metraje,
+        fecha: _fecha?.toIso8601String(),
+        fechaCreacion: DateTime.now(),
+      ),
+    );
+
+    final ok = await ref.read(rollosProvider.notifier).crearRollos(rollos);
+
+    if (ok && mounted) Navigator.pop(context);
   }
 
-  // Quick Adds
-  void _addTipoTela() =>
-      _showQuickAddDialog("Nuevo Tipo de Tela", (name) async {
-        await ref
-            .read(catalogServiceProvider)
-            .addTipoTela(TipoTela(id: Helpers.generarId(), nombre: name));
-        ref.refresh(tiposTelaProvider);
-      });
-  void _addSucursal() => _showQuickAddDialog("Nueva Sucursal", (name) async {
-    await ref
-        .read(catalogServiceProvider)
-        .addSucursal(Sucursal(id: Helpers.generarId(), nombre: name));
-    ref.refresh(sucursalesProvider);
-  });
-  void _addEmpresa() => _showQuickAddDialog("Nueva Empresa", (name) async {
-    await ref
-        .read(catalogServiceProvider)
-        .addEmpresa(Empresa(id: Helpers.generarId(), nombre: name));
-    ref.refresh(empresasProvider);
-  });
-  void _addColor() => _showQuickAddDialog("Nuevo Color", (name) async {
-    await ref
-        .read(catalogServiceProvider)
-        .addColor(
-          ColorTela(id: Helpers.generarId(), nombre: name, hex: '#3b82f6'),
-        );
-    ref.refresh(coloresProvider);
-  });
+  // ================= QUICK ADD PROFESIONAL =================
 
-  void _showQuickAddDialog(String title, Function(String) onSave) {
+  void _addTipoTela(List<TipoTela> lista) => _quickAddGeneric<TipoTela>(
+    title: "Nuevo Tipo de Tela",
+    existingNames: lista.map((e) => e.nombre).toList(),
+    onCreate: (name) async {
+      await ref
+          .read(catalogServiceProvider)
+          .addTipoTela(TipoTela(id: Helpers.generarId(), nombre: name));
+      ref.refresh(tiposTelaProvider);
+    },
+    onSelected: (name) => setState(() => _tipoTela = name),
+  );
+
+  void _addSucursal(List<Sucursal> lista) => _quickAddGeneric<Sucursal>(
+    title: "Nueva Sucursal",
+    existingNames: lista.map((e) => e.nombre).toList(),
+    onCreate: (name) async {
+      await ref
+          .read(catalogServiceProvider)
+          .addSucursal(Sucursal(id: Helpers.generarId(), nombre: name));
+      ref.refresh(sucursalesProvider);
+    },
+    onSelected: (name) => setState(() => _sucursal = name),
+  );
+
+  void _addEmpresa(List<Empresa> lista) => _quickAddGeneric<Empresa>(
+    title: "Nueva Empresa",
+    existingNames: lista.map((e) => e.nombre).toList(),
+    onCreate: (name) async {
+      await ref
+          .read(catalogServiceProvider)
+          .addEmpresa(Empresa(id: Helpers.generarId(), nombre: name));
+      ref.refresh(empresasProvider);
+    },
+    onSelected: (name) => setState(() => _empresa = name),
+  );
+
+  void _addColor(List<ColorTela> lista) {
+    final nameController = TextEditingController();
+    Color selectedColor = Colors.blue;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return DefaultTabController(
+          length: 3,
+          child: AlertDialog(
+            title: const Text("Nuevo Color"),
+            content: StatefulBuilder(
+              builder: (context, setStateDialog) {
+                return SizedBox(
+                  width: 400,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      /// 🔹 Nombre del color
+                      TextField(
+                        controller: nameController,
+                        decoration: const InputDecoration(
+                          labelText: "Nombre del color",
+                        ),
+                      ),
+
+                      const SizedBox(height: 15),
+
+                      /// 🔹 NAVS
+                      const TabBar(
+                        tabs: [
+                          Tab(icon: Icon(Icons.palette), text: "Base"),
+                          Tab(icon: Icon(Icons.color_lens), text: "Rueda"),
+                          Tab(icon: Icon(Icons.tune), text: "Picker"),
+                        ],
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      SizedBox(
+                        height: 300,
+                        child: TabBarView(
+                          children: [
+                            /// NAV 1
+                            _navColoresBase(selectedColor, (color) {
+                              setStateDialog(() {
+                                selectedColor = color;
+                              });
+                            }),
+
+                            /// NAV 2
+                            _navRuedaColor(selectedColor, (color) {
+                              setStateDialog(() {
+                                selectedColor = color;
+                              });
+                            }),
+
+                            /// NAV 3
+                            _navColorPickerAvanzado(selectedColor, (color) {
+                              setStateDialog(() {
+                                selectedColor = color;
+                              });
+                            }),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      /// 🔹 Vista previa
+                      Container(
+                        height: 40,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: selectedColor,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.black12),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Cancelar"),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  final name = nameController.text.trim();
+                  if (name.isEmpty) return;
+
+                  final hex =
+                      '#${selectedColor.value.toRadixString(16).substring(2)}';
+
+                  await ref
+                      .read(catalogServiceProvider)
+                      .addColor(
+                        ColorTela(
+                          id: Helpers.generarId(),
+                          nombre: name,
+                          hex: hex,
+                        ),
+                      );
+
+                  ref.refresh(coloresProvider);
+
+                  if (mounted) Navigator.pop(context);
+                },
+                child: const Text("Guardar"),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _navColoresBase(Color selectedColor, Function(Color) onColorChanged) {
+    final colores = [
+      Colors.red,
+      Colors.blue,
+      Colors.green,
+      Colors.yellow,
+      Colors.orange,
+      Colors.purple,
+      Colors.black,
+      Colors.white,
+    ];
+
+    return GridView.builder(
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 4,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+      ),
+      itemCount: colores.length,
+      itemBuilder: (context, index) {
+        final color = colores[index];
+
+        return GestureDetector(
+          onTap: () => onColorChanged(color),
+          child: Container(
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: selectedColor == color
+                    ? Colors.black
+                    : Colors.transparent,
+                width: 2,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _navRuedaColor(Color selectedColor, Function(Color) onColorChanged) {
+    return ColorPicker(
+      color: selectedColor,
+      onColorChanged: onColorChanged,
+      enableShadesSelection: false,
+      pickersEnabled: const {
+        ColorPickerType.wheel: true,
+        ColorPickerType.primary: false,
+        ColorPickerType.accent: false,
+      },
+    );
+  }
+
+  Widget _navColorPickerAvanzado(
+    Color selectedColor,
+    Function(Color) onColorChanged,
+  ) {
+    return ColorPicker(
+      color: selectedColor,
+      onColorChanged: onColorChanged,
+      enableShadesSelection: true,
+      showColorCode: true,
+      pickersEnabled: const {
+        ColorPickerType.wheel: true,
+        ColorPickerType.primary: true,
+        ColorPickerType.accent: true,
+      },
+    );
+  }
+
+  void _quickAddGeneric<T>({
+    required String title,
+    required List<String> existingNames,
+    required Future<void> Function(String name) onCreate,
+    required void Function(String name) onSelected,
+  }) {
     final ctrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setStateDialog) {
+          return AlertDialog(
+            title: Text(title),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(controller: ctrl),
+                if (_isSavingCatalog)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 20),
+                    child: CircularProgressIndicator(),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: _isSavingCatalog ? null : () => Navigator.pop(ctx),
+                child: const Text("Cancelar"),
+              ),
+              ElevatedButton(
+                onPressed: _isSavingCatalog
+                    ? null
+                    : () async {
+                        final input = _normalize(ctrl.text);
+                        if (input.isEmpty) return;
+
+                        final exists = existingNames.any(
+                          (e) => _normalize(e) == input,
+                        );
+
+                        if (exists) {
+                          _showAlert(
+                            title: "Registro duplicado",
+                            message: "Ya existe este registro en el catálogo.",
+                            icon: Icons.error_outline,
+                            color: Colors.red,
+                          );
+                          return;
+                        }
+
+                        setStateDialog(() => _isSavingCatalog = true);
+
+                        await onCreate(ctrl.text.trim());
+
+                        setStateDialog(() => _isSavingCatalog = false);
+
+                        onSelected(ctrl.text.trim());
+
+                        if (mounted) Navigator.pop(ctx);
+                      },
+                child: const Text("Guardar"),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showAlert({
+    required String title,
+    required String message,
+    IconData icon = Icons.warning_amber_rounded,
+    Color color = Colors.orange,
+  }) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: ctrl,
-          decoration: const InputDecoration(labelText: "Nombre"),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(icon, color: color, size: 28),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(fontWeight: FontWeight.bold, color: color),
+              ),
+            ),
+          ],
         ),
+        content: Text(message, style: const TextStyle(fontSize: 15)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text("Cancelar"),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (ctrl.text.isNotEmpty) {
-                onSave(ctrl.text);
-                Navigator.pop(ctx);
-              }
-            },
-            child: const Text("Guardar"),
+            child: const Text("Aceptar"),
           ),
         ],
       ),

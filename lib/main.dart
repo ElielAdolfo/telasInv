@@ -23,8 +23,8 @@ class MyApp extends StatelessWidget {
       options: DefaultFirebaseOptions.currentPlatform,
     );
 
-    // 🔥 Ejecuta precarga elimar esto para que no precarge datos
-    await SeedService().initialize();
+    // 🔥 Ejecuta precarga eliminarEsto para que no precarge datos
+    //await SeedService().initialize();
 
     return app;
   }
