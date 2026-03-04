@@ -102,16 +102,10 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                     () => _addEmpresa(empresas),
                   ),
 
-                  _buildDropdownWithAdd(
-                    "Color",
-                    colores.map((e) => e.nombre).toList(),
-                    _color,
-                    (v) {
-                      setState(() => _color = v);
-                      _autoFillData();
-                    },
-                    () => _addColor(colores),
-                  ),
+                  _buildColorDropdownWithAdd("Color", colores, _color, (v) {
+                    setState(() => _color = v);
+                    _autoFillData();
+                  }, () => _addColor(colores)),
 
                   TextFormField(
                     controller: _codigoController,
@@ -240,9 +234,16 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   }
 
   Widget _buildActions() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: ElevatedButton(onPressed: _guardar, child: const Text("Guardar")),
+    return ElevatedButton.icon(
+      onPressed: _guardar,
+      icon: const Icon(Icons.save),
+      label: Text(_cantidad == 1 ? "Guardar Rollo" : "Guardar Rollos"),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.success,
+        foregroundColor: Colors.white, // <-- Texto e ícono blanco
+        padding: const EdgeInsets.all(10), // <-- Padding interno 10
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
     );
   }
 
@@ -276,6 +277,74 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     );
   }
 
+  Widget _buildColorDropdownWithAdd(
+    String label,
+    List<ColorTela> colores,
+    String? value,
+    ValueChanged<String?> onChanged,
+    VoidCallback onAdd,
+  ) {
+    Color? backgroundColor;
+    Color textColor = Colors.black;
+
+    if (value != null) {
+      final selected = colores.firstWhere(
+        (c) => c.nombre == value,
+        orElse: () => ColorTela(id: '', nombre: '', hex: '#FFFFFF'),
+      );
+
+      backgroundColor = Helpers.hexToColorFlutter(selected.hex);
+      textColor = _getTextColorForBackground(backgroundColor);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              value: value,
+              dropdownColor: Colors.white,
+              style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
+              items: colores
+                  .map(
+                    (e) => DropdownMenuItem(
+                      value: e.nombre,
+                      child: Text(
+                        e.nombre,
+                        style: const TextStyle(color: Colors.black),
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: onChanged,
+              decoration: InputDecoration(
+                labelText: label,
+                labelStyle: TextStyle(color: textColor),
+                filled: true,
+                fillColor: backgroundColor,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: backgroundColor ?? Colors.grey),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+          IconButton(onPressed: onAdd, icon: const Icon(Icons.add)),
+        ],
+      ),
+    );
+  }
+
+  Color _getTextColorForBackground(Color background) {
+    // Fórmula de luminancia
+    final brightness = background.computeLuminance();
+    return brightness < 0.5 ? Colors.white : Colors.black;
+  }
+
   Future<void> _pickDate() async {
     final d = await showDatePicker(
       context: context,
@@ -289,12 +358,20 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   void _guardar() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final confirmar = await ConfirmDialog.show(
+      context: context,
+      titulo: "¿Está seguro?",
+      mensaje: "Se crearán $_cantidad rollos individuales.",
+      textoConfirmar: "Guardar",
+    );
+
+    if (confirmar != true) return;
     final codigo = _codigoController.text.trim();
     final metraje = double.tryParse(_metrajeController.text) ?? 0;
 
     final rollos = List.generate(
       _cantidad,
-      (_) => Rollo(
+      (index) => Rollo(
         id: Helpers.generarId(),
         sucursal: _sucursal,
         empresa: _empresa!,
@@ -310,6 +387,36 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     final ok = await ref.read(rollosProvider.notifier).crearRollos(rollos);
 
     if (ok && mounted) Navigator.pop(context);
+    if (ok) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Colors.black87,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            margin: const EdgeInsets.all(16),
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: AppColors.success),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    "Guardado correctamente",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+    }
   }
 
   // ================= QUICK ADD PROFESIONAL =================
@@ -500,7 +607,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
   final Map<int, double> _heightFactors = {
     0: 0.36, // Base
     1: 0.42, // Rueda
-    2: 0.53, // Avanzado
+    2: 0.6, // Avanzado
   };
 
   @override
@@ -725,7 +832,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
               ? flutter_picker.PaletteType.hsv
               : flutter_picker.PaletteType.hsvWithHue,
           pickerAreaHeightPercent: isMobile ? 0.6 : 0.7,
-          hexInputBar: false,
+          hexInputBar: true,
         );
       },
     );

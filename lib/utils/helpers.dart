@@ -1,11 +1,18 @@
-﻿import 'package:intl/intl.dart';
+﻿import 'dart:math'; // <--- 1. IMPORTAR ESTO
+import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 
 class Helpers {
-  /// Genera un ID único basado en timestamp
-  static String generarId() =>
-      DateTime.now().millisecondsSinceEpoch.toRadixString(36) +
-      DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+  /// Genera un ID único basado en timestamp + aleatorio
+  static String generarId() {
+    final timestamp = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
+    // Generamos una cadena aleatoria de 4 caracteres para evitar duplicados en bucles rápidos
+    final randomPart = List.generate(
+      4,
+      (_) => Random().nextInt(36).toRadixString(36),
+    ).join();
+    return '$timestamp$randomPart';
+  }
 
   /// Formatea una fecha a 'dd MMM yyyy' en español
   static String formatearFecha(DateTime? fecha) =>
