@@ -25,6 +25,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   DateTime? _fecha;
 
   bool _isSavingCatalog = false;
+  bool _isSaving = false;
 
   late TextEditingController _codigoController;
   late TextEditingController _metrajeController;
@@ -34,6 +35,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     super.initState();
     _codigoController = TextEditingController();
     _metrajeController = TextEditingController();
+    _fecha = DateTime.now();
   }
 
   @override
@@ -64,78 +66,83 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
         children: [
           _buildHeader(),
           Expanded(
-            child: Form(
-              key: _formKey,
-              child: ListView(
-                padding: const EdgeInsets.all(20),
-                children: [
-                  _buildCantidadSelector(),
-                  const SizedBox(height: 12),
+            child: AbsorbPointer(
+              absorbing: _isSaving,
+              child: Form(
+                key: _formKey,
+                child: ListView(
+                  padding: const EdgeInsets.all(20),
+                  children: [
+                    _buildCantidadSelector(),
+                    const SizedBox(height: 12),
 
-                  _buildDropdownWithAdd<TipoTela>(
-                    "Tipo de Tela",
-                    tipos,
-                    _tipoTelaId,
-                    (id) {
-                      setState(() => _tipoTelaId = id);
+                    _buildDropdownWithAdd<TipoTela>(
+                      "Tipo de Tela",
+                      tipos,
+                      _tipoTelaId,
+                      (id) {
+                        setState(() => _tipoTelaId = id);
+                        _autoFillData();
+                      },
+                      (item) => item.id,
+                      (item) => item.nombre,
+                      () => _addTipoTela(tipos),
+                    ),
+
+                    _buildDropdownWithAdd<Sucursal>(
+                      "Sucursal",
+                      sucursales,
+                      _sucursalId,
+                      (id) => setState(() => _sucursalId = id),
+                      (item) => item.id,
+                      (item) => item.nombre,
+                      () => _addSucursal(sucursales),
+                    ),
+
+                    _buildDropdownWithAdd<Empresa>(
+                      "Empresa",
+                      empresas,
+                      _empresaId,
+                      (id) {
+                        setState(() => _empresaId = id);
+                        _autoFillData();
+                      },
+                      (item) => item.id,
+                      (item) => item.nombre,
+                      () => _addEmpresa(empresas),
+                    ),
+
+                    _buildColorDropdownWithAdd("Color", colores, _colorId, (
+                      id,
+                    ) {
+                      setState(() => _colorId = id);
                       _autoFillData();
-                    },
-                    (item) => item.id,
-                    (item) => item.nombre,
-                    () => _addTipoTela(tipos),
-                  ),
+                    }, () => _addColor(colores)),
 
-                  _buildDropdownWithAdd<Sucursal>(
-                    "Sucursal",
-                    sucursales,
-                    _sucursalId,
-                    (id) => setState(() => _sucursalId = id),
-                    (item) => item.id,
-                    (item) => item.nombre,
-                    () => _addSucursal(sucursales),
-                  ),
-
-                  _buildDropdownWithAdd<Empresa>(
-                    "Empresa",
-                    empresas,
-                    _empresaId,
-                    (id) {
-                      setState(() => _empresaId = id);
-                      _autoFillData();
-                    },
-                    (item) => item.id,
-                    (item) => item.nombre,
-                    () => _addEmpresa(empresas),
-                  ),
-
-                  _buildColorDropdownWithAdd("Color", colores, _colorId, (id) {
-                    setState(() => _colorId = id);
-                    _autoFillData();
-                  }, () => _addColor(colores)),
-
-                  TextFormField(
-                    controller: _codigoController,
-                    decoration: const InputDecoration(
-                      labelText: "Código de Color *",
+                    TextFormField(
+                      controller: _codigoController,
+                      decoration: const InputDecoration(
+                        labelText: "Código de Color *",
+                      ),
+                      validator: (v) =>
+                          v == null || v.trim().isEmpty ? 'Requerido' : null,
                     ),
-                    validator: (v) =>
-                        v == null || v.trim().isEmpty ? 'Requerido' : null,
-                  ),
 
-                  TextFormField(
-                    controller: _metrajeController,
-                    decoration: const InputDecoration(
-                      labelText: "Metraje por Rollo (m) *",
+                    TextFormField(
+                      controller: _metrajeController,
+                      decoration: const InputDecoration(
+                        labelText: "Metraje por Rollo (m) *",
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      validator: (v) =>
+                          v == null || v.trim().isEmpty ? 'Requerido' : null,
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    validator: (v) =>
-                        v == null || v.trim().isEmpty ? 'Requerido' : null,
-                  ),
 
-                  _buildDateSelector(),
-                ],
+                    _buildDateSelector(),
+                  ],
+                ),
               ),
             ),
           ),
@@ -196,7 +203,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
         children: [
           const Text("Nuevo Rollo de Tela", style: AppTextStyles.heading2),
           IconButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: _isSaving ? null : () => Navigator.pop(context),
             icon: const Icon(Icons.close),
           ),
         ],
@@ -243,15 +250,38 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   }
 
   Widget _buildActions() {
-    return ElevatedButton.icon(
-      onPressed: _guardar,
-      icon: const Icon(Icons.save),
-      label: Text(_cantidad == 1 ? "Guardar Rollo" : "Guardar Rollos"),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.success,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.all(10),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          onPressed: _isSaving ? null : _guardar,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.success,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.all(14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: _isSaving
+              ? const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    Text("Guardando..."),
+                  ],
+                )
+              : Text(_cantidad == 1 ? "Guardar Rollo" : "Guardar Rollos"),
+        ),
       ),
     );
   }
@@ -364,7 +394,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   Future<void> _pickDate() async {
     final d = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDate: _fecha ?? DateTime.now(),
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
     );
@@ -372,8 +402,9 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   }
 
   // --- GUARDAR ---
+  Future<void> _guardar() async {
+    if (_isSaving) return;
 
-  void _guardar() async {
     if (!_formKey.currentState!.validate()) return;
 
     final confirmar = await ConfirmDialog.show(
@@ -385,59 +416,73 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
 
     if (confirmar != true) return;
 
-    final codigo = _codigoController.text.trim();
-    final metraje = double.tryParse(_metrajeController.text) ?? 0;
+    setState(() => _isSaving = true);
 
-    final rollos = List.generate(
-      _cantidad,
-      (index) => Rollo(
-        id: Helpers.generarId(),
-        sucursalId: _sucursalId,
-        empresaId: _empresaId!,
-        colorId: _colorId!,
-        codigoColor: codigo,
-        tipoTelaId: _tipoTelaId ?? '',
-        metraje: metraje,
-        fecha: _fecha?.toIso8601String(),
-        fechaCreacion: DateTime.now(),
-      ),
-    );
+    try {
+      final codigo = _codigoController.text.trim();
+      final metraje = double.tryParse(_metrajeController.text) ?? 0;
 
-    final ok = await ref.read(rollosProvider.notifier).crearRollos(rollos);
+      final rollos = List.generate(
+        _cantidad,
+        (index) => Rollo(
+          id: Helpers.generarId(),
+          sucursalId: _sucursalId,
+          empresaId: _empresaId!,
+          colorId: _colorId!,
+          codigoColor: codigo,
+          tipoTelaId: _tipoTelaId ?? '',
+          metraje: metraje,
+          fecha: _fecha?.toIso8601String(),
+          fechaCreacion: DateTime.now(),
+        ),
+      );
 
-    if (ok && mounted) Navigator.pop(context);
-    if (ok) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            duration: const Duration(seconds: 3),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: Colors.black87,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-            margin: const EdgeInsets.all(16),
-            content: Row(
-              children: [
-                Icon(Icons.check_circle, color: AppColors.success),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    "Guardado correctamente",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w500,
+      final ok = await ref.read(rollosProvider.notifier).crearRollos(rollos);
+
+      if (ok && mounted) {
+        Navigator.pop(context);
+      }
+
+      if (ok) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              duration: const Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: Colors.black87,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              margin: const EdgeInsets.all(16),
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle, color: AppColors.success),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      "Guardado correctamente",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        );
+          );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Error al guardar")));
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
     }
   }
-
   // ================= QUICK ADD PROFESIONAL =================
 
   void _addTipoTela(List<TipoTela> lista) => _quickAddGeneric<TipoTela>(
