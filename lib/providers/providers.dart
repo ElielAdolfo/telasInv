@@ -52,7 +52,17 @@ class CatalogNotifier<T> extends StateNotifier<List<T>> {
   }
 
   Future<void> load() async {
-    state = await _fetcher(_service);
+    try {
+      final data = await _fetcher(_service);
+
+      // ✅ CORRECCIÓN: Verificamos si el notifier sigue "vivo" antes de actualizar el estado
+      if (mounted) {
+        state = data;
+      }
+    } catch (e) {
+      // Opcional: Manejo de errores
+      print('Error cargando catálogo: $e');
+    }
   }
 
   // Método genérico para agregar (se asume que el modelo tiene id y toJson)
@@ -107,11 +117,11 @@ class RollosNotifier extends StateNotifier<AsyncValue<List<Rollo>>> {
 
   Future<bool> actualizarSucursal(
     String id,
-    String? sucursal, {
+    String? sucursalId, {
     String? tipo,
   }) async {
     try {
-      await _service.updateSucursal(id, sucursal, tipoMovimiento: tipo);
+      await _service.updateSucursal(id, sucursalId, tipoMovimiento: tipo);
       await refresh();
       return true;
     } catch (_) {
@@ -145,18 +155,20 @@ final estadisticasProvider = Provider<Map<String, dynamic>>((ref) {
   final rollosState = ref.watch(rollosProvider);
   return rollosState.when(
     data: (rollos) {
-      final setEmpresas = rollos.map((r) => r.empresa).toSet();
+      final setEmpresas = rollos.map((r) => r.empresaId).toSet();
       final setSucursales = rollos
-          .where((r) => r.sucursal != null)
-          .map((r) => r.sucursal!)
+          .where((r) => r.sucursalId != null)
+          .map((r) => r.sucursalId!)
           .toSet();
+
+      final setColores = rollos.map((r) => r.colorId).toSet();
 
       return {
         'totalRollos': rollos.length,
         'metrajeTotal': rollos.fold<double>(0, (s, r) => s + r.metraje),
         'empresas': setEmpresas.length,
         'sucursales': setSucursales.length,
-        'colores': rollos.map((r) => r.color).toSet().length,
+        'colores': setColores.length,
       };
     },
     loading: () => {

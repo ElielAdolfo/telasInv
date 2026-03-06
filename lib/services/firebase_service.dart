@@ -27,6 +27,7 @@ class FirebaseService {
     required String id,
     required Map<String, dynamic> data,
   }) async => await _firestore.collection(collectionPath).doc(id).set(data);
+  
   Future<void> update({
     required String collectionPath,
     required String id,

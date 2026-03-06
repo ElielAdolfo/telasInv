@@ -14,29 +14,49 @@ class GroupListTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colores = ref.watch(coloresProvider);
     final sucursales = ref.watch(sucursalesProvider);
+    final empresas = ref.watch(empresasProvider);
+    final tipos = ref.watch(tiposTelaProvider);
+    final colorId = grupo['colorId'] as String;
+    final colorObj = colores.firstWhere(
+      (c) => c.id == colorId,
+      orElse: () => ColorTela(id: '', nombre: 'Sin Color', hex: '#94a3b8'),
+    );
+    final colorNombre = colorObj.nombre;
+    final colorHex = colorObj.hex;
 
-    final colorHex = colores
+    // 2. Resolver Empresa
+    final empresaId = grupo['empresaId'] as String;
+    final empresaNombre = empresas
         .firstWhere(
-          (c) => c.nombre == grupo['color'],
-          orElse: () => ColorTela(id: '', nombre: '', hex: '#94a3b8'),
+          (e) => e.id == empresaId,
+          orElse: () => Empresa(id: '', nombre: 'Sin Empresa'),
         )
-        .hex;
+        .nombre;
 
-    final badges = (grupo['sucursales'] as List).map((s) {
-      final sColor = sucursales
-          .firstWhere(
-            (su) => su.nombre == s,
-            orElse: () => Sucursal(id: '', nombre: '', color: '#6b7280'),
-          )
-          .color;
+    // 3. Resolver Tipo Tela
+    final tipoId = grupo['tipoTelaId'] as String;
+    final tipoNombre = tipos
+        .firstWhere(
+          (t) => t.id == tipoId,
+          orElse: () => TipoTela(id: '', nombre: 'Sin Tipo'),
+        )
+        .nombre;
+
+    // 4. Resolver Badges de Sucursales
+    final sucursalIds = grupo['sucursalIds'] as List;
+    final badges = sucursalIds.map((sId) {
+      final sObj = sucursales.firstWhere(
+        (su) => su.id == sId,
+        orElse: () => Sucursal(id: '', nombre: 'Desconocida', color: '#6b7280'),
+      );
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         decoration: BoxDecoration(
-          color: Helpers.hexToColorFlutter(sColor),
+          color: Helpers.hexToColorFlutter(sObj.color),
           borderRadius: BorderRadius.circular(4),
         ),
         child: Text(
-          s,
+          sObj.nombre, // Mostramos el nombre
           style: const TextStyle(color: Colors.white, fontSize: 10),
         ),
       );
@@ -64,12 +84,12 @@ class GroupListTile extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "${grupo['tipoTela'] ?? 'Sin Tipo'} - ${grupo['color']}",
+                    "$tipoNombre - $colorNombre",
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    "${grupo['empresa']} • ${grupo['codigoColor']}",
+                    "$empresaNombre • ${grupo['codigoColor']}",
                     style: AppTextStyles.caption,
                   ),
                 ],

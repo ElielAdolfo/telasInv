@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/models/models.dart';
 import 'package:inv_telas/providers/providers.dart';
 
 class HomeFilters extends ConsumerWidget {
@@ -68,25 +69,33 @@ class HomeFilters extends ConsumerWidget {
               _buildDropdown(
                 'Sucursal',
                 filtroSucursal,
-                sucursales.map((e) => e.nombre).toList(),
+                sucursales, // Pasamos la lista de objetos
+                (Sucursal s) => s.nombre, // Label
+                (Sucursal s) => s.id, // Value (ID)
                 onSucursalChanged,
               ),
               _buildDropdown(
                 'Empresa',
                 filtroEmpresa,
-                empresas.map((e) => e.nombre).toList(),
+                empresas,
+                (Empresa e) => e.nombre,
+                (Empresa e) => e.id,
                 onEmpresaChanged,
               ),
               _buildDropdown(
                 'Color',
                 filtroColor,
-                colores.map((e) => e.nombre).toList(),
+                colores,
+                (ColorTela c) => c.nombre,
+                (ColorTela c) => c.id,
                 onColorChanged,
               ),
               _buildDropdown(
                 'Tipo',
                 filtroTipoTela,
-                tipos.map((e) => e.nombre).toList(),
+                tipos,
+                (TipoTela t) => t.nombre,
+                (TipoTela t) => t.id,
                 onTipoChanged,
               ),
             ],
@@ -96,16 +105,18 @@ class HomeFilters extends ConsumerWidget {
     );
   }
 
-  Widget _buildDropdown(
+  Widget _buildDropdown<T>(
     String label,
-    String value,
-    List<String> items,
+    String valueId,
+    List<T> items,
+    String Function(T) getLabel,
+    String Function(T) getValue,
     ValueChanged<String?> onChanged,
   ) {
     return SizedBox(
       width: 150,
       child: DropdownButtonFormField<String>(
-        value: value.isEmpty ? null : value,
+        value: valueId.isEmpty ? null : valueId,
         isExpanded: true,
         decoration: InputDecoration(
           labelText: label,
@@ -119,7 +130,12 @@ class HomeFilters extends ConsumerWidget {
         ),
         items: [
           const DropdownMenuItem(value: '', child: Text("Todos")),
-          ...items.map((e) => DropdownMenuItem(value: e, child: Text(e))),
+          ...items.map(
+            (e) => DropdownMenuItem(
+              value: getValue(e), // Aquí va el ID
+              child: Text(getLabel(e)), // Aquí va el Nombre
+            ),
+          ),
         ],
         onChanged: onChanged,
       ),

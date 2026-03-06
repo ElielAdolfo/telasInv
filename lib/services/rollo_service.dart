@@ -3,17 +3,20 @@ import 'package:inv_telas/services/firebase_service.dart';
 
 class RolloService extends FirebaseService {
   static const String _collection = 'rollos';
+
   Future<List<Rollo>> getAllRollos() async => await getAll<Rollo>(
     collectionPath: _collection,
     fromJson: Rollo.fromJson,
     orderBy: 'fechaCreacion',
     descending: true,
   );
+
   Future<void> createRollo(Rollo rollo) async => await create(
     collectionPath: _collection,
     id: rollo.id,
     data: rollo.toJson(),
   );
+
   Future<void> createRollos(List<Rollo> rollos) async {
     final batch = firestore.batch();
     for (final r in rollos) {
@@ -24,27 +27,29 @@ class RolloService extends FirebaseService {
 
   Future<void> updateSucursal(
     String rolloId,
-    String? nuevaSucursal, {
+    String? nuevaSucursalId, { // Parámetro actualizado
     String? tipoMovimiento,
   }) async {
     final rollos = await getAllRollos();
     final rollo = rollos.firstWhere((r) => r.id == rolloId);
     final historial = rollo.historial ?? [];
+
     if (tipoMovimiento != null) {
       historial.add(
         HistorialMovimiento(
           tipo: tipoMovimiento,
-          sucursalOrigen: rollo.sucursal ?? 'Sin sucursal',
-          sucursalDestino: nuevaSucursal ?? 'Sin sucursal',
+          sucursalOrigenId: rollo.sucursalId ?? 'Sin sucursal',
+          sucursalDestinoId: nuevaSucursalId ?? 'Sin sucursal',
           fecha: DateTime.now(),
         ),
       );
     }
+
     await update(
       collectionPath: _collection,
       id: rolloId,
       data: {
-        'sucursal': nuevaSucursal,
+        'sucursalId': nuevaSucursalId, // Campo actualizado
         'historial': historial.map((e) => e.toJson()).toList(),
       },
     );

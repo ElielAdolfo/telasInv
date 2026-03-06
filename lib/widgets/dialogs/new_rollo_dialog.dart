@@ -18,10 +18,10 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   final _formKey = GlobalKey<FormState>();
 
   int _cantidad = 1;
-  String? _tipoTela;
-  String? _sucursal;
-  String? _empresa;
-  String? _color;
+  String? _tipoTelaId;
+  String? _sucursalId;
+  String? _empresaId;
+  String? _colorId;
   DateTime? _fecha;
 
   bool _isSavingCatalog = false;
@@ -72,38 +72,44 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                   _buildCantidadSelector(),
                   const SizedBox(height: 12),
 
-                  _buildDropdownWithAdd(
+                  _buildDropdownWithAdd<TipoTela>(
                     "Tipo de Tela",
-                    tipos.map((e) => e.nombre).toList(),
-                    _tipoTela,
-                    (v) {
-                      setState(() => _tipoTela = v);
+                    tipos,
+                    _tipoTelaId,
+                    (id) {
+                      setState(() => _tipoTelaId = id);
                       _autoFillData();
                     },
+                    (item) => item.id,
+                    (item) => item.nombre,
                     () => _addTipoTela(tipos),
                   ),
 
-                  _buildDropdownWithAdd(
+                  _buildDropdownWithAdd<Sucursal>(
                     "Sucursal",
-                    sucursales.map((e) => e.nombre).toList(),
-                    _sucursal,
-                    (v) => setState(() => _sucursal = v),
+                    sucursales,
+                    _sucursalId,
+                    (id) => setState(() => _sucursalId = id),
+                    (item) => item.id,
+                    (item) => item.nombre,
                     () => _addSucursal(sucursales),
                   ),
 
-                  _buildDropdownWithAdd(
+                  _buildDropdownWithAdd<Empresa>(
                     "Empresa",
-                    empresas.map((e) => e.nombre).toList(),
-                    _empresa,
-                    (v) {
-                      setState(() => _empresa = v);
+                    empresas,
+                    _empresaId,
+                    (id) {
+                      setState(() => _empresaId = id);
                       _autoFillData();
                     },
+                    (item) => item.id,
+                    (item) => item.nombre,
                     () => _addEmpresa(empresas),
                   ),
 
-                  _buildColorDropdownWithAdd("Color", colores, _color, (v) {
-                    setState(() => _color = v);
+                  _buildColorDropdownWithAdd("Color", colores, _colorId, (id) {
+                    setState(() => _colorId = id);
                     _autoFillData();
                   }, () => _addColor(colores)),
 
@@ -139,8 +145,10 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     );
   }
 
+  // --- LÓGICA DE AUTOCOMPLETADO CON IDs ---
+
   void _autoFillData() {
-    if (_empresa != null && _tipoTela != null && _color != null) {
+    if (_empresaId != null && _tipoTelaId != null && _colorId != null) {
       final rollos = ref
           .read(rollosProvider)
           .maybeWhen(data: (d) => d, orElse: () => <Rollo>[]);
@@ -148,16 +156,15 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
       final matches = rollos
           .where(
             (r) =>
-                r.empresa == _empresa &&
-                r.tipoTela == _tipoTela &&
-                r.color == _color,
+                r.empresaId == _empresaId &&
+                r.tipoTelaId == _tipoTelaId &&
+                r.colorId == _colorId,
           )
           .toList();
 
       if (matches.isNotEmpty) {
         final codigo = matches.first.codigoColor;
         final metraje = _calcularMetrajeMasFrecuente(matches);
-
         setState(() {
           _codigoController.text = codigo;
           if (metraje != null) {
@@ -178,6 +185,8 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     }
     return frecuencias.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
   }
+
+  // --- WIDGETS AUXILIARES ---
 
   Widget _buildHeader() {
     return Container(
@@ -240,18 +249,21 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
       label: Text(_cantidad == 1 ? "Guardar Rollo" : "Guardar Rollos"),
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.success,
-        foregroundColor: Colors.white, // <-- Texto e ícono blanco
-        padding: const EdgeInsets.all(10), // <-- Padding interno 10
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.all(10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
 
-  Widget _buildDropdownWithAdd(
+  // Dropdown Genérico
+  Widget _buildDropdownWithAdd<T>(
     String label,
-    List<String> items,
-    String? value,
+    List<T> items,
+    String? selectedId,
     ValueChanged<String?> onChanged,
+    String Function(T) getId,
+    String Function(T) getLabel,
     VoidCallback onAdd,
   ) {
     return Padding(
@@ -260,9 +272,14 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
         children: [
           Expanded(
             child: DropdownButtonFormField<String>(
-              value: value,
+              value: selectedId,
               items: items
-                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                  .map(
+                    (e) => DropdownMenuItem(
+                      value: getId(e), // ID
+                      child: Text(getLabel(e)), // Nombre
+                    ),
+                  )
                   .toList(),
               onChanged: onChanged,
               decoration: InputDecoration(
@@ -277,22 +294,22 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     );
   }
 
+  // Dropdown de Color con Vista Previa
   Widget _buildColorDropdownWithAdd(
     String label,
     List<ColorTela> colores,
-    String? value,
+    String? selectedId,
     ValueChanged<String?> onChanged,
     VoidCallback onAdd,
   ) {
     Color? backgroundColor;
     Color textColor = Colors.black;
 
-    if (value != null) {
+    if (selectedId != null) {
       final selected = colores.firstWhere(
-        (c) => c.nombre == value,
+        (c) => c.id == selectedId,
         orElse: () => ColorTela(id: '', nombre: '', hex: '#FFFFFF'),
       );
-
       backgroundColor = Helpers.hexToColorFlutter(selected.hex);
       textColor = _getTextColorForBackground(backgroundColor);
     }
@@ -303,13 +320,13 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
         children: [
           Expanded(
             child: DropdownButtonFormField<String>(
-              value: value,
+              value: selectedId,
               dropdownColor: Colors.white,
               style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
               items: colores
                   .map(
                     (e) => DropdownMenuItem(
-                      value: e.nombre,
+                      value: e.id, // ID
                       child: Text(
                         e.nombre,
                         style: const TextStyle(color: Colors.black),
@@ -340,7 +357,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   }
 
   Color _getTextColorForBackground(Color background) {
-    // Fórmula de luminancia
     final brightness = background.computeLuminance();
     return brightness < 0.5 ? Colors.white : Colors.black;
   }
@@ -355,6 +371,8 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     if (d != null) setState(() => _fecha = d);
   }
 
+  // --- GUARDAR ---
+
   void _guardar() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -366,6 +384,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     );
 
     if (confirmar != true) return;
+
     final codigo = _codigoController.text.trim();
     final metraje = double.tryParse(_metrajeController.text) ?? 0;
 
@@ -373,11 +392,11 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
       _cantidad,
       (index) => Rollo(
         id: Helpers.generarId(),
-        sucursal: _sucursal,
-        empresa: _empresa!,
-        color: _color!,
+        sucursalId: _sucursalId,
+        empresaId: _empresaId!,
+        colorId: _colorId!,
         codigoColor: codigo,
-        tipoTela: _tipoTela ?? '',
+        tipoTelaId: _tipoTelaId ?? '',
         metraje: metraje,
         fecha: _fecha?.toIso8601String(),
         fechaCreacion: DateTime.now(),
@@ -423,65 +442,75 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
 
   void _addTipoTela(List<TipoTela> lista) => _quickAddGeneric<TipoTela>(
     title: "Nuevo Tipo de Tela",
-    existingNames: lista.map((e) => e.nombre).toList(),
+    existingItems: lista,
+    //getId: (t) => t.id,
+    getName: (t) => t.nombre,
     onCreate: (name) async {
+      final newId = Helpers.generarId();
+
       await ref
           .read(catalogServiceProvider)
-          .addTipoTela(TipoTela(id: Helpers.generarId(), nombre: name));
+          .addTipoTela(TipoTela(id: newId, nombre: name));
       ref.refresh(tiposTelaProvider);
+      return newId; // Devolvemos el ID creado
     },
-    onSelected: (name) => setState(() => _tipoTela = name),
+    onSelected: (id) => setState(() => _tipoTelaId = id),
   );
 
   void _addSucursal(List<Sucursal> lista) => _quickAddGeneric<Sucursal>(
     title: "Nueva Sucursal",
-    existingNames: lista.map((e) => e.nombre).toList(),
+    existingItems: lista,
+    getName: (s) => s.nombre,
     onCreate: (name) async {
+      final newId = Helpers.generarId();
       await ref
           .read(catalogServiceProvider)
-          .addSucursal(Sucursal(id: Helpers.generarId(), nombre: name));
+          .addSucursal(Sucursal(id: newId, nombre: name));
       ref.refresh(sucursalesProvider);
+      return newId; // Devolvemos el ID creado
     },
-    onSelected: (name) => setState(() => _sucursal = name),
+    onSelected: (id) => setState(() => _sucursalId = id),
   );
 
   void _addEmpresa(List<Empresa> lista) => _quickAddGeneric<Empresa>(
     title: "Nueva Empresa",
-    existingNames: lista.map((e) => e.nombre).toList(),
+    existingItems: lista,
+    getName: (e) => e.nombre,
     onCreate: (name) async {
+      final newId = Helpers.generarId();
       await ref
           .read(catalogServiceProvider)
-          .addEmpresa(Empresa(id: Helpers.generarId(), nombre: name));
+          .addEmpresa(Empresa(id: newId, nombre: name));
       ref.refresh(empresasProvider);
+      return newId; // Devolvemos el ID creado
     },
-    onSelected: (name) => setState(() => _empresa = name),
+    onSelected: (id) => setState(() => _empresaId = id),
   );
 
-  // MODIFICADO: Usamos el nuevo Widget separado para el diálogo de color
   void _addColor(List<ColorTela> lista) {
     showDialog(
       context: context,
       builder: (context) => _ColorPickerDialog(
         ref: ref,
         existingColors: lista,
-        onColorCreated: (name) {
+        onColorCreated: (id) {
           setState(() {
-            _color = name;
+            _colorId = id;
           });
         },
       ),
     );
   }
 
-  void _quickAddGeneric<T>({
+  Future<void> _quickAddGeneric<T>({
     required String title,
-    required List<String> existingNames,
-    required Future<void> Function(String name) onCreate,
-    required void Function(String name) onSelected,
-  }) {
+    required List<T> existingItems,
+    required String Function(T) getName,
+    required Future<String> Function(String name) onCreate, // Retorna ID
+    required void Function(String id) onSelected, // Recibe ID
+  }) async {
     final ctrl = TextEditingController();
-
-    showDialog(
+    await showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
@@ -491,7 +520,10 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(controller: ctrl),
+                TextField(
+                  controller: ctrl,
+                  decoration: const InputDecoration(hintText: "Ingrese nombre"),
+                ),
                 if (_isSavingCatalog)
                   const Padding(
                     padding: EdgeInsets.only(top: 20),
@@ -511,8 +543,8 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                         final input = _normalize(ctrl.text);
                         if (input.isEmpty) return;
 
-                        final exists = existingNames.any(
-                          (e) => _normalize(e) == input,
+                        final exists = existingItems.any(
+                          (e) => _normalize(getName(e)) == input,
                         );
 
                         if (exists) {
@@ -527,11 +559,14 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
 
                         setStateDialog(() => _isSavingCatalog = true);
 
-                        await onCreate(ctrl.text.trim());
+                        // onCreate devuelve el ID
+                        final newId = await onCreate(ctrl.text.trim());
+                        //await onCreate(ctrl.text.trim()); //esta dupklicacndo
 
                         setStateDialog(() => _isSavingCatalog = false);
 
-                        onSelected(ctrl.text.trim());
+                        // Pasamos el ID al callback
+                        onSelected(newId);
 
                         if (mounted) Navigator.pop(ctx);
                       },
@@ -583,7 +618,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
 class _ColorPickerDialog extends StatefulWidget {
   final WidgetRef ref;
   final List<ColorTela> existingColors;
-  final Function(String) onColorCreated;
+  final Function(String id) onColorCreated; // Cambiado a ID
 
   const _ColorPickerDialog({
     required this.ref,
@@ -630,6 +665,15 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
     _tabController.dispose();
     _nameController.dispose();
     super.dispose();
+  }
+
+  bool useWhiteForeground(Color background) {
+    double luminance =
+        (0.299 * background.red +
+            0.587 * background.green +
+            0.114 * background.blue) /
+        255;
+    return luminance < 0.5;
   }
 
   @override
@@ -735,22 +779,32 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                         final name = _nameController.text.trim();
                         if (name.isEmpty) return;
 
+                        // Validar duplicados
+                        final exists = widget.existingColors.any(
+                          (c) => c.nombre.toLowerCase() == name.toLowerCase(),
+                        );
+                        if (exists) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Este color ya existe"),
+                            ),
+                          );
+                          return;
+                        }
+
                         final hex =
                             '#${_selectedColor.value.toRadixString(16).substring(2)}';
+                        final newId = Helpers.generarId(); // Generamos ID
 
                         await widget.ref
                             .read(catalogServiceProvider)
                             .addColor(
-                              ColorTela(
-                                id: Helpers.generarId(),
-                                nombre: name,
-                                hex: hex,
-                              ),
+                              ColorTela(id: newId, nombre: name, hex: hex),
                             );
 
                         widget.ref.refresh(coloresProvider);
 
-                        widget.onColorCreated(name);
+                        widget.onColorCreated(newId);
                         if (mounted) Navigator.pop(context);
                       },
                       child: const Text("Guardar"),
@@ -857,7 +911,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
     );
   }
 
-  /// Retorna true si conviene texto blanco sobre el color [background]
+  /*/// Retorna true si conviene texto blanco sobre el color [background]
   bool useWhiteForeground(Color background) {
     // Calcula la luminancia percibida
     double luminance =
@@ -866,5 +920,5 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
             0.114 * background.blue) /
         255;
     return luminance < 0.5;
-  }
+  }*/
 }

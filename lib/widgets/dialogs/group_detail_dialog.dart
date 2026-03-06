@@ -11,7 +11,18 @@ class GroupDetailDialog extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final rollos = grupo['rollos'] as List<Rollo>;
+    final rollos = (grupo['rollos'] as List<Rollo>?) ?? [];
+    final sucursales = ref.watch(sucursalesProvider);
+
+    // Resolvemos nombres para el título
+    final colorId = grupo['colorId'];
+    final colorNombre = ref
+        .read(coloresProvider)
+        .firstWhere(
+          (c) => c.id == colorId,
+          orElse: () => ColorTela(id: '', nombre: 'Color'),
+        )
+        .nombre;
 
     return Dialog(
       child: Container(
@@ -23,10 +34,7 @@ class GroupDetailDialog extends ConsumerWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  "Rollos: ${grupo['color']}",
-                  style: AppTextStyles.heading2,
-                ),
+                Text("Rollos: $colorNombre", style: AppTextStyles.heading2),
                 IconButton(
                   onPressed: () => Navigator.pop(context),
                   icon: const Icon(Icons.close),
@@ -45,7 +53,7 @@ class GroupDetailDialog extends ConsumerWidget {
                 ),
                 _InfoBox(
                   label: "Sucursales",
-                  value: "${(grupo['sucursales'] as List).length}",
+                  value: "${(grupo['sucursales'] as List? ?? []).length}",
                 ),
               ],
             ),
@@ -56,6 +64,14 @@ class GroupDetailDialog extends ConsumerWidget {
                 separatorBuilder: (_, __) => const Divider(height: 1),
                 itemBuilder: (ctx, i) {
                   final r = rollos[i];
+                  // Obtenemos nombre de sucursal para mostrar
+                  final sucursalNombre = sucursales
+                      .firstWhere(
+                        (s) => s.id == r.sucursalId,
+                        orElse: () => Sucursal(id: '', nombre: 'Sin Asignar'),
+                      )
+                      .nombre;
+
                   return ListTile(
                     leading: CircleAvatar(
                       backgroundColor: AppColors.primary.withOpacity(0.1),
@@ -64,9 +80,7 @@ class GroupDetailDialog extends ConsumerWidget {
                         style: const TextStyle(color: AppColors.primary),
                       ),
                     ),
-                    title: Text(
-                      "${r.codigoColor} - ${r.sucursal ?? 'Sin Asignar'}",
-                    ),
+                    title: Text("${r.codigoColor} - $sucursalNombre"),
                     subtitle: Text("${r.metraje} m"),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -96,20 +110,23 @@ class GroupDetailDialog extends ConsumerWidget {
 
   void _editSucursal(BuildContext context, WidgetRef ref, Rollo rollo) async {
     final sucursales = ref.read(sucursalesProvider);
-    String? selected = rollo.sucursal;
+    String? selectedId = rollo.sucursalId;
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text("Mover Rollo"),
         content: DropdownButtonFormField<String>(
-          value: selected,
+          value: selectedId,
           items: sucursales
               .map(
-                (s) => DropdownMenuItem(value: s.nombre, child: Text(s.nombre)),
+                (s) => DropdownMenuItem(
+                  value: s.id, // Valor es ID
+                  child: Text(s.nombre), // Texto es Nombre
+                ),
               )
               .toList(),
-          onChanged: (v) => selected = v,
+          onChanged: (v) => selectedId = v,
           decoration: const InputDecoration(labelText: "Sucursal Destino"),
         ),
         actions: [
@@ -119,11 +136,12 @@ class GroupDetailDialog extends ConsumerWidget {
           ),
           ElevatedButton(
             onPressed: () async {
+              // Pasamos el ID al servicio
               await ref
                   .read(rollosProvider.notifier)
-                  .actualizarSucursal(rollo.id, selected);
+                  .actualizarSucursal(rollo.id, selectedId);
               Navigator.pop(ctx);
-              Navigator.pop(context); // Cerrar detalle para refrescar
+              Navigator.pop(context);
             },
             child: const Text("Mover"),
           ),

@@ -16,10 +16,10 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   // Estado de filtros
   String _busqueda = '';
-  String _filtroSucursal = '';
-  String _filtroEmpresa = '';
-  String _filtroColor = '';
-  String _filtroTipoTela = '';
+  String _filtroSucursalId = '';
+  String _filtroEmpresaId = '';
+  String _filtroColorId = '';
+  String _filtroTipoTelaId = '';
 
   @override
   Widget build(BuildContext context) {
@@ -41,17 +41,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               const SizedBox(height: 16),
               HomeFilters(
                 busqueda: _busqueda,
-                filtroSucursal: _filtroSucursal,
-                filtroEmpresa: _filtroEmpresa,
-                filtroColor: _filtroColor,
-                filtroTipoTela: _filtroTipoTela,
+                filtroSucursal: _filtroSucursalId,
+                filtroEmpresa: _filtroEmpresaId,
+                filtroColor: _filtroColorId,
+                filtroTipoTela: _filtroTipoTelaId,
                 onBusquedaChanged: (v) => setState(() => _busqueda = v),
                 onSucursalChanged: (v) =>
-                    setState(() => _filtroSucursal = v ?? ''),
+                    setState(() => _filtroSucursalId = v ?? ''),
                 onEmpresaChanged: (v) =>
-                    setState(() => _filtroEmpresa = v ?? ''),
-                onColorChanged: (v) => setState(() => _filtroColor = v ?? ''),
-                onTipoChanged: (v) => setState(() => _filtroTipoTela = v ?? ''),
+                    setState(() => _filtroEmpresaId = v ?? ''),
+                onColorChanged: (v) => setState(() => _filtroColorId = v ?? ''),
+                onTipoChanged: (v) =>
+                    setState(() => _filtroTipoTelaId = v ?? ''),
               ),
               const SizedBox(height: 16),
               _buildListaGrupos(grupos),
@@ -129,22 +130,52 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // --- LOGICA DE NEGOCIO ---
 
   List<Rollo> _filtrarRollos(List<Rollo> rollos) {
+    // Necesitamos acceso a los catálogos para buscar por nombre en la búsqueda general
+    final catalog = ref.read(catalogServiceProvider);
+    // Nota: Para optimizar, esto debería hacerse con los providers de estado de catálogo
+    // pero para mantenerlo simple usamos el servicio o buscamos en los providers.
+    // Usaremos los providers que ya tenemos cargados:
+
+    final colores = ref.read(coloresProvider);
+    final tipos = ref.read(tiposTelaProvider);
+    final empresas = ref.read(empresasProvider);
+
     return rollos.where((r) {
+      // Búsqueda general (textual): necesita resolver IDs a Nombres
+      final colorNombre = colores
+          .firstWhere(
+            (c) => c.id == r.colorId,
+            orElse: () => ColorTela(id: '', nombre: ''),
+          )
+          .nombre;
+      final tipoNombre = tipos
+          .firstWhere(
+            (t) => t.id == r.tipoTelaId,
+            orElse: () => TipoTela(id: '', nombre: ''),
+          )
+          .nombre;
+      final empresaNombre = empresas
+          .firstWhere(
+            (e) => e.id == r.empresaId,
+            orElse: () => Empresa(id: '', nombre: ''),
+          )
+          .nombre;
+
       final matchBusqueda =
           _busqueda.isEmpty ||
-          r.color.toLowerCase().contains(_busqueda.toLowerCase()) ||
+          colorNombre.toLowerCase().contains(_busqueda.toLowerCase()) ||
           r.codigoColor.toLowerCase().contains(_busqueda.toLowerCase()) ||
-          r.empresa.toLowerCase().contains(_busqueda.toLowerCase()) ||
-          (r.tipoTela?.toLowerCase().contains(_busqueda.toLowerCase()) ??
-              false);
+          empresaNombre.toLowerCase().contains(_busqueda.toLowerCase()) ||
+          tipoNombre.toLowerCase().contains(_busqueda.toLowerCase());
 
+      // Filtros específicos por ID
       final matchSucursal =
-          _filtroSucursal.isEmpty || r.sucursal == _filtroSucursal;
+          _filtroSucursalId.isEmpty || r.sucursalId == _filtroSucursalId;
       final matchEmpresa =
-          _filtroEmpresa.isEmpty || r.empresa == _filtroEmpresa;
-      final matchColor = _filtroColor.isEmpty || r.color == _filtroColor;
+          _filtroEmpresaId.isEmpty || r.empresaId == _filtroEmpresaId;
+      final matchColor = _filtroColorId.isEmpty || r.colorId == _filtroColorId;
       final matchTipo =
-          _filtroTipoTela.isEmpty || r.tipoTela == _filtroTipoTela;
+          _filtroTipoTelaId.isEmpty || r.tipoTelaId == _filtroTipoTelaId;
 
       return matchBusqueda &&
           matchSucursal &&
@@ -158,27 +189,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final map = groupBy(
       rollos,
       (Rollo r) =>
-          "${r.color}|${r.empresa}|${r.codigoColor}|${r.tipoTela ?? ''}",
+          "${r.colorId}|${r.empresaId}|${r.codigoColor}|${r.tipoTelaId}",
     );
 
     return map.entries.map((entry) {
-      final parts = entry.key.split('|');
       final listaRollos = entry.value;
 
       return {
-        'color': parts[0],
-        'empresa': parts[1],
-        'codigoColor': parts[2],
-        'tipoTela': parts[3],
+        'colorId': listaRollos.first.colorId,
+        'empresaId': listaRollos.first.empresaId,
+        'codigoColor': listaRollos.first.codigoColor,
+        'tipoTelaId': listaRollos.first.tipoTelaId,
         'rollos': listaRollos,
         'cantidad': listaRollos.length,
         'metrajeTotal': listaRollos.fold<double>(
           0,
           (sum, r) => sum + r.metraje,
         ),
-        'sucursales': listaRollos
-            .where((r) => r.sucursal != null)
-            .map((r) => r.sucursal)
+        'sucursalIds': listaRollos
+            .where((r) => r.sucursalId != null)
+            .map((r) => r.sucursalId)
             .toSet()
             .toList(),
       };
