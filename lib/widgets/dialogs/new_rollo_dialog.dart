@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/models/models.dart';
 import 'package:inv_telas/providers/providers.dart';
+import 'package:inv_telas/screens/pending_screen.dart';
 import 'package:inv_telas/utils/utils.dart';
 import 'package:inv_telas/widgets/widgets.dart';
 import 'package:flex_color_picker/flex_color_picker.dart' as flex;
@@ -17,7 +19,9 @@ class NewRolloDialog extends ConsumerStatefulWidget {
 class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   final _formKey = GlobalKey<FormState>();
 
-  int _cantidad = 1;
+  // Usamos TextEditingController para cantidad para permitir edición manual
+  final _cantidadController = TextEditingController(text: '1');
+
   String? _tipoTelaId;
   String? _sucursalId;
   String? _empresaId;
@@ -25,7 +29,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   DateTime? _fecha;
 
   bool _isSavingCatalog = false;
-  bool _isSaving = false; // Bandera para bloquear botones durante operaciones
+  bool _isSaving = false;
 
   late TextEditingController _codigoController;
   late TextEditingController _metrajeController;
@@ -42,11 +46,24 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   void dispose() {
     _codigoController.dispose();
     _metrajeController.dispose();
+    _cantidadController.dispose();
     super.dispose();
   }
 
   String _normalize(String text) {
     return text.trim().toLowerCase();
+  }
+
+  // --- MÉTODO RESET PARCIAL (NUEVO) ---
+  /// Limpia solo los campos variables del rollo, manteniendo Empresa, Sucursal y Tipo
+  void _resetFieldsForNextInput() {
+    _codigoController.clear();
+    _metrajeController.clear();
+    _cantidadController.text = '1';
+    setState(() {
+      _colorId = null; // Resetear color
+      // _empresaId, _sucursalId, _tipoTelaId se mantienen iguales
+    });
   }
 
   @override
@@ -55,6 +72,8 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     final sucursales = ref.watch(sucursalesProvider);
     final empresas = ref.watch(empresasProvider);
     final colores = ref.watch(coloresProvider);
+    // Observamos borradores para el indicador
+    final drafts = ref.watch(draftsProvider);
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.9,
@@ -64,7 +83,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
       ),
       child: Column(
         children: [
-          _buildHeader(),
+          _buildHeader(drafts.length), // Pasamos cantidad de drafts
           Expanded(
             child: AbsorbPointer(
               absorbing: _isSaving,
@@ -146,7 +165,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
               ),
             ),
           ),
-          _buildActions(), // Llamada al nuevo método de acciones
+          _buildActions(),
         ],
       ),
     );
@@ -195,16 +214,62 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
 
   // --- WIDGETS AUXILIARES ---
 
-  Widget _buildHeader() {
+  Widget _buildHeader(int pendingCount) {
     return Container(
       padding: const EdgeInsets.all(16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           const Text("Nuevo Rollo de Tela", style: AppTextStyles.heading2),
-          IconButton(
-            onPressed: _isSaving ? null : () => Navigator.pop(context),
-            icon: const Icon(Icons.close),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // BOTÓN PENDIENTES CON BADGE
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  IconButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const PendingScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.inventory_2_outlined, size: 26),
+                    tooltip: 'Ver Pendientes',
+                  ),
+                  if (pendingCount > 0)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(minWidth: 18),
+                        child: Text(
+                          '$pendingCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              // BOTÓN CERRAR
+              IconButton(
+                onPressed: _isSaving ? null : () => Navigator.pop(context),
+                icon: const Icon(Icons.close),
+              ),
+            ],
           ),
         ],
       ),
@@ -213,20 +278,53 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
 
   Widget _buildCantidadSelector() {
     return InputDecorator(
-      decoration: const InputDecoration(border: OutlineInputBorder()),
+      decoration: const InputDecoration(
+        labelText: "Cantidad de Rollos",
+        border: OutlineInputBorder(),
+      ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Expanded(child: Text("Cantidad de Rollos")),
-          IconButton(
-            onPressed: () => setState(() => _cantidad++),
-            icon: const Icon(Icons.add),
-          ),
-          Text("$_cantidad"),
+          // Botón Menos
           IconButton(
             onPressed: () {
-              if (_cantidad > 1) setState(() => _cantidad--);
+              int current = int.tryParse(_cantidadController.text) ?? 1;
+              if (current > 1) {
+                _cantidadController.text = (current - 1).toString();
+                setState(() {}); // Actualiza visual
+              }
             },
-            icon: const Icon(Icons.remove),
+            icon: const Icon(Icons.remove_circle_outline),
+          ),
+
+          // Input Numérico
+          SizedBox(
+            width: 60,
+            child: TextField(
+              controller: _cantidadController,
+              textAlign: TextAlign.center,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              style: AppTextStyles.heading2,
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.zero,
+              ),
+              onChanged: (val) {
+                // Asegurar que si borra todo, quede en 1 o permita escribir
+                if (val.isEmpty) _cantidadController.text = '1';
+              },
+            ),
+          ),
+
+          // Botón Más
+          IconButton(
+            onPressed: () {
+              int current = int.tryParse(_cantidadController.text) ?? 0;
+              _cantidadController.text = (current + 1).toString();
+              setState(() {}); // Actualiza visual
+            },
+            icon: const Icon(Icons.add_circle_outline),
           ),
         ],
       ),
@@ -249,14 +347,12 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     );
   }
 
-  // --- MODIFICADO: Acciones con dos botones ---
   Widget _buildActions() {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Indicador de carga
           if (_isSaving)
             const Padding(
               padding: EdgeInsets.only(bottom: 12.0),
@@ -299,7 +395,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
           ),
           const SizedBox(height: 8),
           Text(
-            "Lote: Guarda localmente si no hay internet.",
+            "El modal permanecerá abierto para cargar varios rollos seguidos.",
             style: AppTextStyles.caption.copyWith(fontSize: 10),
             textAlign: TextAlign.center,
           ),
@@ -328,8 +424,8 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
               items: items
                   .map(
                     (e) => DropdownMenuItem(
-                      value: getId(e), // ID
-                      child: Text(getLabel(e)), // Nombre
+                      value: getId(e),
+                      child: Text(getLabel(e)),
                     ),
                   )
                   .toList(),
@@ -378,7 +474,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
               items: colores
                   .map(
                     (e) => DropdownMenuItem(
-                      value: e.id, // ID
+                      value: e.id,
                       child: Text(
                         e.nombre,
                         style: const TextStyle(color: Colors.black),
@@ -423,31 +519,28 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     if (d != null) setState(() => _fecha = d);
   }
 
-  // --- NUEVAS FUNCIONES DE GUARDADO ---
-
   Future<void> _subirIndividual() async {
-    if (_isSaving) return; // Evitar doble clic
+    if (_isSaving) return;
     if (!_formKey.currentState!.validate()) return;
 
     final confirmar = await ConfirmDialog.show(
       context: context,
       titulo: "¿Subir a Firebase?",
-      mensaje: "Se crearán $_cantidad rollos directamente en la nube.",
+      mensaje:
+          "Se crearán ${_cantidadController.text} rollos directamente en la nube.",
       textoConfirmar: "Subir Ahora",
     );
-
     if (confirmar != true) return;
 
     setState(() => _isSaving = true);
 
     try {
       final rollos = _generarListaRollos();
-      // Llama al servicio original que sube a Firebase
       final ok = await ref.read(rollosProvider.notifier).crearRollos(rollos);
 
       if (ok && mounted) {
-        Navigator.pop(context);
-        _mostrarExito("Rollos subidos a Firebase correctamente");
+        _mostrarExito("✅ ${rollos.length} rollos subidos a Firebase");
+        _resetFieldsForNextInput(); // RESET PARCIAL
       } else {
         throw Exception("Error al guardar en Provider");
       }
@@ -465,7 +558,8 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     final confirmar = await ConfirmDialog.show(
       context: context,
       titulo: "¿Añadir a Pendientes?",
-      mensaje: "Se guardarán $_cantidad rollos localmente para subir después.",
+      mensaje:
+          "Se guardarán ${_cantidadController.text} rollos localmente para subir después.",
       textoConfirmar: "Guardar Local",
     );
 
@@ -476,14 +570,13 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     try {
       final rollos = _generarListaRollos();
 
-      // Agregar al proveedor de borradores (Local)
       for (var rollo in rollos) {
         await ref.read(draftsProvider.notifier).add(rollo);
       }
 
       if (mounted) {
-        Navigator.pop(context);
-        _mostrarExito("Rollos agregados a la lista pendiente");
+        _mostrarExito("📦 ${rollos.length} rollos añadidos a pendientes");
+        _resetFieldsForNextInput(); // RESET PARCIAL
       }
     } catch (e) {
       _mostrarError("Error al guardar local: $e");
@@ -495,9 +588,10 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   List<Rollo> _generarListaRollos() {
     final codigo = _codigoController.text.trim();
     final metraje = double.tryParse(_metrajeController.text) ?? 0;
+    final cantidad = int.tryParse(_cantidadController.text) ?? 1;
 
     return List.generate(
-      _cantidad,
+      cantidad,
       (index) => Rollo(
         id: Helpers.generarId(),
         sucursalId: _sucursalId,
@@ -519,6 +613,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
         content: Text(mensaje),
         backgroundColor: AppColors.success,
         behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
       ),
     );
   }

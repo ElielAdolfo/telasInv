@@ -155,7 +155,7 @@ class MyApp extends StatelessWidget {
 
           // ✅ CONECTADO
           if (snapshot.hasData) {
-            return const HomeScreen();
+            return SafeArea(child: Scaffold(body: HomeScreen()));
           }
 
           return const SizedBox();
@@ -311,12 +311,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:inv_telas/models/models.dart';
 import 'package:inv_telas/services/services.dart';
+import 'package:inv_telas/services/local_storage_service.dart'; // ✅ NUEVO
 
 // --- SERVICES ---
 final rolloServiceProvider = Provider<RolloService>((ref) => RolloService());
 final catalogServiceProvider = Provider<CatalogService>(
   (ref) => CatalogService(),
 );
+
+// ✅ LOCAL STORAGE SERVICE
+final localStorageProvider = Provider<LocalStorageService>((ref) {
+  return LocalStorageService();
+});
 
 // --- CATALOGS STATE ---
 final empresasProvider =
@@ -351,7 +357,7 @@ final tiposTelaProvider =
       );
     });
 
-// Generic Catalog Notifier
+// --- GENERIC CATALOG NOTIFIER ---
 class CatalogNotifier<T> extends StateNotifier<List<T>> {
   final CatalogService _service;
   final Future<List<T>> Function(CatalogService) _fetcher;
@@ -364,12 +370,10 @@ class CatalogNotifier<T> extends StateNotifier<List<T>> {
     try {
       final data = await _fetcher(_service);
 
-      // ✅ CORRECCIÓN: Verificamos si el notifier sigue "vivo" antes de actualizar el estado
       if (mounted) {
         state = data;
       }
     } catch (e) {
-      // Opcional: Manejo de errores
       print('Error cargando catálogo: $e');
     }
   }
@@ -389,6 +393,7 @@ final rollosProvider =
 
 class RollosNotifier extends StateNotifier<AsyncValue<List<Rollo>>> {
   final RolloService _service;
+
   RollosNotifier(this._service) : super(const AsyncValue.loading()) {
     _load();
   }
@@ -459,12 +464,48 @@ class RollosNotifier extends StateNotifier<AsyncValue<List<Rollo>>> {
   }
 }
 
+// --- BORRADORES (SHARED PREFERENCES) ---
+final draftsProvider = StateNotifierProvider<DraftsNotifier, List<Rollo>>((
+  ref,
+) {
+  return DraftsNotifier(ref.watch(localStorageProvider));
+});
+
+class DraftsNotifier extends StateNotifier<List<Rollo>> {
+  final LocalStorageService _localService;
+
+  DraftsNotifier(this._localService) : super([]) {
+    _load();
+  }
+
+  Future<void> _load() async {
+    state = await _localService.getDrafts();
+  }
+
+  Future<void> add(Rollo rollo) async {
+    await _localService.addDraft(rollo);
+    await _load();
+  }
+
+  Future<void> remove(String id) async {
+    await _localService.removeDraft(id);
+    await _load();
+  }
+
+  Future<void> clearAll() async {
+    await _localService.clearDrafts();
+    state = [];
+  }
+}
+
 // --- ESTADÍSTICAS ---
 final estadisticasProvider = Provider<Map<String, dynamic>>((ref) {
   final rollosState = ref.watch(rollosProvider);
+
   return rollosState.when(
     data: (rollos) {
       final setEmpresas = rollos.map((r) => r.empresaId).toSet();
+
       final setSucursales = rollos
           .where((r) => r.sucursalId != null)
           .map((r) => r.sucursalId!)
@@ -504,6 +545,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/models/models.dart';
 import 'package:inv_telas/providers/providers.dart';
+import 'package:inv_telas/screens/pending_screen.dart';
 import 'package:inv_telas/utils/utils.dart';
 import 'package:inv_telas/widgets/widgets.dart';
 import 'package:collection/collection.dart';
@@ -587,6 +629,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       backgroundColor: Colors.white,
       elevation: 1,
       shadowColor: Colors.grey[200],
+      actions: [
+        // BotÃ³n de Pendientes
+        IconButton(
+          icon: const Icon(Icons.cloud_sync),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PendingScreen()),
+            );
+          },
+          tooltip: 'Ver Pendientes',
+        ),
+      ],
     );
   }
 
@@ -719,6 +774,206 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 }
 
 
+===== D:\inv\inv_telas\lib\screens\pending_screen.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/models/models.dart';
+import 'package:inv_telas/providers/providers.dart';
+import 'package:inv_telas/utils/constants.dart';
+import 'package:inv_telas/widgets/confirm_dialog.dart';
+
+class PendingScreen extends ConsumerStatefulWidget {
+  const PendingScreen({super.key});
+
+  @override
+  ConsumerState<PendingScreen> createState() => _PendingScreenState();
+}
+
+class _PendingScreenState extends ConsumerState<PendingScreen> {
+  bool _isUploading = false;
+  String _progressText = '';
+  int _currentUploadIndex = 0;
+  int _totalToUpload = 0;
+
+  Future<void> _uploadBatch() async {
+    final confirm = await ConfirmDialog.show(
+      context: context,
+      titulo: 'Â¿Subir Lote Completo?',
+      mensaje: 'Se subirÃ¡n todos los rollos pendientes a Firebase.',
+      textoConfirmar: 'Subir Todo',
+    );
+    if (confirm != true) return;
+
+    setState(() {
+      _isUploading = true;
+      _currentUploadIndex = 0;
+    });
+
+    final drafts = ref.read(draftsProvider);
+    _totalToUpload = drafts.length;
+
+    // Iteramos uno por uno para dar feedback
+    for (var i = 0; i < drafts.length; i++) {
+      // Verificamos si el widget sigue montado (por si el usuario cierra)
+      if (!mounted) return;
+
+      final rollo = drafts[i];
+
+      setState(() {
+        _currentUploadIndex = i + 1;
+        _progressText = 'Subiendo $_currentUploadIndex de $_totalToUpload...';
+      });
+
+      try {
+        // 1. Intentar subir a Firebase
+        await ref.read(rolloServiceProvider).createRollo(rollo);
+
+        // 2. Si tuvo Ã©xito, borrar de local
+        await ref.read(draftsProvider.notifier).remove(rollo.id);
+      } catch (e) {
+        // Si falla, nos detenemos o continuamos.
+        // AquÃ­ decidimos detenernos para que el usuario vea el error.
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error en ${rollo.codigoColor}: $e')),
+          );
+        }
+        break;
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _isUploading = false;
+        _progressText = 'Proceso finalizado';
+      });
+
+      // Si todo saliÃ³ bien, mostramos mensaje final
+      if (ref.read(draftsProvider).isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('âœ… Todos los datos fueron subidos correctamente'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _clearAll() async {
+    final confirm = await ConfirmDialog.show(
+      context: context,
+      titulo: 'Â¿Limpiar Pendientes?',
+      mensaje: 'Se eliminarÃ¡n TODOS los datos locales sin subirlos a Firebase.',
+      textoConfirmar: 'Limpiar Todo',
+      isDanger: true,
+    );
+    if (confirm == true) {
+      await ref.read(draftsProvider.notifier).clearAll();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final drafts = ref.watch(draftsProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Rollos Pendientes de Subir'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_sweep),
+            onPressed: drafts.isEmpty || _isUploading ? null : _clearAll,
+            tooltip: 'Limpiar Todo',
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          if (_isUploading)
+            Container(
+              color: AppColors.primary.withOpacity(0.1),
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(width: 16),
+                  Text(_progressText, style: AppTextStyles.heading3),
+                ],
+              ),
+            ),
+
+          Expanded(
+            child: drafts.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.cloud_done,
+                          size: 60,
+                          color: Colors.grey,
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'No hay datos pendientes',
+                          style: AppTextStyles.body.copyWith(
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: drafts.length,
+                    itemBuilder: (context, index) {
+                      final rollo = drafts[index];
+                      return ListTile(
+                        leading: const Icon(Icons.inventory_2),
+                        title: Text('Rollo: ${rollo.codigoColor}'),
+                        subtitle: Text('Metraje: ${rollo.metraje}'),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: _isUploading
+                              ? null
+                              : () => _deleteSingleDraft(rollo.id),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          if (drafts.isNotEmpty && !_isUploading)
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: ElevatedButton.icon(
+                onPressed: _uploadBatch,
+                icon: const Icon(Icons.cloud_upload),
+                label: const Text("SUBIR TODO A FIREBASE"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.success,
+                  minimumSize: const Size(double.infinity, 50),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteSingleDraft(String id) async {
+    final confirm = await ConfirmDialog.show(
+      context: context,
+      titulo: 'Â¿Eliminar este borrador?',
+      mensaje: 'Este dato se perderÃ¡ y no se subirÃ¡ a la nube.',
+      isDanger: true,
+    );
+    if (confirm == true) {
+      await ref.read(draftsProvider.notifier).remove(id);
+    }
+  }
+}
+
+
 ===== D:\inv\inv_telas\lib\services\catalog_service.dart =====
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -824,6 +1079,49 @@ class FirebaseService {
     required String collectionPath,
     required String id,
   }) async => await _firestore.collection(collectionPath).doc(id).delete();
+}
+
+
+===== D:\inv\inv_telas\lib\services\local_storage_service.dart =====
+
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:inv_telas/models/models.dart';
+
+class LocalStorageService {
+  static const String _keyDrafts = 'draft_rollos';
+
+  Future<List<Rollo>> getDrafts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? data = prefs.getString(_keyDrafts);
+    if (data == null) return [];
+
+    final List<dynamic> jsonList = jsonDecode(data);
+    return jsonList.map((e) => Rollo.fromJson(e)).toList();
+  }
+
+  Future<void> saveDrafts(List<Rollo> rollos) async {
+    final prefs = await SharedPreferences.getInstance();
+    final String data = jsonEncode(rollos.map((e) => e.toJson()).toList());
+    await prefs.setString(_keyDrafts, data);
+  }
+
+  Future<void> addDraft(Rollo rollo) async {
+    final drafts = await getDrafts();
+    drafts.add(rollo);
+    await saveDrafts(drafts);
+  }
+
+  Future<void> removeDraft(String id) async {
+    final drafts = await getDrafts();
+    drafts.removeWhere((r) => r.id == id);
+    await saveDrafts(drafts);
+  }
+
+  Future<void> clearDrafts() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keyDrafts);
+  }
 }
 
 
@@ -1976,7 +2274,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   DateTime? _fecha;
 
   bool _isSavingCatalog = false;
-  bool _isSaving = false;
+  bool _isSaving = false; // Bandera para bloquear botones durante operaciones
 
   late TextEditingController _codigoController;
   late TextEditingController _metrajeController;
@@ -2097,7 +2395,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
               ),
             ),
           ),
-          _buildActions(),
+          _buildActions(), // Llamada al nuevo mÃ©todo de acciones
         ],
       ),
     );
@@ -2200,39 +2498,61 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     );
   }
 
+  // --- MODIFICADO: Acciones con dos botones ---
   Widget _buildActions() {
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: _isSaving ? null : _guardar,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.success,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.all(14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Indicador de carga
+          if (_isSaving)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12.0),
+              child: LinearProgressIndicator(minHeight: 4),
             ),
-          ),
-          child: _isSaving
-              ? const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
+
+          Row(
+            children: [
+              // BOTÃ“N 1: AÃ‘ADIR A LOTE (Local)
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _isSaving ? null : _agregarALote,
+                  icon: const Icon(Icons.save_alt),
+                  label: const Text("AÃ±adir a Lote"),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: const BorderSide(color: AppColors.primary),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              // BOTÃ“N 2: SUBIR INDIVIDUAL (Firebase)
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _isSaving ? null : _subirIndividual,
+                  icon: const Icon(Icons.cloud_upload),
+                  label: const Text("Subir Individual"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.success,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    SizedBox(width: 12),
-                    Text("Guardando..."),
-                  ],
-                )
-              : Text(_cantidad == 1 ? "Guardar Rollo" : "Guardar Rollos"),
-        ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Lote: Guarda localmente si no hay internet.",
+            style: AppTextStyles.caption.copyWith(fontSize: 10),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
@@ -2352,17 +2672,17 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     if (d != null) setState(() => _fecha = d);
   }
 
-  // --- GUARDAR ---
-  Future<void> _guardar() async {
-    if (_isSaving) return;
+  // --- NUEVAS FUNCIONES DE GUARDADO ---
 
+  Future<void> _subirIndividual() async {
+    if (_isSaving) return; // Evitar doble clic
     if (!_formKey.currentState!.validate()) return;
 
     final confirmar = await ConfirmDialog.show(
       context: context,
-      titulo: "Â¿EstÃ¡ seguro?",
-      mensaje: "Se crearÃ¡n $_cantidad rollos individuales.",
-      textoConfirmar: "Guardar",
+      titulo: "Â¿Subir a Firebase?",
+      mensaje: "Se crearÃ¡n $_cantidad rollos directamente en la nube.",
+      textoConfirmar: "Subir Ahora",
     );
 
     if (confirmar != true) return;
@@ -2370,85 +2690,112 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     setState(() => _isSaving = true);
 
     try {
-      final codigo = _codigoController.text.trim();
-      final metraje = double.tryParse(_metrajeController.text) ?? 0;
-
-      final rollos = List.generate(
-        _cantidad,
-        (index) => Rollo(
-          id: Helpers.generarId(),
-          sucursalId: _sucursalId,
-          empresaId: _empresaId!,
-          colorId: _colorId!,
-          codigoColor: codigo,
-          tipoTelaId: _tipoTelaId ?? '',
-          metraje: metraje,
-          fecha: _fecha?.toIso8601String(),
-          fechaCreacion: DateTime.now(),
-        ),
-      );
-
+      final rollos = _generarListaRollos();
+      // Llama al servicio original que sube a Firebase
       final ok = await ref.read(rollosProvider.notifier).crearRollos(rollos);
 
       if (ok && mounted) {
         Navigator.pop(context);
-      }
-
-      if (ok) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              duration: const Duration(seconds: 3),
-              behavior: SnackBarBehavior.floating,
-              backgroundColor: Colors.black87,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-              margin: const EdgeInsets.all(16),
-              content: Row(
-                children: [
-                  Icon(Icons.check_circle, color: AppColors.success),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text(
-                      "Guardado correctamente",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
+        _mostrarExito("Rollos subidos a Firebase correctamente");
+      } else {
+        throw Exception("Error al guardar en Provider");
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Error al guardar")));
+      _mostrarError("Error al subir: $e");
     } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
+      if (mounted) setState(() => _isSaving = false);
     }
   }
+
+  Future<void> _agregarALote() async {
+    if (_isSaving) return;
+    if (!_formKey.currentState!.validate()) return;
+
+    final confirmar = await ConfirmDialog.show(
+      context: context,
+      titulo: "Â¿AÃ±adir a Pendientes?",
+      mensaje: "Se guardarÃ¡n $_cantidad rollos localmente para subir despuÃ©s.",
+      textoConfirmar: "Guardar Local",
+    );
+
+    if (confirmar != true) return;
+
+    setState(() => _isSaving = true);
+
+    try {
+      final rollos = _generarListaRollos();
+
+      // Agregar al proveedor de borradores (Local)
+      for (var rollo in rollos) {
+        await ref.read(draftsProvider.notifier).add(rollo);
+      }
+
+      if (mounted) {
+        Navigator.pop(context);
+        _mostrarExito("Rollos agregados a la lista pendiente");
+      }
+    } catch (e) {
+      _mostrarError("Error al guardar local: $e");
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  List<Rollo> _generarListaRollos() {
+    final codigo = _codigoController.text.trim();
+    final metraje = double.tryParse(_metrajeController.text) ?? 0;
+
+    return List.generate(
+      _cantidad,
+      (index) => Rollo(
+        id: Helpers.generarId(),
+        sucursalId: _sucursalId,
+        empresaId: _empresaId ?? '',
+        colorId: _colorId ?? '',
+        codigoColor: codigo,
+        tipoTelaId: _tipoTelaId ?? '',
+        metraje: metraje,
+        fecha: _fecha?.toIso8601String(),
+        fechaCreacion: DateTime.now(),
+      ),
+    );
+  }
+
+  void _mostrarExito(String mensaje) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: AppColors.success,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _mostrarError(String mensaje) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   // ================= QUICK ADD PROFESIONAL =================
 
   void _addTipoTela(List<TipoTela> lista) => _quickAddGeneric<TipoTela>(
     title: "Nuevo Tipo de Tela",
     existingItems: lista,
-    //getId: (t) => t.id,
     getName: (t) => t.nombre,
     onCreate: (name) async {
       final newId = Helpers.generarId();
-
       await ref
           .read(catalogServiceProvider)
           .addTipoTela(TipoTela(id: newId, nombre: name));
       ref.refresh(tiposTelaProvider);
-      return newId; // Devolvemos el ID creado
+      return newId;
     },
     onSelected: (id) => setState(() => _tipoTelaId = id),
   );
@@ -2463,7 +2810,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
           .read(catalogServiceProvider)
           .addSucursal(Sucursal(id: newId, nombre: name));
       ref.refresh(sucursalesProvider);
-      return newId; // Devolvemos el ID creado
+      return newId;
     },
     onSelected: (id) => setState(() => _sucursalId = id),
   );
@@ -2478,7 +2825,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
           .read(catalogServiceProvider)
           .addEmpresa(Empresa(id: newId, nombre: name));
       ref.refresh(empresasProvider);
-      return newId; // Devolvemos el ID creado
+      return newId;
     },
     onSelected: (id) => setState(() => _empresaId = id),
   );
@@ -2502,8 +2849,8 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     required String title,
     required List<T> existingItems,
     required String Function(T) getName,
-    required Future<String> Function(String name) onCreate, // Retorna ID
-    required void Function(String id) onSelected, // Recibe ID
+    required Future<String> Function(String name) onCreate,
+    required void Function(String id) onSelected,
   }) async {
     final ctrl = TextEditingController();
     await showDialog(
@@ -2555,13 +2902,10 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
 
                         setStateDialog(() => _isSavingCatalog = true);
 
-                        // onCreate devuelve el ID
                         final newId = await onCreate(ctrl.text.trim());
-                        //await onCreate(ctrl.text.trim()); //esta dupklicacndo
 
                         setStateDialog(() => _isSavingCatalog = false);
 
-                        // Pasamos el ID al callback
                         onSelected(newId);
 
                         if (mounted) Navigator.pop(ctx);
@@ -2614,7 +2958,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
 class _ColorPickerDialog extends StatefulWidget {
   final WidgetRef ref;
   final List<ColorTela> existingColors;
-  final Function(String id) onColorCreated; // Cambiado a ID
+  final Function(String id) onColorCreated;
 
   const _ColorPickerDialog({
     required this.ref,
@@ -2634,12 +2978,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
   String get _hexColor =>
       '#${_selectedColor.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
 
-  // Mapa de alturas por Ã­ndice de tab
-  final Map<int, double> _heightFactors = {
-    0: 0.36, // Base
-    1: 0.42, // Rueda
-    2: 0.6, // Avanzado
-  };
+  final Map<int, double> _heightFactors = {0: 0.36, 1: 0.42, 2: 0.6};
 
   @override
   void initState() {
@@ -2649,7 +2988,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
   }
 
   void _onTabChanged() {
-    // Forzamos redibujar para que AnimatedContainer tome la nueva altura
     if (mounted) {
       setState(() {});
     }
@@ -2693,7 +3031,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                 ),
                 const SizedBox(height: 15),
 
-                /// TABS
                 TabBar(
                   controller: _tabController,
                   tabs: const [
@@ -2704,7 +3041,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                 ),
                 const SizedBox(height: 10),
 
-                /// CONTENIDO DINÃMICO
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeInOut,
@@ -2720,7 +3056,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                 ),
                 const SizedBox(height: 15),
 
-                /// Vista previa
                 Container(
                   height: 40,
                   width: double.infinity,
@@ -2732,10 +3067,8 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                   alignment: Alignment.center,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   child: Row(
-                    mainAxisAlignment:
-                        MainAxisAlignment.spaceBetween, // Separar los elementos
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Campo de texto para el nombre del color
                       Expanded(
                         child: TextField(
                           controller: _nameController,
@@ -2746,7 +3079,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                         ),
                       ),
                       const SizedBox(width: 8),
-                      // CÃ³digo hexadecimal
                       Text(
                         '#${_selectedColor.value.toRadixString(16).substring(2).toUpperCase()}',
                         style: TextStyle(
@@ -2761,7 +3093,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                 ),
                 const SizedBox(height: 20),
 
-                /// Acciones
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
@@ -2775,7 +3106,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                         final name = _nameController.text.trim();
                         if (name.isEmpty) return;
 
-                        // Validar duplicados
                         final exists = widget.existingColors.any(
                           (c) => c.nombre.toLowerCase() == name.toLowerCase(),
                         );
@@ -2790,7 +3120,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
 
                         final hex =
                             '#${_selectedColor.value.toRadixString(16).substring(2)}';
-                        final newId = Helpers.generarId(); // Generamos ID
+                        final newId = Helpers.generarId();
 
                         await widget.ref
                             .read(catalogServiceProvider)
@@ -2887,34 +3217,4 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
       },
     );
   }
-
-  Widget _buildHexInfo() {
-    return Column(
-      children: [
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.black12),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: SelectableText(
-            _hexColor,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-        ),
-      ],
-    );
-  }
-
-  /*/// Retorna true si conviene texto blanco sobre el color [background]
-  bool useWhiteForeground(Color background) {
-    // Calcula la luminancia percibida
-    double luminance =
-        (0.299 * background.red +
-            0.587 * background.green +
-            0.114 * background.blue) /
-        255;
-    return luminance < 0.5;
-  }*/
 }
