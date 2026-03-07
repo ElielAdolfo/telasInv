@@ -1,8 +1,9 @@
 ﻿import 'package:inv_telas/models/models.dart';
 import 'package:inv_telas/services/firebase_service.dart';
+import '../config/env.dart';
 
 class RolloService extends FirebaseService {
-  static const String _collection = 'rollos';
+  final String _collection = Env.col('rollos');
 
   Future<List<Rollo>> getAllRollos() async => await getAll<Rollo>(
     collectionPath: _collection,

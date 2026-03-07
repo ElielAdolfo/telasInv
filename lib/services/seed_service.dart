@@ -3,6 +3,7 @@ import 'package:inv_telas/models/models.dart';
 import 'package:inv_telas/services/rollo_service.dart';
 import 'package:inv_telas/utils/helpers.dart';
 import '../config/seed_config.dart';
+import '../config/env.dart';
 
 class SeedService {
   final RolloService _rolloService = RolloService();
@@ -16,7 +17,10 @@ class SeedService {
 
     print("🔍 Verificando si existen datos en Firebase...");
 
-    final snapshot = await _firestore.collection('rollos').limit(1).get();
+    final snapshot = await _firestore
+        .collection(Env.col('rollos'))
+        .limit(1)
+        .get();
 
     if (snapshot.docs.isNotEmpty) {
       print("📦 Ya existen datos en Firebase. No se crea nada.");

@@ -1,13 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:inv_telas/models/models.dart';
 import 'firebase_service.dart';
+import '../config/env.dart';
 
 class CatalogService extends FirebaseService {
   // Colecciones
-  final String _empresasCol = 'catalog_empresas';
-  final String _sucursalesCol = 'catalog_sucursales';
-  final String _coloresCol = 'catalog_colores';
-  final String _tiposCol = 'catalog_tipos_tela';
+  final String _empresasCol = Env.col('catalog_empresas');
+  final String _sucursalesCol = Env.col('catalog_sucursales');
+  final String _coloresCol = Env.col('catalog_colores');
+  final String _tiposCol = Env.col('catalog_tipos_tela');
 
   // EMPRESAS
   Future<List<Empresa>> getEmpresas() async => await getAll<Empresa>(
