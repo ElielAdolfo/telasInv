@@ -58,7 +58,7 @@ class MyApp extends StatelessWidget {
 
           // ✅ CONECTADO
           if (snapshot.hasData) {
-            return const HomeScreen();
+            return SafeArea(child: Scaffold(body: HomeScreen()));
           }
 
           return const SizedBox();

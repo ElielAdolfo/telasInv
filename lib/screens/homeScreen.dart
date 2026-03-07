@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/models/models.dart';
 import 'package:inv_telas/providers/providers.dart';
+import 'package:inv_telas/screens/pending_screen.dart';
 import 'package:inv_telas/utils/utils.dart';
 import 'package:inv_telas/widgets/widgets.dart';
 import 'package:collection/collection.dart';
@@ -85,6 +86,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       backgroundColor: Colors.white,
       elevation: 1,
       shadowColor: Colors.grey[200],
+      actions: [
+        // Botón de Pendientes
+        IconButton(
+          icon: const Icon(Icons.cloud_sync),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PendingScreen()),
+            );
+          },
+          tooltip: 'Ver Pendientes',
+        ),
+      ],
     );
   }
 

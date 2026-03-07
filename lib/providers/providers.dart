@@ -2,12 +2,18 @@
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:inv_telas/models/models.dart';
 import 'package:inv_telas/services/services.dart';
+import 'package:inv_telas/services/local_storage_service.dart'; // ✅ NUEVO
 
 // --- SERVICES ---
 final rolloServiceProvider = Provider<RolloService>((ref) => RolloService());
 final catalogServiceProvider = Provider<CatalogService>(
   (ref) => CatalogService(),
 );
+
+// ✅ LOCAL STORAGE SERVICE
+final localStorageProvider = Provider<LocalStorageService>((ref) {
+  return LocalStorageService();
+});
 
 // --- CATALOGS STATE ---
 final empresasProvider =
@@ -42,7 +48,7 @@ final tiposTelaProvider =
       );
     });
 
-// Generic Catalog Notifier
+// --- GENERIC CATALOG NOTIFIER ---
 class CatalogNotifier<T> extends StateNotifier<List<T>> {
   final CatalogService _service;
   final Future<List<T>> Function(CatalogService) _fetcher;
@@ -55,12 +61,10 @@ class CatalogNotifier<T> extends StateNotifier<List<T>> {
     try {
       final data = await _fetcher(_service);
 
-      // ✅ CORRECCIÓN: Verificamos si el notifier sigue "vivo" antes de actualizar el estado
       if (mounted) {
         state = data;
       }
     } catch (e) {
-      // Opcional: Manejo de errores
       print('Error cargando catálogo: $e');
     }
   }
@@ -80,6 +84,7 @@ final rollosProvider =
 
 class RollosNotifier extends StateNotifier<AsyncValue<List<Rollo>>> {
   final RolloService _service;
+
   RollosNotifier(this._service) : super(const AsyncValue.loading()) {
     _load();
   }
@@ -150,12 +155,48 @@ class RollosNotifier extends StateNotifier<AsyncValue<List<Rollo>>> {
   }
 }
 
+// --- BORRADORES (SHARED PREFERENCES) ---
+final draftsProvider = StateNotifierProvider<DraftsNotifier, List<Rollo>>((
+  ref,
+) {
+  return DraftsNotifier(ref.watch(localStorageProvider));
+});
+
+class DraftsNotifier extends StateNotifier<List<Rollo>> {
+  final LocalStorageService _localService;
+
+  DraftsNotifier(this._localService) : super([]) {
+    _load();
+  }
+
+  Future<void> _load() async {
+    state = await _localService.getDrafts();
+  }
+
+  Future<void> add(Rollo rollo) async {
+    await _localService.addDraft(rollo);
+    await _load();
+  }
+
+  Future<void> remove(String id) async {
+    await _localService.removeDraft(id);
+    await _load();
+  }
+
+  Future<void> clearAll() async {
+    await _localService.clearDrafts();
+    state = [];
+  }
+}
+
 // --- ESTADÍSTICAS ---
 final estadisticasProvider = Provider<Map<String, dynamic>>((ref) {
   final rollosState = ref.watch(rollosProvider);
+
   return rollosState.when(
     data: (rollos) {
       final setEmpresas = rollos.map((r) => r.empresaId).toSet();
+
       final setSucursales = rollos
           .where((r) => r.sucursalId != null)
           .map((r) => r.sucursalId!)

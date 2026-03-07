@@ -25,7 +25,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   DateTime? _fecha;
 
   bool _isSavingCatalog = false;
-  bool _isSaving = false;
+  bool _isSaving = false; // Bandera para bloquear botones durante operaciones
 
   late TextEditingController _codigoController;
   late TextEditingController _metrajeController;
@@ -146,7 +146,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
               ),
             ),
           ),
-          _buildActions(),
+          _buildActions(), // Llamada al nuevo método de acciones
         ],
       ),
     );
@@ -249,39 +249,61 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     );
   }
 
+  // --- MODIFICADO: Acciones con dos botones ---
   Widget _buildActions() {
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: _isSaving ? null : _guardar,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.success,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.all(14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Indicador de carga
+          if (_isSaving)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12.0),
+              child: LinearProgressIndicator(minHeight: 4),
             ),
-          ),
-          child: _isSaving
-              ? const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
+
+          Row(
+            children: [
+              // BOTÓN 1: AÑADIR A LOTE (Local)
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _isSaving ? null : _agregarALote,
+                  icon: const Icon(Icons.save_alt),
+                  label: const Text("Añadir a Lote"),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: const BorderSide(color: AppColors.primary),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              // BOTÓN 2: SUBIR INDIVIDUAL (Firebase)
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _isSaving ? null : _subirIndividual,
+                  icon: const Icon(Icons.cloud_upload),
+                  label: const Text("Subir Individual"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.success,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    SizedBox(width: 12),
-                    Text("Guardando..."),
-                  ],
-                )
-              : Text(_cantidad == 1 ? "Guardar Rollo" : "Guardar Rollos"),
-        ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Lote: Guarda localmente si no hay internet.",
+            style: AppTextStyles.caption.copyWith(fontSize: 10),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
@@ -401,17 +423,17 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     if (d != null) setState(() => _fecha = d);
   }
 
-  // --- GUARDAR ---
-  Future<void> _guardar() async {
-    if (_isSaving) return;
+  // --- NUEVAS FUNCIONES DE GUARDADO ---
 
+  Future<void> _subirIndividual() async {
+    if (_isSaving) return; // Evitar doble clic
     if (!_formKey.currentState!.validate()) return;
 
     final confirmar = await ConfirmDialog.show(
       context: context,
-      titulo: "¿Está seguro?",
-      mensaje: "Se crearán $_cantidad rollos individuales.",
-      textoConfirmar: "Guardar",
+      titulo: "¿Subir a Firebase?",
+      mensaje: "Se crearán $_cantidad rollos directamente en la nube.",
+      textoConfirmar: "Subir Ahora",
     );
 
     if (confirmar != true) return;
@@ -419,85 +441,112 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     setState(() => _isSaving = true);
 
     try {
-      final codigo = _codigoController.text.trim();
-      final metraje = double.tryParse(_metrajeController.text) ?? 0;
-
-      final rollos = List.generate(
-        _cantidad,
-        (index) => Rollo(
-          id: Helpers.generarId(),
-          sucursalId: _sucursalId,
-          empresaId: _empresaId!,
-          colorId: _colorId!,
-          codigoColor: codigo,
-          tipoTelaId: _tipoTelaId ?? '',
-          metraje: metraje,
-          fecha: _fecha?.toIso8601String(),
-          fechaCreacion: DateTime.now(),
-        ),
-      );
-
+      final rollos = _generarListaRollos();
+      // Llama al servicio original que sube a Firebase
       final ok = await ref.read(rollosProvider.notifier).crearRollos(rollos);
 
       if (ok && mounted) {
         Navigator.pop(context);
-      }
-
-      if (ok) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              duration: const Duration(seconds: 3),
-              behavior: SnackBarBehavior.floating,
-              backgroundColor: Colors.black87,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-              margin: const EdgeInsets.all(16),
-              content: Row(
-                children: [
-                  Icon(Icons.check_circle, color: AppColors.success),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text(
-                      "Guardado correctamente",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
+        _mostrarExito("Rollos subidos a Firebase correctamente");
+      } else {
+        throw Exception("Error al guardar en Provider");
       }
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Error al guardar")));
+      _mostrarError("Error al subir: $e");
     } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
+      if (mounted) setState(() => _isSaving = false);
     }
   }
+
+  Future<void> _agregarALote() async {
+    if (_isSaving) return;
+    if (!_formKey.currentState!.validate()) return;
+
+    final confirmar = await ConfirmDialog.show(
+      context: context,
+      titulo: "¿Añadir a Pendientes?",
+      mensaje: "Se guardarán $_cantidad rollos localmente para subir después.",
+      textoConfirmar: "Guardar Local",
+    );
+
+    if (confirmar != true) return;
+
+    setState(() => _isSaving = true);
+
+    try {
+      final rollos = _generarListaRollos();
+
+      // Agregar al proveedor de borradores (Local)
+      for (var rollo in rollos) {
+        await ref.read(draftsProvider.notifier).add(rollo);
+      }
+
+      if (mounted) {
+        Navigator.pop(context);
+        _mostrarExito("Rollos agregados a la lista pendiente");
+      }
+    } catch (e) {
+      _mostrarError("Error al guardar local: $e");
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  List<Rollo> _generarListaRollos() {
+    final codigo = _codigoController.text.trim();
+    final metraje = double.tryParse(_metrajeController.text) ?? 0;
+
+    return List.generate(
+      _cantidad,
+      (index) => Rollo(
+        id: Helpers.generarId(),
+        sucursalId: _sucursalId,
+        empresaId: _empresaId ?? '',
+        colorId: _colorId ?? '',
+        codigoColor: codigo,
+        tipoTelaId: _tipoTelaId ?? '',
+        metraje: metraje,
+        fecha: _fecha?.toIso8601String(),
+        fechaCreacion: DateTime.now(),
+      ),
+    );
+  }
+
+  void _mostrarExito(String mensaje) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: AppColors.success,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _mostrarError(String mensaje) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   // ================= QUICK ADD PROFESIONAL =================
 
   void _addTipoTela(List<TipoTela> lista) => _quickAddGeneric<TipoTela>(
     title: "Nuevo Tipo de Tela",
     existingItems: lista,
-    //getId: (t) => t.id,
     getName: (t) => t.nombre,
     onCreate: (name) async {
       final newId = Helpers.generarId();
-
       await ref
           .read(catalogServiceProvider)
           .addTipoTela(TipoTela(id: newId, nombre: name));
       ref.refresh(tiposTelaProvider);
-      return newId; // Devolvemos el ID creado
+      return newId;
     },
     onSelected: (id) => setState(() => _tipoTelaId = id),
   );
@@ -512,7 +561,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
           .read(catalogServiceProvider)
           .addSucursal(Sucursal(id: newId, nombre: name));
       ref.refresh(sucursalesProvider);
-      return newId; // Devolvemos el ID creado
+      return newId;
     },
     onSelected: (id) => setState(() => _sucursalId = id),
   );
@@ -527,7 +576,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
           .read(catalogServiceProvider)
           .addEmpresa(Empresa(id: newId, nombre: name));
       ref.refresh(empresasProvider);
-      return newId; // Devolvemos el ID creado
+      return newId;
     },
     onSelected: (id) => setState(() => _empresaId = id),
   );
@@ -551,8 +600,8 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     required String title,
     required List<T> existingItems,
     required String Function(T) getName,
-    required Future<String> Function(String name) onCreate, // Retorna ID
-    required void Function(String id) onSelected, // Recibe ID
+    required Future<String> Function(String name) onCreate,
+    required void Function(String id) onSelected,
   }) async {
     final ctrl = TextEditingController();
     await showDialog(
@@ -604,13 +653,10 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
 
                         setStateDialog(() => _isSavingCatalog = true);
 
-                        // onCreate devuelve el ID
                         final newId = await onCreate(ctrl.text.trim());
-                        //await onCreate(ctrl.text.trim()); //esta dupklicacndo
 
                         setStateDialog(() => _isSavingCatalog = false);
 
-                        // Pasamos el ID al callback
                         onSelected(newId);
 
                         if (mounted) Navigator.pop(ctx);
@@ -663,7 +709,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
 class _ColorPickerDialog extends StatefulWidget {
   final WidgetRef ref;
   final List<ColorTela> existingColors;
-  final Function(String id) onColorCreated; // Cambiado a ID
+  final Function(String id) onColorCreated;
 
   const _ColorPickerDialog({
     required this.ref,
@@ -683,12 +729,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
   String get _hexColor =>
       '#${_selectedColor.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
 
-  // Mapa de alturas por índice de tab
-  final Map<int, double> _heightFactors = {
-    0: 0.36, // Base
-    1: 0.42, // Rueda
-    2: 0.6, // Avanzado
-  };
+  final Map<int, double> _heightFactors = {0: 0.36, 1: 0.42, 2: 0.6};
 
   @override
   void initState() {
@@ -698,7 +739,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
   }
 
   void _onTabChanged() {
-    // Forzamos redibujar para que AnimatedContainer tome la nueva altura
     if (mounted) {
       setState(() {});
     }
@@ -742,7 +782,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                 ),
                 const SizedBox(height: 15),
 
-                /// TABS
                 TabBar(
                   controller: _tabController,
                   tabs: const [
@@ -753,7 +792,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                 ),
                 const SizedBox(height: 10),
 
-                /// CONTENIDO DINÁMICO
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeInOut,
@@ -769,7 +807,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                 ),
                 const SizedBox(height: 15),
 
-                /// Vista previa
                 Container(
                   height: 40,
                   width: double.infinity,
@@ -781,10 +818,8 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                   alignment: Alignment.center,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   child: Row(
-                    mainAxisAlignment:
-                        MainAxisAlignment.spaceBetween, // Separar los elementos
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Campo de texto para el nombre del color
                       Expanded(
                         child: TextField(
                           controller: _nameController,
@@ -795,7 +830,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                         ),
                       ),
                       const SizedBox(width: 8),
-                      // Código hexadecimal
                       Text(
                         '#${_selectedColor.value.toRadixString(16).substring(2).toUpperCase()}',
                         style: TextStyle(
@@ -810,7 +844,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                 ),
                 const SizedBox(height: 20),
 
-                /// Acciones
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
@@ -824,7 +857,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                         final name = _nameController.text.trim();
                         if (name.isEmpty) return;
 
-                        // Validar duplicados
                         final exists = widget.existingColors.any(
                           (c) => c.nombre.toLowerCase() == name.toLowerCase(),
                         );
@@ -839,7 +871,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
 
                         final hex =
                             '#${_selectedColor.value.toRadixString(16).substring(2)}';
-                        final newId = Helpers.generarId(); // Generamos ID
+                        final newId = Helpers.generarId();
 
                         await widget.ref
                             .read(catalogServiceProvider)
@@ -936,34 +968,4 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
       },
     );
   }
-
-  Widget _buildHexInfo() {
-    return Column(
-      children: [
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.black12),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: SelectableText(
-            _hexColor,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-        ),
-      ],
-    );
-  }
-
-  /*/// Retorna true si conviene texto blanco sobre el color [background]
-  bool useWhiteForeground(Color background) {
-    // Calcula la luminancia percibida
-    double luminance =
-        (0.299 * background.red +
-            0.587 * background.green +
-            0.114 * background.blue) /
-        255;
-    return luminance < 0.5;
-  }*/
 }
