@@ -9,9 +9,13 @@
   final String? fecha;
   final String? notas;
   final DateTime fechaCreacion;
-  final List<HistorialMovimiento>
-  historial; // <--- CORREGIDO: Quitar el "?" para que no sea nullable
+  final List<HistorialMovimiento> historial;
 
+  final String? anchoId; // ID del catálogo de anchos
+  final String? lote;
+  final String? numeroRollo;
+  
+  final String? loteId;
   Rollo({
     required this.id,
     this.sucursalId,
@@ -23,7 +27,11 @@
     this.fecha,
     this.notas,
     required this.fechaCreacion,
-    this.historial = const [], // <--- CORREGIDO: Valor por defecto lista vacía
+    this.historial = const [],
+    this.anchoId,
+    this.lote,
+    this.numeroRollo,
+    this.loteId,
   });
 
   factory Rollo.fromJson(Map<String, dynamic> json) => Rollo(
@@ -43,7 +51,11 @@
         ? (json['historial'] as List)
               .map((e) => HistorialMovimiento.fromJson(e))
               .toList()
-        : [], // <--- CORREGIDO: Si es null en Firebase, retorna lista vacía
+        : [],
+    anchoId: json['anchoId'],
+    lote: json['lote'],
+    numeroRollo: json['numeroRollo'],
+    loteId: json['loteId'],
   );
 
   Map<String, dynamic> toJson() => {
@@ -57,9 +69,11 @@
     'fecha': fecha,
     'notas': notas,
     'fechaCreacion': fechaCreacion.toIso8601String(),
-    'historial': historial
-        .map((e) => e.toJson())
-        .toList(), // <--- CORREGIDO: Ya no necesita "?"
+    'historial': historial.map((e) => e.toJson()).toList(),
+    'anchoId': anchoId,
+    'lote': lote,
+    'numeroRollo': numeroRollo,
+    'loteId': loteId,
   };
 }
 

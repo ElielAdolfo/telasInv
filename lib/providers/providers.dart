@@ -2,7 +2,15 @@
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:inv_telas/models/models.dart';
 import 'package:inv_telas/services/services.dart';
-import 'package:inv_telas/services/local_storage_service.dart'; // ✅ NUEVO
+import 'package:inv_telas/services/local_storage_service.dart';
+
+final anchosProvider =
+    StateNotifierProvider<CatalogNotifier<Ancho>, List<Ancho>>((ref) {
+      return CatalogNotifier<Ancho>(
+        ref.watch(catalogServiceProvider),
+        (s) => s.getAnchos(), // Método que agregamos en CatalogService
+      );
+    });
 
 // --- SERVICES ---
 final rolloServiceProvider = Provider<RolloService>((ref) => RolloService());

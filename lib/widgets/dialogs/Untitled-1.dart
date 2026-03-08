@@ -19,15 +19,17 @@ class NewRolloDialog extends ConsumerStatefulWidget {
 class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   final _formKey = GlobalKey<FormState>();
 
-  // Usamos TextEditingController para cantidad para permitir edición manual
+  // Controladores
   final _cantidadController = TextEditingController(text: '1');
   late TextEditingController _codigoController;
   late TextEditingController _metrajeController;
+
   // ✅ NUEVOS CONTROLADORES
   final _loteController = TextEditingController();
   final _numeroRolloController = TextEditingController();
   final _observacionesController = TextEditingController();
 
+  // Estado de selección
   String? _tipoTelaId;
   String? _sucursalId;
   String? _empresaId;
@@ -39,7 +41,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   bool _habilitarLote = false;
   bool _habilitarNumRollo = false;
 
-  // ✅ VALOR SELECCIONADO DE ANCHO
+  // ✅ VALOR SELECCIONADO DE ANCHO (ID)
   String? _anchoId;
 
   bool _isSavingCatalog = false;
@@ -64,12 +66,9 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     super.dispose();
   }
 
-  String _normalize(String text) {
-    return text.trim().toLowerCase();
-  }
+  String _normalize(String text) => text.trim().toLowerCase();
 
-  // --- MÉTODO RESET PARCIAL (NUEVO) ---
-  /// Limpia solo los campos variables del rollo, manteniendo Empresa, Sucursal y Tipo
+  /// Resetea campos variables para carga rápida, manteniendo contexto (Empresa/Tipo)
   void _resetFieldsForNextInput() {
     _codigoController.clear();
     _metrajeController.clear();
@@ -77,17 +76,12 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     _loteController.clear();
     _numeroRolloController.clear();
     _observacionesController.clear();
+
     setState(() {
-      _colorId = null; // Resetear color
+      _colorId = null;
       _anchoId = null;
-      // _empresaId, _sucursalId, _tipoTelaId se mantienen iguales
-      // Reseteamos valores pero MANTENEMOS los checkboxes activos si el usuario
-      // está cargando una tanda específica (ej. todos con lote)
-      //_anchoId = null;
-      // Opcional: descomentar para resetear checkboxes también
-      // _habilitarAncho = false;
-      // _habilitarLote = false;
-      // _habilitarNumRollo = false;
+      // Mantenemos _empresaId, _sucursalId, _tipoTelaId y los Checkboxes activos
+      // para facilitar la carga masiva de rollos similares.
     });
   }
 
@@ -97,7 +91,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     final sucursales = ref.watch(sucursalesProvider);
     final empresas = ref.watch(empresasProvider);
     final colores = ref.watch(coloresProvider);
-    final anchos = ref.watch(anchosProvider);
+    final anchos = ref.watch(anchosProvider); // Provider de Anchos
     final drafts = ref.watch(draftsProvider);
 
     return Container(
@@ -120,6 +114,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                     _buildCantidadSelector(),
                     const SizedBox(height: 12),
 
+                    // Dropdowns Principales
                     _buildDropdownWithAdd<TipoTela>(
                       "Tipo de Tela",
                       tipos,
@@ -132,7 +127,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                       (item) => item.nombre,
                       () => _addTipoTela(tipos),
                     ),
-
                     _buildDropdownWithAdd<Sucursal>(
                       "Sucursal",
                       sucursales,
@@ -142,7 +136,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                       (item) => item.nombre,
                       () => _addSucursal(sucursales),
                     ),
-
                     _buildDropdownWithAdd<Empresa>(
                       "Empresa",
                       empresas,
@@ -155,7 +148,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                       (item) => item.nombre,
                       () => _addEmpresa(empresas),
                     ),
-
                     _buildColorDropdownWithAdd("Color", colores, _colorId, (
                       id,
                     ) {
@@ -188,14 +180,14 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
 
                     const Divider(height: 32, thickness: 1),
 
-                    // ✅ SECCIÓN CHECKBOXES Y CAMPOS ESPECIALES
+                    // Sección Opciones Adicionales
                     const Text(
                       "Opciones Adicionales",
                       style: AppTextStyles.heading3,
                     ),
                     const SizedBox(height: 10),
 
-                    // 1. ANCHO
+                    // 1. ANCHO (Catálogo)
                     _buildCheckboxTile(
                       title: "Ancho Especial",
                       subtitle: "Ej: Magitex (1.50m / 1.60m)",
@@ -271,7 +263,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
 
                     const SizedBox(height: 16),
 
-                    // 4. OBSERVACIONES (Siempre visible)
+                    // 4. OBSERVACIONES
                     TextFormField(
                       controller: _observacionesController,
                       maxLines: 3,
@@ -313,14 +305,12 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     );
   }
 
-  // ✅ AUTOFILL MEJORADO
   void _autoFillData() {
     if (_empresaId != null && _tipoTelaId != null && _colorId != null) {
       final rollos = ref
           .read(rollosProvider)
           .maybeWhen(data: (d) => d, orElse: () => <Rollo>[]);
 
-      // Buscar coincidencias exactas
       final matches = rollos
           .where(
             (r) =>
@@ -331,10 +321,9 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
           .toList();
 
       if (matches.isNotEmpty) {
-        final lastMatch = matches.first; // El más reciente por fecha
+        final lastMatch = matches.first;
 
         setState(() {
-          // Autollenar código y metraje
           _codigoController.text = lastMatch.codigoColor;
           if (lastMatch.metraje > 0) {
             _metrajeController.text = lastMatch.metraje % 1 == 0
@@ -342,12 +331,11 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                 : lastMatch.metraje.toString();
           }
 
-          // Autollenar Ancho si existe
+          // Autollenar Ancho si existe en el historial
           if (lastMatch.anchoId != null && lastMatch.anchoId!.isNotEmpty) {
             _habilitarAncho = true;
             _anchoId = lastMatch.anchoId;
           } else {
-            // Si el historial dice que no tiene ancho, no marcamos el checkbox
             _habilitarAncho = false;
             _anchoId = null;
           }
@@ -355,17 +343,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
       }
     }
   }
-
-  double? _calcularMetrajeMasFrecuente(List<Rollo> rollos) {
-    if (rollos.isEmpty) return null;
-    final Map<double, int> frecuencias = {};
-    for (var r in rollos) {
-      frecuencias[r.metraje] = (frecuencias[r.metraje] ?? 0) + 1;
-    }
-    return frecuencias.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
-  }
-
-  // --- WIDGETS AUXILIARES ---
 
   Widget _buildHeader(int pendingCount) {
     return Container(
@@ -377,7 +354,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // BOTÓN PENDIENTES CON BADGE
               Stack(
                 alignment: Alignment.center,
                 children: [
@@ -399,7 +375,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                       right: 8,
                       child: Container(
                         padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
+                        decoration: const BoxDecoration(
                           color: Colors.red,
                           shape: BoxShape.circle,
                         ),
@@ -417,7 +393,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                     ),
                 ],
               ),
-              // BOTÓN CERRAR
               IconButton(
                 onPressed: _isSaving ? null : () => Navigator.pop(context),
                 icon: const Icon(Icons.close),
@@ -438,7 +413,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Botón Menos
           IconButton(
             onPressed: () {
               int c = int.tryParse(_cantidadController.text) ?? 1;
@@ -447,8 +421,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
             },
             icon: const Icon(Icons.remove_circle_outline),
           ),
-
-          // Input Numérico
           SizedBox(
             width: 60,
             child: TextField(
@@ -462,18 +434,15 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                 contentPadding: EdgeInsets.zero,
               ),
               onChanged: (val) {
-                // Asegurar que si borra todo, quede en 1 o permita escribir
                 if (val.isEmpty) _cantidadController.text = '1';
               },
             ),
           ),
-
-          // Botón Más
           IconButton(
             onPressed: () {
-              int current = int.tryParse(_cantidadController.text) ?? 0;
-              _cantidadController.text = (current + 1).toString();
-              setState(() {}); // Actualiza visual
+              int c = int.tryParse(_cantidadController.text) ?? 0;
+              _cantidadController.text = (c + 1).toString();
+              setState(() {});
             },
             icon: const Icon(Icons.add_circle_outline),
           ),
@@ -509,10 +478,8 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
               padding: EdgeInsets.only(bottom: 12.0),
               child: LinearProgressIndicator(minHeight: 4),
             ),
-
           Row(
             children: [
-              // BOTÓN 1: AÑADIR A LOTE (Local)
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: _isSaving ? null : _agregarALote,
@@ -525,8 +492,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                 ),
               ),
               const SizedBox(width: 12),
-
-              // BOTÓN 2: SUBIR INDIVIDUAL (Firebase)
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: _isSaving ? null : _subirIndividual,
@@ -555,7 +520,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     );
   }
 
-  // Dropdown Genérico
   Widget _buildDropdownWithAdd<T>(
     String label,
     List<T> items,
@@ -593,7 +557,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     );
   }
 
-  // Dropdown de Color con Vista Previa
   Widget _buildColorDropdownWithAdd(
     String label,
     List<ColorTela> colores,
@@ -602,17 +565,15 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     VoidCallback onAdd,
   ) {
     Color? bgColor;
-    Color textColor = Colors.black;
-
+    Color txtColor = Colors.black;
     if (selectedId != null) {
-      final selected = colores.firstWhere(
+      final s = colores.firstWhere(
         (c) => c.id == selectedId,
         orElse: () => ColorTela(id: '', nombre: '', hex: '#FFFFFF'),
       );
-      bgColor = Helpers.hexToColorFlutter(selected.hex);
-      textColor = _getTextColorForBackground(bgColor);
+      bgColor = Helpers.hexToColorFlutter(s.hex);
+      txtColor = bgColor.computeLuminance() < 0.5 ? Colors.white : Colors.black;
     }
-
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -621,7 +582,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
             child: DropdownButtonFormField<String>(
               value: selectedId,
               dropdownColor: Colors.white,
-              style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
+              style: TextStyle(color: txtColor, fontWeight: FontWeight.w600),
               items: colores
                   .map(
                     (e) => DropdownMenuItem(
@@ -636,7 +597,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
               onChanged: onChanged,
               decoration: InputDecoration(
                 labelText: label,
-                labelStyle: TextStyle(color: textColor),
+                labelStyle: TextStyle(color: txtColor),
                 filled: true,
                 fillColor: bgColor,
                 border: OutlineInputBorder(
@@ -655,10 +616,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     );
   }
 
-  Color _getTextColorForBackground(Color background) {
-    final brightness = background.computeLuminance();
-    return brightness < 0.5 ? Colors.white : Colors.black;
-  }
+  // --- LÓGICA DE NEGOCIO ---
 
   Future<void> _pickDate() async {
     final d = await showDatePicker(
@@ -691,9 +649,9 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
 
       if (ok && mounted) {
         _mostrarExito("✅ ${rollos.length} rollos subidos a Firebase");
-        _resetFieldsForNextInput(); // RESET PARCIAL
+        _resetFieldsForNextInput();
       } else {
-        throw Exception("Error al guardar en Provider");
+        throw Exception("Error al guardar");
       }
     } catch (e) {
       _mostrarError("Error al subir: $e");
@@ -724,7 +682,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
       }
       if (mounted) {
         _mostrarExito("📦 ${rollos.length} rollos añadidos a pendientes");
-        _resetFieldsForNextInput(); // RESET PARCIAL
+        _resetFieldsForNextInput();
       }
     } catch (e) {
       _mostrarError("Error al guardar local: $e");
@@ -750,6 +708,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
         metraje: metraje,
         fecha: _fecha?.toIso8601String(),
         fechaCreacion: DateTime.now(),
+        // Campos Nuevos
         anchoId: _habilitarAncho ? _anchoId : null,
         lote: _habilitarLote ? _loteController.text.trim() : null,
         numeroRollo: _habilitarNumRollo
@@ -783,7 +742,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     );
   }
 
-  // ================= QUICK ADD PROFESIONAL =================
+  // --- QUICK ADDS ---
 
   void _addAncho(List<Ancho> lista) => _quickAddGeneric<Ancho>(
     title: "Nuevo Ancho",
@@ -805,12 +764,12 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     existingItems: lista,
     getName: (t) => t.nombre,
     onCreate: (name) async {
-      final newId = Helpers.generarId();
+      final id = Helpers.generarId();
       await ref
           .read(catalogServiceProvider)
-          .addTipoTela(TipoTela(id: newId, nombre: name));
+          .addTipoTela(TipoTela(id: id, nombre: name));
       ref.refresh(tiposTelaProvider);
-      return newId;
+      return id;
     },
     onSelected: (id) => setState(() => _tipoTelaId = id),
   );
@@ -820,12 +779,12 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     existingItems: lista,
     getName: (s) => s.nombre,
     onCreate: (name) async {
-      final newId = Helpers.generarId();
+      final id = Helpers.generarId();
       await ref
           .read(catalogServiceProvider)
-          .addSucursal(Sucursal(id: newId, nombre: name));
+          .addSucursal(Sucursal(id: id, nombre: name));
       ref.refresh(sucursalesProvider);
-      return newId;
+      return id;
     },
     onSelected: (id) => setState(() => _sucursalId = id),
   );
@@ -845,20 +804,14 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     onSelected: (id) => setState(() => _empresaId = id),
   );
 
-  void _addColor(List<ColorTela> lista) {
-    showDialog(
-      context: context,
-      builder: (context) => _ColorPickerDialog(
-        ref: ref,
-        existingColors: lista,
-        onColorCreated: (id) {
-          setState(() {
-            _colorId = id;
-          });
-        },
-      ),
-    );
-  }
+  void _addColor(List<ColorTela> lista) => showDialog(
+    context: context,
+    builder: (context) => _ColorPickerDialog(
+      ref: ref,
+      existingColors: lista,
+      onColorCreated: (id) => setState(() => _colorId = id),
+    ),
+  );
 
   Future<void> _quickAddGeneric<T>({
     required String title,
@@ -904,11 +857,10 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                         final exists = existingItems.any(
                           (e) => _normalize(getName(e)) == input,
                         );
-
                         if (exists) {
                           _showAlert(
                             title: "Registro duplicado",
-                            message: "Ya existe este registro en el catálogo.",
+                            message: "Ya existe este registro.",
                             icon: Icons.error_outline,
                             color: Colors.red,
                           );
@@ -965,7 +917,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   }
 }
 
-// ================= DIALOG DE COLOR REFACTORIZADO =================
+// ================= DIALOG DE COLOR =================
 
 class _ColorPickerDialog extends StatefulWidget {
   final WidgetRef ref;
@@ -987,8 +939,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
   late TabController _tabController;
   final _nameController = TextEditingController();
   Color _selectedColor = Colors.blue;
-  String get _hexColor =>
-      '#${_selectedColor.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
 
   final Map<int, double> _heightFactors = {0: 0.36, 1: 0.42, 2: 0.6};
 
@@ -1013,14 +963,12 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
     super.dispose();
   }
 
-  bool useWhiteForeground(Color background) {
-    double luminance =
-        (0.299 * background.red +
-            0.587 * background.green +
-            0.114 * background.blue) /
-        255;
-    return luminance < 0.5;
-  }
+  bool useWhiteForeground(Color background) =>
+      (0.299 * background.red +
+              0.587 * background.green +
+              0.114 * background.blue) /
+          255 <
+      0.5;
 
   @override
   Widget build(BuildContext context) {
@@ -1042,7 +990,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 15),
-
                 TabBar(
                   controller: _tabController,
                   tabs: const [
@@ -1052,7 +999,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                   ],
                 ),
                 const SizedBox(height: 10),
-
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
                   curve: Curves.easeInOut,
@@ -1116,10 +1062,9 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                         final name = _nameController.text.trim();
                         if (name.isEmpty) return;
 
-                        final exists = widget.existingColors.any(
+                        if (widget.existingColors.any(
                           (c) => c.nombre.toLowerCase() == name.toLowerCase(),
-                        );
-                        if (exists) {
+                        )) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text("Este color ya existe"),
@@ -1130,17 +1075,16 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
 
                         final hex =
                             '#${_selectedColor.value.toRadixString(16).substring(2)}';
-                        final newId = Helpers.generarId();
+                        final id = Helpers.generarId();
 
                         await widget.ref
                             .read(catalogServiceProvider)
                             .addColor(
-                              ColorTela(id: newId, nombre: name, hex: hex),
+                              ColorTela(id: id, nombre: name, hex: hex),
                             );
-
                         widget.ref.refresh(coloresProvider);
 
-                        widget.onColorCreated(newId);
+                        widget.onColorCreated(id);
                         if (mounted) Navigator.pop(context);
                       },
                       child: const Text("Guardar"),
@@ -1154,7 +1098,8 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
       ),
     );
   }
-Widget _navColoresBase() {
+
+  Widget _navColoresBase() {
     final colores = [
       Colors.red,
       Colors.blue,
@@ -1190,36 +1135,29 @@ Widget _navColoresBase() {
     );
   }
 
-  Widget _navRuedaColor() {
-    return flex.ColorPicker(
-      color: _selectedColor,
-      onColorChanged: (color) => setState(() => _selectedColor = color),
-      enableShadesSelection: false,
-      pickersEnabled: const {
-        flex.ColorPickerType.wheel: true,
-        flex.ColorPickerType.primary: false,
-        flex.ColorPickerType.accent: false,
-      },
-    );
-  }
+  Widget _navRuedaColor() => flex.ColorPicker(
+    color: _selectedColor,
+    onColorChanged: (c) => setState(() => _selectedColor = c),
+    enableShadesSelection: false,
+    pickersEnabled: const {
+      flex.ColorPickerType.wheel: true,
+      flex.ColorPickerType.primary: false,
+      flex.ColorPickerType.accent: false,
+    },
+  );
 
-  Widget _navColorPickerAvanzado() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isMobile = constraints.maxWidth < 400;
-        return flutter_picker.ColorPicker(
-          pickerColor: _selectedColor,
-          onColorChanged: (color) => setState(() => _selectedColor = color),
-          enableAlpha: true,
-          displayThumbColor: true,
-          showLabel: false,
-          paletteType: isMobile
-              ? flutter_picker.PaletteType.hsv
-              : flutter_picker.PaletteType.hsvWithHue,
-          pickerAreaHeightPercent: isMobile ? 0.6 : 0.7,
-          hexInputBar: true,
-        );
-      },
-    );
-  }
+  Widget _navColorPickerAvanzado() => LayoutBuilder(
+    builder: (ctx, constraints) => flutter_picker.ColorPicker(
+      pickerColor: _selectedColor,
+      onColorChanged: (c) => setState(() => _selectedColor = c),
+      enableAlpha: true,
+      displayThumbColor: true,
+      showLabel: false,
+      paletteType: constraints.maxWidth < 400
+          ? flutter_picker.PaletteType.hsv
+          : flutter_picker.PaletteType.hsvWithHue,
+      pickerAreaHeightPercent: constraints.maxWidth < 400 ? 0.6 : 0.7,
+      hexInputBar: true,
+    ),
+  );
 }

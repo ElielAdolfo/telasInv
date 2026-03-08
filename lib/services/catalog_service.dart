@@ -4,11 +4,11 @@ import 'firebase_service.dart';
 import '../config/env.dart';
 
 class CatalogService extends FirebaseService {
-  // Colecciones
   final String _empresasCol = Env.col('catalog_empresas');
   final String _sucursalesCol = Env.col('catalog_sucursales');
   final String _coloresCol = Env.col('catalog_colores');
   final String _tiposCol = Env.col('catalog_tipos_tela');
+  final String _anchosCol = Env.col('catalog_anchos');
 
   // EMPRESAS
   Future<List<Empresa>> getEmpresas() async => await getAll<Empresa>(
@@ -58,4 +58,16 @@ class CatalogService extends FirebaseService {
 
   Future<void> addTipoTela(TipoTela tipo) async =>
       await create(collectionPath: _tiposCol, id: tipo.id, data: tipo.toJson());
+
+  Future<List<Ancho>> getAnchos() async => await getAll<Ancho>(
+    collectionPath: _anchosCol,
+    fromJson: Ancho.fromJson,
+    orderBy: 'nombre',
+  );
+
+  Future<void> addAncho(Ancho ancho) async => await create(
+    collectionPath: _anchosCol,
+    id: ancho.id,
+    data: ancho.toJson(),
+  );
 }

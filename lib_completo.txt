@@ -192,10 +192,119 @@ class SeedConfig {
 
 ===== D:\inv\inv_telas\lib\models\catalogos.dart =====
 
-class Empresa { final String id; final String nombre; final DateTime? fechaCreacion; Empresa({required this.id, required this.nombre, this.fechaCreacion}); factory Empresa.fromJson(Map<String, dynamic> json) => Empresa(id: json['id'] ?? '', nombre: json['nombre'] ?? '', fechaCreacion: json['fechaCreacion'] != null ? DateTime.parse(json['fechaCreacion']) : null); Map<String, dynamic> toJson() => {'id': id, 'nombre': nombre, 'fechaCreacion': fechaCreacion?.toIso8601String()}; }
-class Sucursal { final String id; final String nombre; final String color; final DateTime? fechaCreacion; Sucursal({required this.id, required this.nombre, this.color = '#3b82f6', this.fechaCreacion}); factory Sucursal.fromJson(Map<String, dynamic> json) => Sucursal(id: json['id'] ?? '', nombre: json['nombre'] ?? '', color: json['color'] ?? '#3b82f6', fechaCreacion: json['fechaCreacion'] != null ? DateTime.parse(json['fechaCreacion']) : null); Map<String, dynamic> toJson() => {'id': id, 'nombre': nombre, 'color': color, 'fechaCreacion': fechaCreacion?.toIso8601String()}; }
-class ColorTela { final String id; final String nombre; final String hex; final DateTime? fechaCreacion; ColorTela({required this.id, required this.nombre, this.hex = '#3b82f6', this.fechaCreacion}); factory ColorTela.fromJson(Map<String, dynamic> json) => ColorTela(id: json['id'] ?? '', nombre: json['nombre'] ?? '', hex: json['hex'] ?? '#3b82f6', fechaCreacion: json['fechaCreacion'] != null ? DateTime.parse(json['fechaCreacion']) : null); Map<String, dynamic> toJson() => {'id': id, 'nombre': nombre, 'hex': hex, 'fechaCreacion': fechaCreacion?.toIso8601String()}; }
-class TipoTela { final String id; final String nombre; final DateTime? fechaCreacion; TipoTela({required this.id, required this.nombre, this.fechaCreacion}); factory TipoTela.fromJson(Map<String, dynamic> json) => TipoTela(id: json['id'] ?? '', nombre: json['nombre'] ?? '', fechaCreacion: json['fechaCreacion'] != null ? DateTime.parse(json['fechaCreacion']) : null); Map<String, dynamic> toJson() => {'id': id, 'nombre': nombre, 'fechaCreacion': fechaCreacion?.toIso8601String()}; }
+class Empresa {
+  final String id;
+  final String nombre;
+  final DateTime? fechaCreacion;
+  Empresa({required this.id, required this.nombre, this.fechaCreacion});
+  factory Empresa.fromJson(Map<String, dynamic> json) => Empresa(
+    id: json['id'] ?? '',
+    nombre: json['nombre'] ?? '',
+    fechaCreacion: json['fechaCreacion'] != null
+        ? DateTime.parse(json['fechaCreacion'])
+        : null,
+  );
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'nombre': nombre,
+    'fechaCreacion': fechaCreacion?.toIso8601String(),
+  };
+}
+
+class Sucursal {
+  final String id;
+  final String nombre;
+  final String color;
+  final DateTime? fechaCreacion;
+  Sucursal({
+    required this.id,
+    required this.nombre,
+    this.color = '#3b82f6',
+    this.fechaCreacion,
+  });
+  factory Sucursal.fromJson(Map<String, dynamic> json) => Sucursal(
+    id: json['id'] ?? '',
+    nombre: json['nombre'] ?? '',
+    color: json['color'] ?? '#3b82f6',
+    fechaCreacion: json['fechaCreacion'] != null
+        ? DateTime.parse(json['fechaCreacion'])
+        : null,
+  );
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'nombre': nombre,
+    'color': color,
+    'fechaCreacion': fechaCreacion?.toIso8601String(),
+  };
+}
+
+class ColorTela {
+  final String id;
+  final String nombre;
+  final String hex;
+  final DateTime? fechaCreacion;
+  ColorTela({
+    required this.id,
+    required this.nombre,
+    this.hex = '#3b82f6',
+    this.fechaCreacion,
+  });
+  factory ColorTela.fromJson(Map<String, dynamic> json) => ColorTela(
+    id: json['id'] ?? '',
+    nombre: json['nombre'] ?? '',
+    hex: json['hex'] ?? '#3b82f6',
+    fechaCreacion: json['fechaCreacion'] != null
+        ? DateTime.parse(json['fechaCreacion'])
+        : null,
+  );
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'nombre': nombre,
+    'hex': hex,
+    'fechaCreacion': fechaCreacion?.toIso8601String(),
+  };
+}
+
+class TipoTela {
+  final String id;
+  final String nombre;
+  final DateTime? fechaCreacion;
+  TipoTela({required this.id, required this.nombre, this.fechaCreacion});
+  factory TipoTela.fromJson(Map<String, dynamic> json) => TipoTela(
+    id: json['id'] ?? '',
+    nombre: json['nombre'] ?? '',
+    fechaCreacion: json['fechaCreacion'] != null
+        ? DateTime.parse(json['fechaCreacion'])
+        : null,
+  );
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'nombre': nombre,
+    'fechaCreacion': fechaCreacion?.toIso8601String(),
+  };
+}
+
+class Ancho {
+  final String id;
+  final String nombre; // Ej: "1.50m", "1.60m"
+  final DateTime? fechaCreacion;
+
+  Ancho({required this.id, required this.nombre, this.fechaCreacion});
+
+  factory Ancho.fromJson(Map<String, dynamic> json) => Ancho(
+    id: json['id'] ?? '',
+    nombre: json['nombre'] ?? '',
+    fechaCreacion: json['fechaCreacion'] != null
+        ? DateTime.parse(json['fechaCreacion'])
+        : null,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'nombre': nombre,
+    'fechaCreacion': fechaCreacion?.toIso8601String(),
+  };
+}
 
 
 ===== D:\inv\inv_telas\lib\models\filtros_model.dart =====
@@ -235,9 +344,11 @@ class Rollo {
   final String? fecha;
   final String? notas;
   final DateTime fechaCreacion;
-  final List<HistorialMovimiento>
-  historial; // <--- CORREGIDO: Quitar el "?" para que no sea nullable
+  final List<HistorialMovimiento> historial;
 
+  final String? anchoId; // ID del catálogo de anchos
+  final String? lote;
+  final String? numeroRollo;
   Rollo({
     required this.id,
     this.sucursalId,
@@ -249,7 +360,10 @@ class Rollo {
     this.fecha,
     this.notas,
     required this.fechaCreacion,
-    this.historial = const [], // <--- CORREGIDO: Valor por defecto lista vacía
+    this.historial = const [],
+    this.anchoId,
+    this.lote,
+    this.numeroRollo,
   });
 
   factory Rollo.fromJson(Map<String, dynamic> json) => Rollo(
@@ -269,7 +383,10 @@ class Rollo {
         ? (json['historial'] as List)
               .map((e) => HistorialMovimiento.fromJson(e))
               .toList()
-        : [], // <--- CORREGIDO: Si es null en Firebase, retorna lista vacía
+        : [],
+    anchoId: json['anchoId'],
+    lote: json['lote'],
+    numeroRollo: json['numeroRollo'],
   );
 
   Map<String, dynamic> toJson() => {
@@ -283,9 +400,10 @@ class Rollo {
     'fecha': fecha,
     'notas': notas,
     'fechaCreacion': fechaCreacion.toIso8601String(),
-    'historial': historial
-        .map((e) => e.toJson())
-        .toList(), // <--- CORREGIDO: Ya no necesita "?"
+    'historial': historial.map((e) => e.toJson()).toList(),
+    'anchoId': anchoId,
+    'lote': lote,
+    'numeroRollo': numeroRollo,
   };
 }
 
@@ -327,7 +445,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:inv_telas/models/models.dart';
 import 'package:inv_telas/services/services.dart';
-import 'package:inv_telas/services/local_storage_service.dart'; // ✅ NUEVO
+import 'package:inv_telas/services/local_storage_service.dart';
+
+final anchosProvider =
+    StateNotifierProvider<CatalogNotifier<Ancho>, List<Ancho>>((ref) {
+      return CatalogNotifier<Ancho>(
+        ref.watch(catalogServiceProvider),
+        (s) => s.getAnchos(), // Método que agregamos en CatalogService
+      );
+    });
 
 // --- SERVICES ---
 final rolloServiceProvider = Provider<RolloService>((ref) => RolloService());
@@ -998,11 +1124,11 @@ import 'firebase_service.dart';
 import '../config/env.dart';
 
 class CatalogService extends FirebaseService {
-  // Colecciones
   final String _empresasCol = Env.col('catalog_empresas');
   final String _sucursalesCol = Env.col('catalog_sucursales');
   final String _coloresCol = Env.col('catalog_colores');
   final String _tiposCol = Env.col('catalog_tipos_tela');
+  final String _anchosCol = Env.col('catalog_anchos');
 
   // EMPRESAS
   Future<List<Empresa>> getEmpresas() async => await getAll<Empresa>(
@@ -1052,6 +1178,18 @@ class CatalogService extends FirebaseService {
 
   Future<void> addTipoTela(TipoTela tipo) async =>
       await create(collectionPath: _tiposCol, id: tipo.id, data: tipo.toJson());
+
+  Future<List<Ancho>> getAnchos() async => await getAll<Ancho>(
+    collectionPath: _anchosCol,
+    fromJson: Ancho.fromJson,
+    orderBy: 'nombre',
+  );
+
+  Future<void> addAncho(Ancho ancho) async => await create(
+    collectionPath: _anchosCol,
+    id: ancho.id,
+    data: ancho.toJson(),
+  );
 }
 
 
@@ -2292,6 +2430,12 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
 
   // Usamos TextEditingController para cantidad para permitir ediciÃ³n manual
   final _cantidadController = TextEditingController(text: '1');
+  late TextEditingController _codigoController;
+  late TextEditingController _metrajeController;
+  // âœ… NUEVOS CONTROLADORES
+  final _loteController = TextEditingController();
+  final _numeroRolloController = TextEditingController();
+  final _observacionesController = TextEditingController();
 
   String? _tipoTelaId;
   String? _sucursalId;
@@ -2299,11 +2443,16 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   String? _colorId;
   DateTime? _fecha;
 
+  // âœ… ESTADO CHECKBOXES
+  bool _habilitarAncho = false;
+  bool _habilitarLote = false;
+  bool _habilitarNumRollo = false;
+
+  // âœ… VALOR SELECCIONADO DE ANCHO
+  String? _anchoId;
+
   bool _isSavingCatalog = false;
   bool _isSaving = false;
-
-  late TextEditingController _codigoController;
-  late TextEditingController _metrajeController;
 
   @override
   void initState() {
@@ -2318,6 +2467,9 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     _codigoController.dispose();
     _metrajeController.dispose();
     _cantidadController.dispose();
+    _loteController.dispose();
+    _numeroRolloController.dispose();
+    _observacionesController.dispose();
     super.dispose();
   }
 
@@ -2331,9 +2483,20 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     _codigoController.clear();
     _metrajeController.clear();
     _cantidadController.text = '1';
+    _loteController.clear();
+    _numeroRolloController.clear();
+    _observacionesController.clear();
     setState(() {
       _colorId = null; // Resetear color
+      _anchoId = null;
       // _empresaId, _sucursalId, _tipoTelaId se mantienen iguales
+      // Reseteamos valores pero MANTENEMOS los checkboxes activos si el usuario
+      // estÃ¡ cargando una tanda especÃ­fica (ej. todos con lote)
+      //_anchoId = null;
+      // Opcional: descomentar para resetear checkboxes tambiÃ©n
+      // _habilitarAncho = false;
+      // _habilitarLote = false;
+      // _habilitarNumRollo = false;
     });
   }
 
@@ -2343,18 +2506,18 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     final sucursales = ref.watch(sucursalesProvider);
     final empresas = ref.watch(empresasProvider);
     final colores = ref.watch(coloresProvider);
-    // Observamos borradores para el indicador
+    final anchos = ref.watch(anchosProvider);
     final drafts = ref.watch(draftsProvider);
 
     return Container(
-      height: MediaQuery.of(context).size.height * 0.9,
+      height: MediaQuery.of(context).size.height * 0.92,
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Column(
         children: [
-          _buildHeader(drafts.length), // Pasamos cantidad de drafts
+          _buildHeader(drafts.length),
           Expanded(
             child: AbsorbPointer(
               absorbing: _isSaving,
@@ -2431,6 +2594,104 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                     ),
 
                     _buildDateSelector(),
+
+                    const Divider(height: 32, thickness: 1),
+
+                    // âœ… SECCIÃ“N CHECKBOXES Y CAMPOS ESPECIALES
+                    const Text(
+                      "Opciones Adicionales",
+                      style: AppTextStyles.heading3,
+                    ),
+                    const SizedBox(height: 10),
+
+                    // 1. ANCHO
+                    _buildCheckboxTile(
+                      title: "Ancho Especial",
+                      subtitle: "Ej: Magitex (1.50m / 1.60m)",
+                      value: _habilitarAncho,
+                      onChanged: (v) =>
+                          setState(() => _habilitarAncho = v ?? false),
+                    ),
+                    if (_habilitarAncho)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          left: 16,
+                          bottom: 16,
+                          top: 4,
+                        ),
+                        child: _buildDropdownWithAdd<Ancho>(
+                          "Seleccionar Ancho",
+                          anchos,
+                          _anchoId,
+                          (id) => setState(() => _anchoId = id),
+                          (item) => item.id,
+                          (item) => item.nombre,
+                          () => _addAncho(anchos),
+                        ),
+                      ),
+
+                    // 2. LOTE
+                    _buildCheckboxTile(
+                      title: "Lote",
+                      subtitle: "Identificador de lote",
+                      value: _habilitarLote,
+                      onChanged: (v) =>
+                          setState(() => _habilitarLote = v ?? false),
+                    ),
+                    if (_habilitarLote)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          left: 16,
+                          bottom: 16,
+                          top: 4,
+                        ),
+                        child: TextFormField(
+                          controller: _loteController,
+                          decoration: const InputDecoration(
+                            labelText: "NÃºmero de Lote",
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+
+                    // 3. NUMERO DE ROLLO
+                    _buildCheckboxTile(
+                      title: "NÃºmero de Rollo",
+                      subtitle: "Identificador Ãºnico del rollo",
+                      value: _habilitarNumRollo,
+                      onChanged: (v) =>
+                          setState(() => _habilitarNumRollo = v ?? false),
+                    ),
+                    if (_habilitarNumRollo)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          left: 16,
+                          bottom: 16,
+                          top: 4,
+                        ),
+                        child: TextFormField(
+                          controller: _numeroRolloController,
+                          decoration: const InputDecoration(
+                            labelText: "NÂ° de Rollo",
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+
+                    const SizedBox(height: 16),
+
+                    // 4. OBSERVACIONES (Siempre visible)
+                    TextFormField(
+                      controller: _observacionesController,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: "Observaciones",
+                        alignLabelWithHint: true,
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
                   ],
                 ),
               ),
@@ -2442,14 +2703,33 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     );
   }
 
-  // --- LÃ“GICA DE AUTOCOMPLETADO CON IDs ---
+  // --- WIDGETS AUXILIARES ---
 
+  Widget _buildCheckboxTile({
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool?> onChanged,
+  }) {
+    return CheckboxListTile(
+      title: Text(title),
+      subtitle: Text(subtitle, style: AppTextStyles.caption),
+      value: value,
+      onChanged: onChanged,
+      contentPadding: EdgeInsets.zero,
+      controlAffinity: ListTileControlAffinity.leading,
+      activeColor: AppColors.primary,
+    );
+  }
+
+  // âœ… AUTOFILL MEJORADO
   void _autoFillData() {
     if (_empresaId != null && _tipoTelaId != null && _colorId != null) {
       final rollos = ref
           .read(rollosProvider)
           .maybeWhen(data: (d) => d, orElse: () => <Rollo>[]);
 
+      // Buscar coincidencias exactas
       final matches = rollos
           .where(
             (r) =>
@@ -2460,14 +2740,25 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
           .toList();
 
       if (matches.isNotEmpty) {
-        final codigo = matches.first.codigoColor;
-        final metraje = _calcularMetrajeMasFrecuente(matches);
+        final lastMatch = matches.first; // El mÃ¡s reciente por fecha
+
         setState(() {
-          _codigoController.text = codigo;
-          if (metraje != null) {
-            _metrajeController.text = metraje % 1 == 0
-                ? metraje.toInt().toString()
-                : metraje.toString();
+          // Autollenar cÃ³digo y metraje
+          _codigoController.text = lastMatch.codigoColor;
+          if (lastMatch.metraje > 0) {
+            _metrajeController.text = lastMatch.metraje % 1 == 0
+                ? lastMatch.metraje.toInt().toString()
+                : lastMatch.metraje.toString();
+          }
+
+          // Autollenar Ancho si existe
+          if (lastMatch.anchoId != null && lastMatch.anchoId!.isNotEmpty) {
+            _habilitarAncho = true;
+            _anchoId = lastMatch.anchoId;
+          } else {
+            // Si el historial dice que no tiene ancho, no marcamos el checkbox
+            _habilitarAncho = false;
+            _anchoId = null;
           }
         });
       }
@@ -2559,11 +2850,9 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
           // BotÃ³n Menos
           IconButton(
             onPressed: () {
-              int current = int.tryParse(_cantidadController.text) ?? 1;
-              if (current > 1) {
-                _cantidadController.text = (current - 1).toString();
-                setState(() {}); // Actualiza visual
-              }
+              int c = int.tryParse(_cantidadController.text) ?? 1;
+              if (c > 1) _cantidadController.text = (c - 1).toString();
+              setState(() {});
             },
             icon: const Icon(Icons.remove_circle_outline),
           ),
@@ -2666,7 +2955,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
           ),
           const SizedBox(height: 8),
           Text(
-            "El modal permanecerÃ¡ abierto para cargar varios rollos seguidos.",
+            "El modal permanecerÃ¡ abierto para carga continua.",
             style: AppTextStyles.caption.copyWith(fontSize: 10),
             textAlign: TextAlign.center,
           ),
@@ -2721,7 +3010,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     ValueChanged<String?> onChanged,
     VoidCallback onAdd,
   ) {
-    Color? backgroundColor;
+    Color? bgColor;
     Color textColor = Colors.black;
 
     if (selectedId != null) {
@@ -2729,8 +3018,8 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
         (c) => c.id == selectedId,
         orElse: () => ColorTela(id: '', nombre: '', hex: '#FFFFFF'),
       );
-      backgroundColor = Helpers.hexToColorFlutter(selected.hex);
-      textColor = _getTextColorForBackground(backgroundColor);
+      bgColor = Helpers.hexToColorFlutter(selected.hex);
+      textColor = _getTextColorForBackground(bgColor);
     }
 
     return Padding(
@@ -2758,12 +3047,12 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                 labelText: label,
                 labelStyle: TextStyle(color: textColor),
                 filled: true,
-                fillColor: backgroundColor,
+                fillColor: bgColor,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: backgroundColor ?? Colors.grey),
+                  borderSide: BorderSide(color: bgColor ?? Colors.grey),
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
@@ -2837,14 +3126,11 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     if (confirmar != true) return;
 
     setState(() => _isSaving = true);
-
     try {
       final rollos = _generarListaRollos();
-
       for (var rollo in rollos) {
         await ref.read(draftsProvider.notifier).add(rollo);
       }
-
       if (mounted) {
         _mostrarExito("ðŸ“¦ ${rollos.length} rollos aÃ±adidos a pendientes");
         _resetFieldsForNextInput(); // RESET PARCIAL
@@ -2873,6 +3159,12 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
         metraje: metraje,
         fecha: _fecha?.toIso8601String(),
         fechaCreacion: DateTime.now(),
+        anchoId: _habilitarAncho ? _anchoId : null,
+        lote: _habilitarLote ? _loteController.text.trim() : null,
+        numeroRollo: _habilitarNumRollo
+            ? _numeroRolloController.text.trim()
+            : null,
+        notas: _observacionesController.text.trim(),
       ),
     );
   }
@@ -2901,6 +3193,21 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   }
 
   // ================= QUICK ADD PROFESIONAL =================
+
+  void _addAncho(List<Ancho> lista) => _quickAddGeneric<Ancho>(
+    title: "Nuevo Ancho",
+    existingItems: lista,
+    getName: (a) => a.nombre,
+    onCreate: (name) async {
+      final id = Helpers.generarId();
+      await ref
+          .read(catalogServiceProvider)
+          .addAncho(Ancho(id: id, nombre: name));
+      ref.refresh(anchosProvider);
+      return id;
+    },
+    onSelected: (id) => setState(() => _anchoId = id),
+  );
 
   void _addTipoTela(List<TipoTela> lista) => _quickAddGeneric<TipoTela>(
     title: "Nuevo Tipo de Tela",
@@ -3018,13 +3325,10 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                         }
 
                         setStateDialog(() => _isSavingCatalog = true);
-
                         final newId = await onCreate(ctrl.text.trim());
-
                         setStateDialog(() => _isSavingCatalog = false);
 
                         onSelected(newId);
-
                         if (mounted) Navigator.pop(ctx);
                       },
                 child: const Text("Guardar"),
@@ -3172,7 +3476,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                   ),
                 ),
                 const SizedBox(height: 15),
-
                 Container(
                   height: 40,
                   width: double.infinity,
@@ -3209,7 +3512,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                   ),
                 ),
                 const SizedBox(height: 20),
-
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
@@ -3261,8 +3563,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
       ),
     );
   }
-
-  Widget _navColoresBase() {
+Widget _navColoresBase() {
     final colores = [
       Colors.red,
       Colors.blue,
@@ -3273,7 +3574,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
       Colors.black,
       Colors.white,
     ];
-
     return GridView.builder(
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 4,
@@ -3281,24 +3581,21 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
         mainAxisSpacing: 8,
       ),
       itemCount: colores.length,
-      itemBuilder: (context, index) {
-        final color = colores[index];
-        return GestureDetector(
-          onTap: () => setState(() => _selectedColor = color),
-          child: Container(
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                color: _selectedColor == color
-                    ? Colors.black
-                    : Colors.transparent,
-                width: 2,
-              ),
+      itemBuilder: (ctx, i) => GestureDetector(
+        onTap: () => setState(() => _selectedColor = colores[i]),
+        child: Container(
+          decoration: BoxDecoration(
+            color: colores[i],
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: _selectedColor == colores[i]
+                  ? Colors.black
+                  : Colors.transparent,
+              width: 2,
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -3334,4 +3631,1171 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
       },
     );
   }
+}
+
+
+===== D:\inv\inv_telas\lib\widgets\dialogs\Untitled-1.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/models/models.dart';
+import 'package:inv_telas/providers/providers.dart';
+import 'package:inv_telas/screens/pending_screen.dart';
+import 'package:inv_telas/utils/utils.dart';
+import 'package:inv_telas/widgets/widgets.dart';
+import 'package:flex_color_picker/flex_color_picker.dart' as flex;
+import 'package:flutter_colorpicker/flutter_colorpicker.dart' as flutter_picker;
+
+class NewRolloDialog extends ConsumerStatefulWidget {
+  const NewRolloDialog({super.key});
+
+  @override
+  ConsumerState<NewRolloDialog> createState() => _NewRolloDialogState();
+}
+
+class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
+  final _formKey = GlobalKey<FormState>();
+
+  // Controladores
+  final _cantidadController = TextEditingController(text: '1');
+  late TextEditingController _codigoController;
+  late TextEditingController _metrajeController;
+
+  // âœ… NUEVOS CONTROLADORES
+  final _loteController = TextEditingController();
+  final _numeroRolloController = TextEditingController();
+  final _observacionesController = TextEditingController();
+
+  // Estado de selecciÃ³n
+  String? _tipoTelaId;
+  String? _sucursalId;
+  String? _empresaId;
+  String? _colorId;
+  DateTime? _fecha;
+
+  // âœ… ESTADO CHECKBOXES
+  bool _habilitarAncho = false;
+  bool _habilitarLote = false;
+  bool _habilitarNumRollo = false;
+
+  // âœ… VALOR SELECCIONADO DE ANCHO (ID)
+  String? _anchoId;
+
+  bool _isSavingCatalog = false;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _codigoController = TextEditingController();
+    _metrajeController = TextEditingController();
+    _fecha = DateTime.now();
+  }
+
+  @override
+  void dispose() {
+    _codigoController.dispose();
+    _metrajeController.dispose();
+    _cantidadController.dispose();
+    _loteController.dispose();
+    _numeroRolloController.dispose();
+    _observacionesController.dispose();
+    super.dispose();
+  }
+
+  String _normalize(String text) => text.trim().toLowerCase();
+
+  /// Resetea campos variables para carga rÃ¡pida, manteniendo contexto (Empresa/Tipo)
+  void _resetFieldsForNextInput() {
+    _codigoController.clear();
+    _metrajeController.clear();
+    _cantidadController.text = '1';
+    _loteController.clear();
+    _numeroRolloController.clear();
+    _observacionesController.clear();
+
+    setState(() {
+      _colorId = null;
+      _anchoId = null;
+      // Mantenemos _empresaId, _sucursalId, _tipoTelaId y los Checkboxes activos
+      // para facilitar la carga masiva de rollos similares.
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tipos = ref.watch(tiposTelaProvider);
+    final sucursales = ref.watch(sucursalesProvider);
+    final empresas = ref.watch(empresasProvider);
+    final colores = ref.watch(coloresProvider);
+    final anchos = ref.watch(anchosProvider); // Provider de Anchos
+    final drafts = ref.watch(draftsProvider);
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.92,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        children: [
+          _buildHeader(drafts.length),
+          Expanded(
+            child: AbsorbPointer(
+              absorbing: _isSaving,
+              child: Form(
+                key: _formKey,
+                child: ListView(
+                  padding: const EdgeInsets.all(20),
+                  children: [
+                    _buildCantidadSelector(),
+                    const SizedBox(height: 12),
+
+                    // Dropdowns Principales
+                    _buildDropdownWithAdd<TipoTela>(
+                      "Tipo de Tela",
+                      tipos,
+                      _tipoTelaId,
+                      (id) {
+                        setState(() => _tipoTelaId = id);
+                        _autoFillData();
+                      },
+                      (item) => item.id,
+                      (item) => item.nombre,
+                      () => _addTipoTela(tipos),
+                    ),
+                    _buildDropdownWithAdd<Sucursal>(
+                      "Sucursal",
+                      sucursales,
+                      _sucursalId,
+                      (id) => setState(() => _sucursalId = id),
+                      (item) => item.id,
+                      (item) => item.nombre,
+                      () => _addSucursal(sucursales),
+                    ),
+                    _buildDropdownWithAdd<Empresa>(
+                      "Empresa",
+                      empresas,
+                      _empresaId,
+                      (id) {
+                        setState(() => _empresaId = id);
+                        _autoFillData();
+                      },
+                      (item) => item.id,
+                      (item) => item.nombre,
+                      () => _addEmpresa(empresas),
+                    ),
+                    _buildColorDropdownWithAdd("Color", colores, _colorId, (
+                      id,
+                    ) {
+                      setState(() => _colorId = id);
+                      _autoFillData();
+                    }, () => _addColor(colores)),
+
+                    TextFormField(
+                      controller: _codigoController,
+                      decoration: const InputDecoration(
+                        labelText: "CÃ³digo de Color *",
+                      ),
+                      validator: (v) =>
+                          v == null || v.trim().isEmpty ? 'Requerido' : null,
+                    ),
+
+                    TextFormField(
+                      controller: _metrajeController,
+                      decoration: const InputDecoration(
+                        labelText: "Metraje por Rollo (m) *",
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      validator: (v) =>
+                          v == null || v.trim().isEmpty ? 'Requerido' : null,
+                    ),
+
+                    _buildDateSelector(),
+
+                    const Divider(height: 32, thickness: 1),
+
+                    // SecciÃ³n Opciones Adicionales
+                    const Text(
+                      "Opciones Adicionales",
+                      style: AppTextStyles.heading3,
+                    ),
+                    const SizedBox(height: 10),
+
+                    // 1. ANCHO (CatÃ¡logo)
+                    _buildCheckboxTile(
+                      title: "Ancho Especial",
+                      subtitle: "Ej: Magitex (1.50m / 1.60m)",
+                      value: _habilitarAncho,
+                      onChanged: (v) =>
+                          setState(() => _habilitarAncho = v ?? false),
+                    ),
+                    if (_habilitarAncho)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          left: 16,
+                          bottom: 16,
+                          top: 4,
+                        ),
+                        child: _buildDropdownWithAdd<Ancho>(
+                          "Seleccionar Ancho",
+                          anchos,
+                          _anchoId,
+                          (id) => setState(() => _anchoId = id),
+                          (item) => item.id,
+                          (item) => item.nombre,
+                          () => _addAncho(anchos),
+                        ),
+                      ),
+
+                    // 2. LOTE
+                    _buildCheckboxTile(
+                      title: "Lote",
+                      subtitle: "Identificador de lote",
+                      value: _habilitarLote,
+                      onChanged: (v) =>
+                          setState(() => _habilitarLote = v ?? false),
+                    ),
+                    if (_habilitarLote)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          left: 16,
+                          bottom: 16,
+                          top: 4,
+                        ),
+                        child: TextFormField(
+                          controller: _loteController,
+                          decoration: const InputDecoration(
+                            labelText: "NÃºmero de Lote",
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+
+                    // 3. NUMERO DE ROLLO
+                    _buildCheckboxTile(
+                      title: "NÃºmero de Rollo",
+                      subtitle: "Identificador Ãºnico del rollo",
+                      value: _habilitarNumRollo,
+                      onChanged: (v) =>
+                          setState(() => _habilitarNumRollo = v ?? false),
+                    ),
+                    if (_habilitarNumRollo)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          left: 16,
+                          bottom: 16,
+                          top: 4,
+                        ),
+                        child: TextFormField(
+                          controller: _numeroRolloController,
+                          decoration: const InputDecoration(
+                            labelText: "NÂ° de Rollo",
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+
+                    const SizedBox(height: 16),
+
+                    // 4. OBSERVACIONES
+                    TextFormField(
+                      controller: _observacionesController,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: "Observaciones",
+                        alignLabelWithHint: true,
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          _buildActions(),
+        ],
+      ),
+    );
+  }
+
+  // --- WIDGETS AUXILIARES ---
+
+  Widget _buildCheckboxTile({
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool?> onChanged,
+  }) {
+    return CheckboxListTile(
+      title: Text(title),
+      subtitle: Text(subtitle, style: AppTextStyles.caption),
+      value: value,
+      onChanged: onChanged,
+      contentPadding: EdgeInsets.zero,
+      controlAffinity: ListTileControlAffinity.leading,
+      activeColor: AppColors.primary,
+    );
+  }
+
+  void _autoFillData() {
+    if (_empresaId != null && _tipoTelaId != null && _colorId != null) {
+      final rollos = ref
+          .read(rollosProvider)
+          .maybeWhen(data: (d) => d, orElse: () => <Rollo>[]);
+
+      final matches = rollos
+          .where(
+            (r) =>
+                r.empresaId == _empresaId &&
+                r.tipoTelaId == _tipoTelaId &&
+                r.colorId == _colorId,
+          )
+          .toList();
+
+      if (matches.isNotEmpty) {
+        final lastMatch = matches.first;
+
+        setState(() {
+          _codigoController.text = lastMatch.codigoColor;
+          if (lastMatch.metraje > 0) {
+            _metrajeController.text = lastMatch.metraje % 1 == 0
+                ? lastMatch.metraje.toInt().toString()
+                : lastMatch.metraje.toString();
+          }
+
+          // Autollenar Ancho si existe en el historial
+          if (lastMatch.anchoId != null && lastMatch.anchoId!.isNotEmpty) {
+            _habilitarAncho = true;
+            _anchoId = lastMatch.anchoId;
+          } else {
+            _habilitarAncho = false;
+            _anchoId = null;
+          }
+        });
+      }
+    }
+  }
+
+  Widget _buildHeader(int pendingCount) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text("Nuevo Rollo de Tela", style: AppTextStyles.heading2),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  IconButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const PendingScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.inventory_2_outlined, size: 26),
+                    tooltip: 'Ver Pendientes',
+                  ),
+                  if (pendingCount > 0)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(minWidth: 18),
+                        child: Text(
+                          '$pendingCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              IconButton(
+                onPressed: _isSaving ? null : () => Navigator.pop(context),
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCantidadSelector() {
+    return InputDecorator(
+      decoration: const InputDecoration(
+        labelText: "Cantidad de Rollos",
+        border: OutlineInputBorder(),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          IconButton(
+            onPressed: () {
+              int c = int.tryParse(_cantidadController.text) ?? 1;
+              if (c > 1) _cantidadController.text = (c - 1).toString();
+              setState(() {});
+            },
+            icon: const Icon(Icons.remove_circle_outline),
+          ),
+          SizedBox(
+            width: 60,
+            child: TextField(
+              controller: _cantidadController,
+              textAlign: TextAlign.center,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              style: AppTextStyles.heading2,
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.zero,
+              ),
+              onChanged: (val) {
+                if (val.isEmpty) _cantidadController.text = '1';
+              },
+            ),
+          ),
+          IconButton(
+            onPressed: () {
+              int c = int.tryParse(_cantidadController.text) ?? 0;
+              _cantidadController.text = (c + 1).toString();
+              setState(() {});
+            },
+            icon: const Icon(Icons.add_circle_outline),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDateSelector() {
+    return InputDecorator(
+      decoration: const InputDecoration(labelText: "Fecha de Ingreso"),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(_fecha == null ? 'Seleccionar' : Helpers.formatearFecha(_fecha)),
+          IconButton(
+            icon: const Icon(Icons.calendar_today),
+            onPressed: _pickDate,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActions() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_isSaving)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12.0),
+              child: LinearProgressIndicator(minHeight: 4),
+            ),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _isSaving ? null : _agregarALote,
+                  icon: const Icon(Icons.save_alt),
+                  label: const Text("AÃ±adir a Lote"),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: const BorderSide(color: AppColors.primary),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _isSaving ? null : _subirIndividual,
+                  icon: const Icon(Icons.cloud_upload),
+                  label: const Text("Subir Individual"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.success,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "El modal permanecerÃ¡ abierto para carga continua.",
+            style: AppTextStyles.caption.copyWith(fontSize: 10),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDropdownWithAdd<T>(
+    String label,
+    List<T> items,
+    String? selectedId,
+    ValueChanged<String?> onChanged,
+    String Function(T) getId,
+    String Function(T) getLabel,
+    VoidCallback onAdd,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              value: selectedId,
+              items: items
+                  .map(
+                    (e) => DropdownMenuItem(
+                      value: getId(e),
+                      child: Text(getLabel(e)),
+                    ),
+                  )
+                  .toList(),
+              onChanged: onChanged,
+              decoration: InputDecoration(
+                labelText: label,
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ),
+          IconButton(onPressed: onAdd, icon: const Icon(Icons.add)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildColorDropdownWithAdd(
+    String label,
+    List<ColorTela> colores,
+    String? selectedId,
+    ValueChanged<String?> onChanged,
+    VoidCallback onAdd,
+  ) {
+    Color? bgColor;
+    Color txtColor = Colors.black;
+    if (selectedId != null) {
+      final s = colores.firstWhere(
+        (c) => c.id == selectedId,
+        orElse: () => ColorTela(id: '', nombre: '', hex: '#FFFFFF'),
+      );
+      bgColor = Helpers.hexToColorFlutter(s.hex);
+      txtColor = bgColor.computeLuminance() < 0.5 ? Colors.white : Colors.black;
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              value: selectedId,
+              dropdownColor: Colors.white,
+              style: TextStyle(color: txtColor, fontWeight: FontWeight.w600),
+              items: colores
+                  .map(
+                    (e) => DropdownMenuItem(
+                      value: e.id,
+                      child: Text(
+                        e.nombre,
+                        style: const TextStyle(color: Colors.black),
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: onChanged,
+              decoration: InputDecoration(
+                labelText: label,
+                labelStyle: TextStyle(color: txtColor),
+                filled: true,
+                fillColor: bgColor,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: bgColor ?? Colors.grey),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+          IconButton(onPressed: onAdd, icon: const Icon(Icons.add)),
+        ],
+      ),
+    );
+  }
+
+  // --- LÃ“GICA DE NEGOCIO ---
+
+  Future<void> _pickDate() async {
+    final d = await showDatePicker(
+      context: context,
+      initialDate: _fecha ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+    if (d != null) setState(() => _fecha = d);
+  }
+
+  Future<void> _subirIndividual() async {
+    if (_isSaving) return;
+    if (!_formKey.currentState!.validate()) return;
+
+    final confirmar = await ConfirmDialog.show(
+      context: context,
+      titulo: "Â¿Subir a Firebase?",
+      mensaje:
+          "Se crearÃ¡n ${_cantidadController.text} rollos directamente en la nube.",
+      textoConfirmar: "Subir Ahora",
+    );
+    if (confirmar != true) return;
+
+    setState(() => _isSaving = true);
+
+    try {
+      final rollos = _generarListaRollos();
+      final ok = await ref.read(rollosProvider.notifier).crearRollos(rollos);
+
+      if (ok && mounted) {
+        _mostrarExito("âœ… ${rollos.length} rollos subidos a Firebase");
+        _resetFieldsForNextInput();
+      } else {
+        throw Exception("Error al guardar");
+      }
+    } catch (e) {
+      _mostrarError("Error al subir: $e");
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _agregarALote() async {
+    if (_isSaving) return;
+    if (!_formKey.currentState!.validate()) return;
+
+    final confirmar = await ConfirmDialog.show(
+      context: context,
+      titulo: "Â¿AÃ±adir a Pendientes?",
+      mensaje:
+          "Se guardarÃ¡n ${_cantidadController.text} rollos localmente para subir despuÃ©s.",
+      textoConfirmar: "Guardar Local",
+    );
+
+    if (confirmar != true) return;
+
+    setState(() => _isSaving = true);
+    try {
+      final rollos = _generarListaRollos();
+      for (var rollo in rollos) {
+        await ref.read(draftsProvider.notifier).add(rollo);
+      }
+      if (mounted) {
+        _mostrarExito("ðŸ“¦ ${rollos.length} rollos aÃ±adidos a pendientes");
+        _resetFieldsForNextInput();
+      }
+    } catch (e) {
+      _mostrarError("Error al guardar local: $e");
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  List<Rollo> _generarListaRollos() {
+    final codigo = _codigoController.text.trim();
+    final metraje = double.tryParse(_metrajeController.text) ?? 0;
+    final cantidad = int.tryParse(_cantidadController.text) ?? 1;
+
+    return List.generate(
+      cantidad,
+      (index) => Rollo(
+        id: Helpers.generarId(),
+        sucursalId: _sucursalId,
+        empresaId: _empresaId ?? '',
+        colorId: _colorId ?? '',
+        codigoColor: codigo,
+        tipoTelaId: _tipoTelaId ?? '',
+        metraje: metraje,
+        fecha: _fecha?.toIso8601String(),
+        fechaCreacion: DateTime.now(),
+        // Campos Nuevos
+        anchoId: _habilitarAncho ? _anchoId : null,
+        lote: _habilitarLote ? _loteController.text.trim() : null,
+        numeroRollo: _habilitarNumRollo
+            ? _numeroRolloController.text.trim()
+            : null,
+        notas: _observacionesController.text.trim(),
+      ),
+    );
+  }
+
+  void _mostrarExito(String mensaje) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: AppColors.success,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _mostrarError(String mensaje) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  // --- QUICK ADDS ---
+
+  void _addAncho(List<Ancho> lista) => _quickAddGeneric<Ancho>(
+    title: "Nuevo Ancho",
+    existingItems: lista,
+    getName: (a) => a.nombre,
+    onCreate: (name) async {
+      final id = Helpers.generarId();
+      await ref
+          .read(catalogServiceProvider)
+          .addAncho(Ancho(id: id, nombre: name));
+      ref.refresh(anchosProvider);
+      return id;
+    },
+    onSelected: (id) => setState(() => _anchoId = id),
+  );
+
+  void _addTipoTela(List<TipoTela> lista) => _quickAddGeneric<TipoTela>(
+    title: "Nuevo Tipo de Tela",
+    existingItems: lista,
+    getName: (t) => t.nombre,
+    onCreate: (name) async {
+      final id = Helpers.generarId();
+      await ref
+          .read(catalogServiceProvider)
+          .addTipoTela(TipoTela(id: id, nombre: name));
+      ref.refresh(tiposTelaProvider);
+      return id;
+    },
+    onSelected: (id) => setState(() => _tipoTelaId = id),
+  );
+
+  void _addSucursal(List<Sucursal> lista) => _quickAddGeneric<Sucursal>(
+    title: "Nueva Sucursal",
+    existingItems: lista,
+    getName: (s) => s.nombre,
+    onCreate: (name) async {
+      final id = Helpers.generarId();
+      await ref
+          .read(catalogServiceProvider)
+          .addSucursal(Sucursal(id: id, nombre: name));
+      ref.refresh(sucursalesProvider);
+      return id;
+    },
+    onSelected: (id) => setState(() => _sucursalId = id),
+  );
+
+  void _addEmpresa(List<Empresa> lista) => _quickAddGeneric<Empresa>(
+    title: "Nueva Empresa",
+    existingItems: lista,
+    getName: (e) => e.nombre,
+    onCreate: (name) async {
+      final newId = Helpers.generarId();
+      await ref
+          .read(catalogServiceProvider)
+          .addEmpresa(Empresa(id: newId, nombre: name));
+      ref.refresh(empresasProvider);
+      return newId;
+    },
+    onSelected: (id) => setState(() => _empresaId = id),
+  );
+
+  void _addColor(List<ColorTela> lista) => showDialog(
+    context: context,
+    builder: (context) => _ColorPickerDialog(
+      ref: ref,
+      existingColors: lista,
+      onColorCreated: (id) => setState(() => _colorId = id),
+    ),
+  );
+
+  Future<void> _quickAddGeneric<T>({
+    required String title,
+    required List<T> existingItems,
+    required String Function(T) getName,
+    required Future<String> Function(String name) onCreate,
+    required void Function(String id) onSelected,
+  }) async {
+    final ctrl = TextEditingController();
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setStateDialog) {
+          return AlertDialog(
+            title: Text(title),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: ctrl,
+                  decoration: const InputDecoration(hintText: "Ingrese nombre"),
+                ),
+                if (_isSavingCatalog)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 20),
+                    child: CircularProgressIndicator(),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: _isSavingCatalog ? null : () => Navigator.pop(ctx),
+                child: const Text("Cancelar"),
+              ),
+              ElevatedButton(
+                onPressed: _isSavingCatalog
+                    ? null
+                    : () async {
+                        final input = _normalize(ctrl.text);
+                        if (input.isEmpty) return;
+
+                        final exists = existingItems.any(
+                          (e) => _normalize(getName(e)) == input,
+                        );
+                        if (exists) {
+                          _showAlert(
+                            title: "Registro duplicado",
+                            message: "Ya existe este registro.",
+                            icon: Icons.error_outline,
+                            color: Colors.red,
+                          );
+                          return;
+                        }
+
+                        setStateDialog(() => _isSavingCatalog = true);
+                        final newId = await onCreate(ctrl.text.trim());
+                        setStateDialog(() => _isSavingCatalog = false);
+
+                        onSelected(newId);
+                        if (mounted) Navigator.pop(ctx);
+                      },
+                child: const Text("Guardar"),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showAlert({
+    required String title,
+    required String message,
+    IconData icon = Icons.warning_amber_rounded,
+    Color color = Colors.orange,
+  }) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(icon, color: color, size: 28),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(fontWeight: FontWeight.bold, color: color),
+              ),
+            ),
+          ],
+        ),
+        content: Text(message, style: const TextStyle(fontSize: 15)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Aceptar"),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ================= DIALOG DE COLOR =================
+
+class _ColorPickerDialog extends StatefulWidget {
+  final WidgetRef ref;
+  final List<ColorTela> existingColors;
+  final Function(String id) onColorCreated;
+
+  const _ColorPickerDialog({
+    required this.ref,
+    required this.existingColors,
+    required this.onColorCreated,
+  });
+
+  @override
+  State<_ColorPickerDialog> createState() => _ColorPickerDialogState();
+}
+
+class _ColorPickerDialogState extends State<_ColorPickerDialog>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  final _nameController = TextEditingController();
+  Color _selectedColor = Colors.blue;
+
+  final Map<int, double> _heightFactors = {0: 0.36, 1: 0.42, 2: 0.6};
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(_onTabChanged);
+  }
+
+  void _onTabChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
+  void dispose() {
+    _tabController.removeListener(_onTabChanged);
+    _tabController.dispose();
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  bool useWhiteForeground(Color background) =>
+      (0.299 * background.red +
+              0.587 * background.green +
+              0.114 * background.blue) /
+          255 <
+      0.5;
+
+  @override
+  Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final currentHeightFactor = _heightFactors[_tabController.index] ?? 0.36;
+
+    return Dialog(
+      insetPadding: const EdgeInsets.all(16),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: screenHeight * 0.85),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  "Nuevo Color",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 15),
+                TabBar(
+                  controller: _tabController,
+                  tabs: const [
+                    Tab(icon: Icon(Icons.palette), text: "Base"),
+                    Tab(icon: Icon(Icons.color_lens), text: "Rueda"),
+                    Tab(icon: Icon(Icons.tune), text: "Picker"),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  height: screenHeight * currentHeightFactor,
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _navColoresBase(),
+                      _navRuedaColor(),
+                      _navColorPickerAvanzado(),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 15),
+                Container(
+                  height: 40,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: _selectedColor,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.black12),
+                  ),
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _nameController,
+                          decoration: const InputDecoration(
+                            labelText: "Nombre del color",
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '#${_selectedColor.value.toRadixString(16).substring(2).toUpperCase()}',
+                        style: TextStyle(
+                          color: useWhiteForeground(_selectedColor)
+                              ? Colors.white
+                              : Colors.black,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text("Cancelar"),
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton(
+                      onPressed: () async {
+                        final name = _nameController.text.trim();
+                        if (name.isEmpty) return;
+
+                        if (widget.existingColors.any(
+                          (c) => c.nombre.toLowerCase() == name.toLowerCase(),
+                        )) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Este color ya existe"),
+                            ),
+                          );
+                          return;
+                        }
+
+                        final hex =
+                            '#${_selectedColor.value.toRadixString(16).substring(2)}';
+                        final id = Helpers.generarId();
+
+                        await widget.ref
+                            .read(catalogServiceProvider)
+                            .addColor(
+                              ColorTela(id: id, nombre: name, hex: hex),
+                            );
+                        widget.ref.refresh(coloresProvider);
+
+                        widget.onColorCreated(id);
+                        if (mounted) Navigator.pop(context);
+                      },
+                      child: const Text("Guardar"),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _navColoresBase() {
+    final colores = [
+      Colors.red,
+      Colors.blue,
+      Colors.green,
+      Colors.yellow,
+      Colors.orange,
+      Colors.purple,
+      Colors.black,
+      Colors.white,
+    ];
+    return GridView.builder(
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 4,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+      ),
+      itemCount: colores.length,
+      itemBuilder: (ctx, i) => GestureDetector(
+        onTap: () => setState(() => _selectedColor = colores[i]),
+        child: Container(
+          decoration: BoxDecoration(
+            color: colores[i],
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: _selectedColor == colores[i]
+                  ? Colors.black
+                  : Colors.transparent,
+              width: 2,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _navRuedaColor() => flex.ColorPicker(
+    color: _selectedColor,
+    onColorChanged: (c) => setState(() => _selectedColor = c),
+    enableShadesSelection: false,
+    pickersEnabled: const {
+      flex.ColorPickerType.wheel: true,
+      flex.ColorPickerType.primary: false,
+      flex.ColorPickerType.accent: false,
+    },
+  );
+
+  Widget _navColorPickerAvanzado() => LayoutBuilder(
+    builder: (ctx, constraints) => flutter_picker.ColorPicker(
+      pickerColor: _selectedColor,
+      onColorChanged: (c) => setState(() => _selectedColor = c),
+      enableAlpha: true,
+      displayThumbColor: true,
+      showLabel: false,
+      paletteType: constraints.maxWidth < 400
+          ? flutter_picker.PaletteType.hsv
+          : flutter_picker.PaletteType.hsvWithHue,
+      pickerAreaHeightPercent: constraints.maxWidth < 400 ? 0.6 : 0.7,
+      hexInputBar: true,
+    ),
+  );
 }
