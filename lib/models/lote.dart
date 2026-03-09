@@ -40,6 +40,8 @@ class Lote {
   final double tipoCambio;
   final String encargado; // Nombre de la persona
   final List<LoteItem> items;
+  final bool activo;
+  final DateTime? fechaActivacion;
 
   Lote({
     required this.id,
@@ -48,6 +50,8 @@ class Lote {
     required this.tipoCambio,
     required this.encargado,
     this.items = const [],
+    this.activo = false, // Por defecto inactivo
+    this.fechaActivacion,
   });
 
   factory Lote.fromJson(Map<String, dynamic> json) {
@@ -64,6 +68,10 @@ class Lote {
       tipoCambio: (json['tipoCambio'] ?? 0).toDouble(),
       encargado: json['encargado'] ?? '',
       items: itemsList,
+      activo: json['activo'] ?? false,
+      fechaActivacion: json['fechaActivacion'] != null 
+          ? DateTime.parse(json['fechaActivacion']) 
+          : null,
     );
   }
 
@@ -74,5 +82,7 @@ class Lote {
     'tipoCambio': tipoCambio,
     'encargado': encargado,
     'items': items.map((e) => e.toJson()).toList(),
+    'activo': activo,
+    'fechaActivacion': fechaActivacion?.toIso8601String(),
   };
 }

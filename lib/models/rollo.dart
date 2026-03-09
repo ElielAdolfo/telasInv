@@ -16,6 +16,10 @@
   final String? numeroRollo;
   
   final String? loteId;
+  final double? precioUsd; // Precio en dólares (histórico)
+  final double? tipoCambio; // Tipo de cambio (histórico)
+  final double? precioCompra; // Precio final en Bolivianos (calculado)
+
   Rollo({
     required this.id,
     this.sucursalId,
@@ -32,6 +36,9 @@
     this.lote,
     this.numeroRollo,
     this.loteId,
+    this.precioUsd,
+    this.tipoCambio,
+    this.precioCompra,
   });
 
   factory Rollo.fromJson(Map<String, dynamic> json) => Rollo(
@@ -56,6 +63,9 @@
     lote: json['lote'],
     numeroRollo: json['numeroRollo'],
     loteId: json['loteId'],
+    precioUsd: (json['precioUsd'] as num?)?.toDouble(),
+    tipoCambio: (json['tipoCambio'] as num?)?.toDouble(),
+    precioCompra: (json['precioCompra'] as num?)?.toDouble(),
   );
 
   Map<String, dynamic> toJson() => {
@@ -74,6 +84,9 @@
     'lote': lote,
     'numeroRollo': numeroRollo,
     'loteId': loteId,
+    'precioUsd': precioUsd,
+    'tipoCambio': tipoCambio,
+    'precioCompra': precioCompra,
   };
 }
 

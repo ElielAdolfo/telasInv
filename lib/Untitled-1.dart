@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/models/models.dart';
+import 'package:inv_telas/models/lote.dart'; // ✅ Importar modelo Lote
 import 'package:inv_telas/providers/providers.dart';
 import 'package:inv_telas/screens/pending_screen.dart';
 import 'package:inv_telas/utils/utils.dart';
@@ -23,11 +24,10 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   final _cantidadController = TextEditingController(text: '1');
   late TextEditingController _codigoController;
   late TextEditingController _metrajeController;
-
-  // ✅ NUEVOS CONTROLADORES
   final _loteController = TextEditingController();
   final _numeroRolloController = TextEditingController();
   final _observacionesController = TextEditingController();
+  final _precioManualController = TextEditingController(); // ✅ NUEVO
 
   // Estado de selección
   String? _tipoTelaId;
@@ -36,13 +36,16 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   String? _colorId;
   DateTime? _fecha;
 
-  // ✅ ESTADO CHECKBOXES
+  // Estado Checkboxes y Ancho
   bool _habilitarAncho = false;
   bool _habilitarLote = false;
   bool _habilitarNumRollo = false;
-
-  // ✅ VALOR SELECCIONADO DE ANCHO (ID)
   String? _anchoId;
+
+  // ✅ Estado para precio calculado
+  double _precioCalculadoBS = 0.0;
+  double _precioCalculadoUSD = 0.0;
+  bool _precioEncontradoEnLote = false;
 
   bool _isSavingCatalog = false;
   bool _isSaving = false;
@@ -63,12 +66,12 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     _loteController.dispose();
     _numeroRolloController.dispose();
     _observacionesController.dispose();
+    _precioManualController.dispose();
     super.dispose();
   }
 
   String _normalize(String text) => text.trim().toLowerCase();
 
-  /// Resetea campos variables para carga rápida, manteniendo contexto (Empresa/Tipo)
   void _resetFieldsForNextInput() {
     _codigoController.clear();
     _metrajeController.clear();
@@ -76,12 +79,13 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     _loteController.clear();
     _numeroRolloController.clear();
     _observacionesController.clear();
-
+    _precioManualController.clear();
     setState(() {
       _colorId = null;
       _anchoId = null;
-      // Mantenemos _empresaId, _sucursalId, _tipoTelaId y los Checkboxes activos
-      // para facilitar la carga masiva de rollos similares.
+      _precioCalculadoBS = 0.0;
+      _precioCalculadoUSD = 0.0;
+      _precioEncontradoEnLote = false;
     });
   }
 
@@ -91,8 +95,11 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     final sucursales = ref.watch(sucursalesProvider);
     final empresas = ref.watch(empresasProvider);
     final colores = ref.watch(coloresProvider);
-    final anchos = ref.watch(anchosProvider); // Provider de Anchos
+    final anchos = ref.watch(anchosProvider);
     final drafts = ref.watch(draftsProvider);
+
+    // ✅ OBSERVAR LOTE ACTIVO
+    final loteActivo = ref.watch(loteActivoProvider);
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.92,
@@ -114,7 +121,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                     _buildCantidadSelector(),
                     const SizedBox(height: 12),
 
-                    // Dropdowns Principales
                     _buildDropdownWithAdd<TipoTela>(
                       "Tipo de Tela",
                       tipos,
@@ -180,6 +186,31 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
 
                     const Divider(height: 32, thickness: 1),
 
+                    // ✅ SECCIÓN DE LOTE Y PRECIO
+                    if (loteActivo != null) ...[
+                      _buildActiveLoteBanner(loteActivo),
+                      const SizedBox(height: 12),
+                      if (_precioEncontradoEnLote)
+                        _buildPriceDisplay()
+                      else if (_tipoTelaId != null && _empresaId != null)
+                        const Text(
+                          "⚠️ Esta tela no está en el lote activo.",
+                          style: TextStyle(color: Colors.red),
+                        ),
+                    ] else ...[
+                      TextFormField(
+                        controller: _precioManualController,
+                        keyboardType: TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: "Precio Compra (BS) *",
+                        ),
+                      ),
+                    ],
+
+                    const Divider(height: 32, thickness: 1),
+
                     // Sección Opciones Adicionales
                     const Text(
                       "Opciones Adicionales",
@@ -187,13 +218,15 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                     ),
                     const SizedBox(height: 10),
 
-                    // 1. ANCHO (Catálogo)
+                    // 1. ANCHO (Lógica Inteligente)
                     _buildCheckboxTile(
                       title: "Ancho Especial",
-                      subtitle: "Ej: Magitex (1.50m / 1.60m)",
+                      subtitle: "Se detecta automáticamente según empresa/tela",
                       value: _habilitarAncho,
-                      onChanged: (v) =>
-                          setState(() => _habilitarAncho = v ?? false),
+                      onChanged: (v) {
+                        setState(() => _habilitarAncho = v ?? false);
+                        _autoFillData(); // Recalcular precio si cambia ancho
+                      },
                     ),
                     if (_habilitarAncho)
                       Padding(
@@ -206,7 +239,10 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                           "Seleccionar Ancho",
                           anchos,
                           _anchoId,
-                          (id) => setState(() => _anchoId = id),
+                          (id) {
+                            setState(() => _anchoId = id);
+                            _autoFillData(); // Recalcular precio si cambia ancho
+                          },
                           (item) => item.id,
                           (item) => item.nombre,
                           () => _addAncho(anchos),
@@ -262,8 +298,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                       ),
 
                     const SizedBox(height: 16),
-
-                    // 4. OBSERVACIONES
                     TextFormField(
                       controller: _observacionesController,
                       maxLines: 3,
@@ -282,6 +316,57 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
           ),
           _buildActions(),
         ],
+      ),
+    );
+  }
+
+  // ✅ WIDGETS DE UI PARA LOTE
+  Widget _buildActiveLoteBanner(Lote lote) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.inventory, color: AppColors.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              "Lote Activo: ${lote.nombre}",
+              style: AppTextStyles.heading3.copyWith(color: AppColors.primary),
+            ),
+          ),
+          Text(
+            "TC: ${lote.tipoCambio}",
+            style: AppTextStyles.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPriceDisplay() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8.0),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text("Precio Compra:", style: AppTextStyles.body),
+            Text(
+              "${_precioCalculadoBS.toStringAsFixed(2)} BS",
+              style: AppTextStyles.heading3.copyWith(color: Colors.green[700]),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -305,12 +390,84 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     );
   }
 
+  /// ✅ LÓGICA DE AUTODETECCIÓN Y AUTOLLENADO (ACTUALIZADO)
   void _autoFillData() {
-    if (_empresaId != null && _tipoTelaId != null && _colorId != null) {
+    final loteActivo = ref.read(loteActivoProvider);
+
+    // 1. Lógica de Ancho (Igual que antes)
+    if (_empresaId != null && _tipoTelaId != null) {
       final rollos = ref
           .read(rollosProvider)
           .maybeWhen(data: (d) => d, orElse: () => <Rollo>[]);
 
+      final matches = rollos
+          .where(
+            (r) => r.empresaId == _empresaId && r.tipoTelaId == _tipoTelaId,
+          )
+          .toList();
+
+      if (matches.isNotEmpty) {
+        final withAncho = matches.where((r) => r.anchoId != null).toList();
+
+        setState(() {
+          if (withAncho.isNotEmpty) {
+            _habilitarAncho = true;
+            final freq = <String, int>{};
+            for (var r in withAncho) {
+              freq[r.anchoId!] = (freq[r.anchoId!] ?? 0) + 1;
+            }
+            _anchoId = freq.entries
+                .reduce((a, b) => a.value >= b.value ? a : b)
+                .key;
+          } else {
+            _habilitarAncho = false;
+            _anchoId = null;
+          }
+        });
+      } else {
+        setState(() {
+          _habilitarAncho = false;
+          _anchoId = null;
+        });
+      }
+    }
+
+    // 2. Lógica de Precio (Si hay Lote Activo)
+    if (loteActivo != null && _empresaId != null && _tipoTelaId != null) {
+      final item = loteActivo.items.firstWhere(
+        (i) =>
+            i.tipoTelaId == _tipoTelaId &&
+            i.empresaId == _empresaId &&
+            (i.anchoId == _anchoId || (!_habilitarAncho && i.anchoId == null)),
+        orElse: () => LoteItem(
+          id: '',
+          tipoTelaId: '',
+          empresaId: '',
+          precioUSD: 0,
+        ),
+      );
+
+      setState(() {
+        if (item.precioUSD > 0) {
+          _precioCalculadoUSD = item.precioUSD;
+          _precioCalculadoBS = item.precioUSD * loteActivo.tipoCambio;
+          _precioEncontradoEnLote = true;
+        } else {
+          _precioCalculadoBS = 0;
+          _precioEncontradoEnLote = false;
+        }
+      });
+    } else {
+      setState(() {
+        _precioEncontradoEnLote = false;
+      });
+    }
+
+    // 3. Lógica de autollenado de código/metraje
+    if (_empresaId != null && _tipoTelaId != null && _colorId != null) {
+      final rollos = ref
+          .read(rollosProvider)
+          .maybeWhen(data: (d) => d, orElse: () => <Rollo>[]);
       final matches = rollos
           .where(
             (r) =>
@@ -321,23 +478,13 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
           .toList();
 
       if (matches.isNotEmpty) {
-        final lastMatch = matches.first;
-
+        final last = matches.first;
         setState(() {
-          _codigoController.text = lastMatch.codigoColor;
-          if (lastMatch.metraje > 0) {
-            _metrajeController.text = lastMatch.metraje % 1 == 0
-                ? lastMatch.metraje.toInt().toString()
-                : lastMatch.metraje.toString();
-          }
-
-          // Autollenar Ancho si existe en el historial
-          if (lastMatch.anchoId != null && lastMatch.anchoId!.isNotEmpty) {
-            _habilitarAncho = true;
-            _anchoId = lastMatch.anchoId;
-          } else {
-            _habilitarAncho = false;
-            _anchoId = null;
+          _codigoController.text = last.codigoColor;
+          if (last.metraje > 0) {
+            _metrajeController.text = last.metraje % 1 == 0
+                ? last.metraje.toInt().toString()
+                : last.metraje.toString();
           }
         });
       }
@@ -358,16 +505,11 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                 alignment: Alignment.center,
                 children: [
                   IconButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const PendingScreen(),
-                        ),
-                      );
-                    },
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const PendingScreen()),
+                    ),
                     icon: const Icon(Icons.inventory_2_outlined, size: 26),
-                    tooltip: 'Ver Pendientes',
                   ),
                   if (pendingCount > 0)
                     Positioned(
@@ -511,7 +653,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
           ),
           const SizedBox(height: 8),
           Text(
-            "El modal permanecerá abierto para carga continua.",
+            "Campos opcionales y observaciones incluidos.",
             style: AppTextStyles.caption.copyWith(fontSize: 10),
             textAlign: TextAlign.center,
           ),
@@ -628,25 +770,70 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     if (d != null) setState(() => _fecha = d);
   }
 
+  List<Rollo> _generarListaRollos() {
+    final codigo = _codigoController.text.trim();
+    final metraje = double.tryParse(_metrajeController.text) ?? 0;
+    final cantidad = int.tryParse(_cantidadController.text) ?? 1;
+    final loteActivo = ref.read(loteActivoProvider);
+
+    // Variables de precio
+    String? loteId;
+    double? precioUsd;
+    double? tipoCambio;
+    double? precioFinal;
+
+    if (loteActivo != null && _precioEncontradoEnLote) {
+      // Si hay lote activo y encontramos precio
+      loteId = loteActivo.id;
+      precioUsd = _precioCalculadoUSD;
+      tipoCambio = loteActivo.tipoCambio;
+      precioFinal = _precioCalculadoBS;
+    } else {
+      // Si no hay lote, usar precio manual
+      precioFinal = double.tryParse(_precioManualController.text) ?? 0;
+    }
+
+    return List.generate(
+      cantidad,
+      (index) => Rollo(
+        id: Helpers.generarId(),
+        sucursalId: _sucursalId,
+        empresaId: _empresaId ?? '',
+        colorId: _colorId ?? '',
+        codigoColor: codigo,
+        tipoTelaId: _tipoTelaId ?? '',
+        metraje: metraje,
+        fecha: _fecha?.toIso8601String(),
+        fechaCreacion: DateTime.now(),
+        anchoId: _habilitarAncho ? _anchoId : null,
+        lote: _habilitarLote ? _loteController.text.trim() : null,
+        numeroRollo: _habilitarNumRollo
+            ? _numeroRolloController.text.trim()
+            : null,
+        notas: _observacionesController.text.trim(),
+        loteId: loteId,
+        precioUsd: precioUsd,
+        tipoCambio: tipoCambio,
+        precioCompra: precioFinal,
+      ),
+    );
+  }
+
   Future<void> _subirIndividual() async {
     if (_isSaving) return;
     if (!_formKey.currentState!.validate()) return;
-
-    final confirmar = await ConfirmDialog.show(
-      context: context,
-      titulo: "¿Subir a Firebase?",
-      mensaje:
-          "Se crearán ${_cantidadController.text} rollos directamente en la nube.",
-      textoConfirmar: "Subir Ahora",
-    );
-    if (confirmar != true) return;
+    // Validar precio
+    final loteActivo = ref.read(loteActivoProvider);
+    if (loteActivo == null &&
+        (double.tryParse(_precioManualController.text) ?? 0) <= 0) {
+      _mostrarError("Ingrese un precio válido.");
+      return;
+    }
 
     setState(() => _isSaving = true);
-
     try {
       final rollos = _generarListaRollos();
       final ok = await ref.read(rollosProvider.notifier).crearRollos(rollos);
-
       if (ok && mounted) {
         _mostrarExito("✅ ${rollos.length} rollos subidos a Firebase");
         _resetFieldsForNextInput();
@@ -663,16 +850,13 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   Future<void> _agregarALote() async {
     if (_isSaving) return;
     if (!_formKey.currentState!.validate()) return;
-
-    final confirmar = await ConfirmDialog.show(
-      context: context,
-      titulo: "¿Añadir a Pendientes?",
-      mensaje:
-          "Se guardarán ${_cantidadController.text} rollos localmente para subir después.",
-      textoConfirmar: "Guardar Local",
-    );
-
-    if (confirmar != true) return;
+    // Validar precio
+    final loteActivo = ref.read(loteActivoProvider);
+    if (loteActivo == null &&
+        (double.tryParse(_precioManualController.text) ?? 0) <= 0) {
+      _mostrarError("Ingrese un precio válido.");
+      return;
+    }
 
     setState(() => _isSaving = true);
     try {
@@ -689,34 +873,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
-  }
-
-  List<Rollo> _generarListaRollos() {
-    final codigo = _codigoController.text.trim();
-    final metraje = double.tryParse(_metrajeController.text) ?? 0;
-    final cantidad = int.tryParse(_cantidadController.text) ?? 1;
-
-    return List.generate(
-      cantidad,
-      (index) => Rollo(
-        id: Helpers.generarId(),
-        sucursalId: _sucursalId,
-        empresaId: _empresaId ?? '',
-        colorId: _colorId ?? '',
-        codigoColor: codigo,
-        tipoTelaId: _tipoTelaId ?? '',
-        metraje: metraje,
-        fecha: _fecha?.toIso8601String(),
-        fechaCreacion: DateTime.now(),
-        // Campos Nuevos
-        anchoId: _habilitarAncho ? _anchoId : null,
-        lote: _habilitarLote ? _loteController.text.trim() : null,
-        numeroRollo: _habilitarNumRollo
-            ? _numeroRolloController.text.trim()
-            : null,
-        notas: _observacionesController.text.trim(),
-      ),
-    );
   }
 
   void _mostrarExito(String mensaje) {
@@ -745,73 +901,73 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   // --- QUICK ADDS ---
 
   void _addAncho(List<Ancho> lista) => _quickAddGeneric<Ancho>(
-    title: "Nuevo Ancho",
-    existingItems: lista,
-    getName: (a) => a.nombre,
-    onCreate: (name) async {
-      final id = Helpers.generarId();
-      await ref
-          .read(catalogServiceProvider)
-          .addAncho(Ancho(id: id, nombre: name));
-      ref.refresh(anchosProvider);
-      return id;
-    },
-    onSelected: (id) => setState(() => _anchoId = id),
-  );
+        title: "Nuevo Ancho",
+        existingItems: lista,
+        getName: (a) => a.nombre,
+        onCreate: (name) async {
+          final id = Helpers.generarId();
+          await ref
+              .read(catalogServiceProvider)
+              .addAncho(Ancho(id: id, nombre: name));
+          ref.refresh(anchosProvider);
+          return id;
+        },
+        onSelected: (id) => setState(() => _anchoId = id),
+      );
 
   void _addTipoTela(List<TipoTela> lista) => _quickAddGeneric<TipoTela>(
-    title: "Nuevo Tipo de Tela",
-    existingItems: lista,
-    getName: (t) => t.nombre,
-    onCreate: (name) async {
-      final id = Helpers.generarId();
-      await ref
-          .read(catalogServiceProvider)
-          .addTipoTela(TipoTela(id: id, nombre: name));
-      ref.refresh(tiposTelaProvider);
-      return id;
-    },
-    onSelected: (id) => setState(() => _tipoTelaId = id),
-  );
+        title: "Nuevo Tipo de Tela",
+        existingItems: lista,
+        getName: (t) => t.nombre,
+        onCreate: (name) async {
+          final id = Helpers.generarId();
+          await ref
+              .read(catalogServiceProvider)
+              .addTipoTela(TipoTela(id: id, nombre: name));
+          ref.refresh(tiposTelaProvider);
+          return id;
+        },
+        onSelected: (id) => setState(() => _tipoTelaId = id),
+      );
 
   void _addSucursal(List<Sucursal> lista) => _quickAddGeneric<Sucursal>(
-    title: "Nueva Sucursal",
-    existingItems: lista,
-    getName: (s) => s.nombre,
-    onCreate: (name) async {
-      final id = Helpers.generarId();
-      await ref
-          .read(catalogServiceProvider)
-          .addSucursal(Sucursal(id: id, nombre: name));
-      ref.refresh(sucursalesProvider);
-      return id;
-    },
-    onSelected: (id) => setState(() => _sucursalId = id),
-  );
+        title: "Nueva Sucursal",
+        existingItems: lista,
+        getName: (s) => s.nombre,
+        onCreate: (name) async {
+          final id = Helpers.generarId();
+          await ref
+              .read(catalogServiceProvider)
+              .addSucursal(Sucursal(id: id, nombre: name));
+          ref.refresh(sucursalesProvider);
+          return id;
+        },
+        onSelected: (id) => setState(() => _sucursalId = id),
+      );
 
   void _addEmpresa(List<Empresa> lista) => _quickAddGeneric<Empresa>(
-    title: "Nueva Empresa",
-    existingItems: lista,
-    getName: (e) => e.nombre,
-    onCreate: (name) async {
-      final newId = Helpers.generarId();
-      await ref
-          .read(catalogServiceProvider)
-          .addEmpresa(Empresa(id: newId, nombre: name));
-      ref.refresh(empresasProvider);
-      return newId;
-    },
-    onSelected: (id) => setState(() => _empresaId = id),
-  );
+        title: "Nueva Empresa",
+        existingItems: lista,
+        getName: (e) => e.nombre,
+        onCreate: (name) async {
+          final id = Helpers.generarId();
+          await ref
+              .read(catalogServiceProvider)
+              .addEmpresa(Empresa(id: id, nombre: name));
+          ref.refresh(empresasProvider);
+          return id;
+        },
+        onSelected: (id) => setState(() => _empresaId = id),
+      );
 
   void _addColor(List<ColorTela> lista) => showDialog(
-    context: context,
-    builder: (context) => _ColorPickerDialog(
-      ref: ref,
-      existingColors: lista,
-      onColorCreated: (id) => setState(() => _colorId = id),
-    ),
-  );
+        context: context,
+        builder: (context) => _ColorPickerDialog(
+          ref: ref,
+          existingColors: lista,
+          onColorCreated: (id) => setState(() => _colorId = id),
+        ),
+      );
 
   Future<void> _quickAddGeneric<T>({
     required String title,
@@ -859,7 +1015,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                         );
                         if (exists) {
                           _showAlert(
-                            title: "Registro duplicado",
+                            title: "Duplicado",
                             message: "Ya existe este registro.",
                             icon: Icons.error_outline,
                             color: Colors.red,
@@ -946,18 +1102,10 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    _tabController.addListener(_onTabChanged);
-  }
-
-  void _onTabChanged() {
-    if (mounted) {
-      setState(() {});
-    }
   }
 
   @override
   void dispose() {
-    _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     _nameController.dispose();
     super.dispose();
@@ -1001,7 +1149,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                 const SizedBox(height: 10),
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
                   height: screenHeight * currentHeightFactor,
                   child: TabBarView(
                     controller: _tabController,
@@ -1019,9 +1166,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                   decoration: BoxDecoration(
                     color: _selectedColor,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.black12),
                   ),
-                  alignment: Alignment.center,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1030,7 +1175,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                         child: TextField(
                           controller: _nameController,
                           decoration: const InputDecoration(
-                            labelText: "Nombre del color",
+                            labelText: "Nombre",
                             border: OutlineInputBorder(),
                           ),
                         ),
@@ -1136,28 +1281,28 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
   }
 
   Widget _navRuedaColor() => flex.ColorPicker(
-    color: _selectedColor,
-    onColorChanged: (c) => setState(() => _selectedColor = c),
-    enableShadesSelection: false,
-    pickersEnabled: const {
-      flex.ColorPickerType.wheel: true,
-      flex.ColorPickerType.primary: false,
-      flex.ColorPickerType.accent: false,
-    },
-  );
+        color: _selectedColor,
+        onColorChanged: (c) => setState(() => _selectedColor = c),
+        enableShadesSelection: false,
+        pickersEnabled: const {
+          flex.ColorPickerType.wheel: true,
+          flex.ColorPickerType.primary: false,
+          flex.ColorPickerType.accent: false,
+        },
+      );
 
   Widget _navColorPickerAvanzado() => LayoutBuilder(
-    builder: (ctx, constraints) => flutter_picker.ColorPicker(
-      pickerColor: _selectedColor,
-      onColorChanged: (c) => setState(() => _selectedColor = c),
-      enableAlpha: true,
-      displayThumbColor: true,
-      showLabel: false,
-      paletteType: constraints.maxWidth < 400
-          ? flutter_picker.PaletteType.hsv
-          : flutter_picker.PaletteType.hsvWithHue,
-      pickerAreaHeightPercent: constraints.maxWidth < 400 ? 0.6 : 0.7,
-      hexInputBar: true,
-    ),
-  );
+        builder: (ctx, constraints) => flutter_picker.ColorPicker(
+          pickerColor: _selectedColor,
+          onColorChanged: (c) => setState(() => _selectedColor = c),
+          enableAlpha: true,
+          displayThumbColor: true,
+          showLabel: false,
+          paletteType: constraints.maxWidth < 400
+              ? flutter_picker.PaletteType.hsv
+              : flutter_picker.PaletteType.hsvWithHue,
+          pickerAreaHeightPercent: constraints.maxWidth < 400 ? 0.6 : 0.7,
+          hexInputBar: true,
+        ),
+      );
 }

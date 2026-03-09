@@ -1,6 +1,8 @@
 ﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:inv_telas/models/lote.dart';
 import 'package:inv_telas/models/models.dart';
+import 'package:inv_telas/services/lote_service.dart';
 import 'package:inv_telas/services/services.dart';
 import 'package:inv_telas/services/local_storage_service.dart';
 
@@ -236,3 +238,96 @@ final estadisticasProvider = Provider<Map<String, dynamic>>((ref) {
     },
   );
 });
+
+final loteServiceProvider = Provider<LoteService>((ref) => LoteService());
+
+final lotesProvider = StateNotifierProvider<LotesNotifier, List<Lote>>((ref) {
+  return LotesNotifier(ref.watch(loteServiceProvider));
+});
+
+final loteActivoProvider = Provider<Lote?>((ref) {
+  final lotes = ref.watch(lotesProvider);
+  final hoy = DateTime.now();
+
+  // Buscar un lote que esté activo y cuya fecha de activación sea hoy
+  try {
+    return lotes.firstWhere(
+      (l) =>
+          l.activo &&
+          l.fechaActivacion != null &&
+          _esMismoDia(l.fechaActivacion!, hoy),
+    );
+  } catch (e) {
+    return null; // No hay lote activo
+  }
+});
+
+bool _esMismoDia(DateTime a, DateTime b) {
+  return a.year == b.year && a.month == b.month && a.day == b.day;
+}
+
+class LotesNotifier extends StateNotifier<List<Lote>> {
+  final LoteService _service;
+
+  LotesNotifier(this._service) : super([]) {
+    load();
+  }
+
+  Future<void> load() async {
+    final data = await _service.getLotes();
+    if (mounted) state = data;
+  }
+
+  Future<void> add(Lote lote) async {
+    await _service.addLote(lote);
+    await load();
+  }
+
+  Future<void> update(Lote lote) async {
+    await _service.updateLote(lote);
+    await load();
+  }
+
+  // ✅ MÉTODO PARA ACTIVAR LOTE (RADIO BUTTON LÓGICA)
+  Future<void> setActiveLote(String? loteId) async {
+    final hoy = DateTime.now();
+
+    // 1. Desactivar todos los lotes existentes
+    final batchUpdates = <Future<void>>[];
+
+    for (var lote in state) {
+      if (lote.activo) {
+        final updated = Lote(
+          id: lote.id,
+          nombre: lote.nombre,
+          fecha: lote.fecha,
+          tipoCambio: lote.tipoCambio,
+          encargado: lote.encargado,
+          items: lote.items,
+          activo: false,
+          fechaActivacion: lote.fechaActivacion,
+        );
+        batchUpdates.add(_service.updateLote(updated));
+      }
+    }
+
+    // 2. Activar el seleccionado (si no es null)
+    if (loteId != null) {
+      final loteToActivate = state.firstWhere((l) => l.id == loteId);
+      final updated = Lote(
+        id: loteToActivate.id,
+        nombre: loteToActivate.nombre,
+        fecha: loteToActivate.fecha,
+        tipoCambio: loteToActivate.tipoCambio,
+        encargado: loteToActivate.encargado,
+        items: loteToActivate.items,
+        activo: true,
+        fechaActivacion: hoy,
+      );
+      batchUpdates.add(_service.updateLote(updated));
+    }
+
+    await Future.wait(batchUpdates);
+    await load();
+  }
+}

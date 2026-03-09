@@ -307,6 +307,8 @@ class Ancho {
 }
 
 
+
+
 ===== D:\inv\inv_telas\lib\models\filtros_model.dart =====
 
 class FiltrosModel {
@@ -323,6 +325,88 @@ class FiltrosModel {
     this.color = '',
     this.tipoTela = '',
   });
+}
+
+
+===== D:\inv\inv_telas\lib\models\lote.dart =====
+
+class LoteItem {
+  final String id;
+  final String tipoTelaId;
+  final String empresaId;
+  final String? anchoId; // Opcional
+  final double precioUSD;
+
+  LoteItem({
+    required this.id,
+    required this.tipoTelaId,
+    required this.empresaId,
+    this.anchoId,
+    required this.precioUSD,
+  });
+
+  factory LoteItem.fromJson(Map<String, dynamic> json) => LoteItem(
+    id: json['id'] ?? '',
+    tipoTelaId: json['tipoTelaId'] ?? '',
+    empresaId: json['empresaId'] ?? '',
+    anchoId: json['anchoId'],
+    precioUSD: (json['precioUSD'] ?? 0).toDouble(),
+  );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'tipoTelaId': tipoTelaId,
+    'empresaId': empresaId,
+    'anchoId': anchoId,
+    'precioUSD': precioUSD,
+  };
+
+  // Helper para generar un ID Ãºnico de combinaciÃ³n para validaciones
+  String get comboKey => '${tipoTelaId}_${empresaId}_${anchoId ?? 'sin_ancho'}';
+}
+
+class Lote {
+  final String id;
+  final String nombre;
+  final DateTime fecha;
+  final double tipoCambio;
+  final String encargado; // Nombre de la persona
+  final List<LoteItem> items;
+
+  Lote({
+    required this.id,
+    required this.nombre,
+    required this.fecha,
+    required this.tipoCambio,
+    required this.encargado,
+    this.items = const [],
+  });
+
+  factory Lote.fromJson(Map<String, dynamic> json) {
+    final itemsList = json['items'] != null
+        ? (json['items'] as List).map((e) => LoteItem.fromJson(e)).toList()
+        : <LoteItem>[];
+
+    return Lote(
+      id: json['id'] ?? '',
+      nombre: json['nombre'] ?? '',
+      fecha: json['fecha'] != null
+          ? DateTime.parse(json['fecha'])
+          : DateTime.now(),
+      tipoCambio: (json['tipoCambio'] ?? 0).toDouble(),
+      encargado: json['encargado'] ?? '',
+      items: itemsList,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'nombre': nombre,
+    'fecha': fecha.toIso8601String(),
+    'tipoCambio': tipoCambio,
+    'encargado': encargado,
+    'items': items.map((e) => e.toJson()).toList(),
+  };
 }
 
 
@@ -349,6 +433,8 @@ class Rollo {
   final String? anchoId; // ID del catálogo de anchos
   final String? lote;
   final String? numeroRollo;
+  
+  final String? loteId;
   Rollo({
     required this.id,
     this.sucursalId,
@@ -364,6 +450,7 @@ class Rollo {
     this.anchoId,
     this.lote,
     this.numeroRollo,
+    this.loteId,
   });
 
   factory Rollo.fromJson(Map<String, dynamic> json) => Rollo(
@@ -387,6 +474,7 @@ class Rollo {
     anchoId: json['anchoId'],
     lote: json['lote'],
     numeroRollo: json['numeroRollo'],
+    loteId: json['loteId'],
   );
 
   Map<String, dynamic> toJson() => {
@@ -404,6 +492,7 @@ class Rollo {
     'anchoId': anchoId,
     'lote': lote,
     'numeroRollo': numeroRollo,
+    'loteId': loteId,
   };
 }
 
@@ -443,7 +532,9 @@ class HistorialMovimiento {
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:inv_telas/models/lote.dart';
 import 'package:inv_telas/models/models.dart';
+import 'package:inv_telas/services/lote_service.dart';
 import 'package:inv_telas/services/services.dart';
 import 'package:inv_telas/services/local_storage_service.dart';
 
@@ -680,6 +771,35 @@ final estadisticasProvider = Provider<Map<String, dynamic>>((ref) {
   );
 });
 
+final loteServiceProvider = Provider<LoteService>((ref) => LoteService());
+
+final lotesProvider = StateNotifierProvider<LotesNotifier, List<Lote>>((ref) {
+  return LotesNotifier(ref.watch(loteServiceProvider));
+});
+
+class LotesNotifier extends StateNotifier<List<Lote>> {
+  final LoteService _service;
+
+  LotesNotifier(this._service) : super([]) {
+    load();
+  }
+
+  Future<void> load() async {
+    final data = await _service.getLotes();
+    if (mounted) state = data;
+  }
+
+  Future<void> add(Lote lote) async {
+    await _service.addLote(lote);
+    await load();
+  }
+
+  Future<void> update(Lote lote) async {
+    await _service.updateLote(lote);
+    await load();
+  }
+}
+
 
 ===== D:\inv\inv_telas\lib\screens\homeScreen.dart =====
 
@@ -687,7 +807,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/models/models.dart';
 import 'package:inv_telas/providers/providers.dart';
+import 'package:inv_telas/screens/json_view_screen.dart';
 import 'package:inv_telas/screens/pending_screen.dart';
+import 'package:inv_telas/screens/lote_screen.dart';
 import 'package:inv_telas/utils/utils.dart';
 import 'package:inv_telas/widgets/widgets.dart';
 import 'package:collection/collection.dart';
@@ -715,6 +837,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: _buildAppBar(),
+      drawer: _buildDrawer(),
       body: rollosState.when(
         data: (rollos) {
           final rollosFiltrados = _filtrarRollos(rollos);
@@ -772,7 +895,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       elevation: 1,
       shadowColor: Colors.grey[200],
       actions: [
-        // BotÃ³n de Pendientes
         IconButton(
           icon: const Icon(Icons.cloud_sync),
           onPressed: () {
@@ -784,6 +906,95 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           tooltip: 'Ver Pendientes',
         ),
       ],
+    );
+  }
+
+  // âœ… NUEVO MÃ‰TODO: MENÃš LATERAL
+  Widget _buildDrawer() {
+    return Drawer(
+      child: Column(
+        children: [
+          const DrawerHeader(
+            decoration: BoxDecoration(color: AppColors.primary),
+            child: SizedBox(
+              width: double.infinity,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Icon(Icons.inventory_2, color: Colors.white, size: 40),
+                  SizedBox(height: 10),
+                  Text(
+                    "MenÃº Principal",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // OpciÃ³n 1: Inventario (Actual)
+          ListTile(
+            leading: const Icon(Icons.home_work_outlined),
+            title: const Text(
+              "Inventario",
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            subtitle: const Text("Rollos en stock"),
+            selected: true, // Resaltar que estamos en esta pantalla
+            selectedTileColor: AppColors.primary.withOpacity(0.1),
+            onTap: () => Navigator.pop(context), // Solo cierra el drawer
+          ),
+          const Divider(),
+
+          // OpciÃ³n 2: GestiÃ³n de Lotes
+          ListTile(
+            leading: const Icon(Icons.add_shopping_cart),
+            title: const Text("GestiÃ³n de Lotes"),
+            subtitle: const Text("Ingresos y precios de compra"),
+            onTap: () {
+              Navigator.pop(context); // Cierra el drawer
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const LoteScreen()),
+              );
+            },
+          ),
+
+          const Divider(),
+
+          ListTile(
+            leading: const Icon(Icons.code),
+            title: const Text("Ver JSON"),
+            subtitle: const Text("Datos crudos de Firebase"),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const JsonViewScreen()),
+              );
+            },
+          ),
+
+          const Divider(),
+          // Espaciador para empujar opciones futuras hacia abajo si es necesario
+          const Spacer(),
+
+          // OpciÃ³n de cierre de sesiÃ³n o configuraciÃ³n (opcional)
+          /*ListTile(
+            leading: const Icon(Icons.settings),
+            title: const Text("ConfiguraciÃ³n"),
+            onTap: () {
+              Navigator.pop(context);
+            },
+          ),*/
+          const SizedBox(height: 20),
+        ],
+      ),
     );
   }
 
@@ -912,6 +1123,584 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             .toList(),
       };
     }).toList();
+  }
+}
+
+
+===== D:\inv\inv_telas\lib\screens\json_view_screen.dart =====
+
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+class JsonViewScreen extends StatefulWidget {
+  const JsonViewScreen({super.key});
+
+  @override
+  State<JsonViewScreen> createState() => _JsonViewScreenState();
+}
+
+class _JsonViewScreenState extends State<JsonViewScreen> {
+  Map<String, dynamic> data = {};
+  bool loading = true;
+
+  Future<void> cargarDatos() async {
+    final firestore = FirebaseFirestore.instance;
+
+    final rollos = await firestore.collection('rollos').get();
+    final empresas = await firestore.collection('catalog_empresas').get();
+    final colores = await firestore.collection('catalog_colores').get();
+    final tipos = await firestore.collection('catalog_tipos_tela').get();
+
+    data = {
+      "rollos": rollos.docs.map((e) => e.data()).toList(),
+      "empresas": empresas.docs.map((e) => e.data()).toList(),
+      "colores": colores.docs.map((e) => e.data()).toList(),
+      "tiposTela": tipos.docs.map((e) => e.data()).toList(),
+    };
+
+    setState(() {
+      loading = false;
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    cargarDatos();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Datos JSON Firebase")),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: SelectableText(
+                const JsonEncoder.withIndent('  ').convert(data),
+                style: const TextStyle(fontFamily: 'monospace'),
+              ),
+            ),
+    );
+  }
+}
+
+
+===== D:\inv\inv_telas\lib\screens\lote_screen.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/models/models.dart';
+import 'package:inv_telas/models/lote.dart';
+import 'package:inv_telas/providers/providers.dart';
+import 'package:inv_telas/utils/utils.dart';
+import 'package:inv_telas/widgets/confirm_dialog.dart';
+import 'package:intl/intl.dart';
+
+class LoteScreen extends ConsumerStatefulWidget {
+  const LoteScreen({super.key});
+
+  @override
+  ConsumerState<LoteScreen> createState() => _LoteScreenState();
+}
+
+class _LoteScreenState extends ConsumerState<LoteScreen> {
+  final _formKey = GlobalKey<FormState>();
+
+  // Controladores Lote
+  final _nombreController = TextEditingController();
+  final _tipoCambioController = TextEditingController();
+  final _encargadoController = TextEditingController();
+  DateTime _fecha = DateTime.now();
+
+  // Estado de Items temporales
+  List<LoteItem> _itemsTemp = [];
+
+  bool _isSaving = false;
+
+  @override
+  void dispose() {
+    _nombreController.dispose();
+    _tipoCambioController.dispose();
+    _encargadoController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveLote() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_itemsTemp.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Agregue al menos una tela al lote"),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    final nuevoLote = Lote(
+      id: Helpers.generarId(),
+      nombre: _nombreController.text.trim(),
+      fecha: _fecha,
+      tipoCambio: double.tryParse(_tipoCambioController.text) ?? 0,
+      encargado: _encargadoController.text.trim(),
+      items: _itemsTemp,
+    );
+
+    await ref.read(lotesProvider.notifier).add(nuevoLote);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Lote guardado correctamente"),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      Navigator.pop(context); // Regresa al menÃº
+    }
+    setState(() => _isSaving = false);
+  }
+
+  void _addItem() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _AddLoteItemSheet(
+        onAdd: (item) {
+          // ValidaciÃ³n de duplicados
+          if (_itemsTemp.any((e) => e.comboKey == item.comboKey)) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Esta combinaciÃ³n ya existe en el lote"),
+                backgroundColor: Colors.red,
+              ),
+            );
+            return;
+          }
+          setState(() {
+            _itemsTemp.add(item);
+          });
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Nuevo Lote de Compra"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.save),
+            onPressed: _isSaving ? null : _saveLote,
+          ),
+        ],
+      ),
+      body: AbsorbPointer(
+        absorbing: _isSaving,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Datos Principales
+                TextFormField(
+                  controller: _nombreController,
+                  decoration: const InputDecoration(
+                    labelText: "Nombre del Lote *",
+                  ),
+                  validator: (v) => v!.isEmpty ? "Requerido" : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _encargadoController,
+                  decoration: const InputDecoration(
+                    labelText: "Encargado de Compra *",
+                  ),
+                  validator: (v) => v!.isEmpty ? "Requerido" : null,
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _tipoCambioController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: "Tipo de Cambio (BS) *",
+                        ),
+                        validator: (v) => v!.isEmpty ? "Requerido" : null,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: InputDecorator(
+                        decoration: const InputDecoration(labelText: "Fecha"),
+                        child: Text(DateFormat('dd/MM/yyyy').format(_fecha)),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const Divider(height: 32),
+
+                // SecciÃ³n Items
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      "Telas en el Lote",
+                      style: AppTextStyles.heading3,
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: _addItem,
+                      icon: const Icon(Icons.add),
+                      label: const Text("Agregar Tela"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                // Lista de Items
+                if (_itemsTemp.isEmpty)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(20.0),
+                      child: Text("No hay telas agregadas"),
+                    ),
+                  )
+                else
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _itemsTemp.length,
+                    itemBuilder: (context, index) {
+                      final item = _itemsTemp[index];
+                      return _buildItemCard(item, index);
+                    },
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildItemCard(LoteItem item, int index) {
+    final tipos = ref.read(tiposTelaProvider);
+    final empresas = ref.read(empresasProvider);
+    final anchos = ref.read(anchosProvider);
+
+    final tipoName = tipos
+        .firstWhere(
+          (t) => t.id == item.tipoTelaId,
+          orElse: () => TipoTela(id: '', nombre: 'Desconocido'),
+        )
+        .nombre;
+    final empresaName = empresas
+        .firstWhere(
+          (e) => e.id == item.empresaId,
+          orElse: () => Empresa(id: '', nombre: 'Desconocida'),
+        )
+        .nombre;
+    String anchoName = item.anchoId != null
+        ? anchos
+              .firstWhere(
+                (a) => a.id == item.anchoId,
+                orElse: () => Ancho(id: '', nombre: ''),
+              )
+              .nombre
+        : 'N/A';
+
+    return Card(
+      child: ListTile(
+        title: Text("$tipoName - $empresaName ($anchoName)"),
+        subtitle: Text("Precio: \$${item.precioUSD.toStringAsFixed(2)}"),
+        trailing: IconButton(
+          icon: const Icon(Icons.delete, color: Colors.red),
+          onPressed: () => setState(() => _itemsTemp.removeAt(index)),
+        ),
+      ),
+    );
+  }
+}
+
+// ================= SHEET PARA AGREGAR ITEM CON LÃ“GICA MEJORADA =================
+
+class _AddLoteItemSheet extends ConsumerStatefulWidget {
+  final Function(LoteItem) onAdd;
+  const _AddLoteItemSheet({required this.onAdd});
+
+  @override
+  ConsumerState<_AddLoteItemSheet> createState() => _AddLoteItemSheetState();
+}
+
+class _AddLoteItemSheetState extends ConsumerState<_AddLoteItemSheet> {
+  String? _tipoTelaId;
+  String? _empresaId;
+  String? _anchoId;
+  final _precioController = TextEditingController();
+
+  bool _tieneAnchoEspecial = false; // Controlado por lÃ³gica inteligente
+  bool _isSavingCatalog = false; // Para loading en creaciÃ³n rÃ¡pida
+
+  @override
+  void dispose() {
+    _precioController.dispose();
+    super.dispose();
+  }
+
+  // âœ… LÃ“GICA INTELIGENTE DE ANCHO (MISMA QUE NEWROLLODIALOG)
+  void _checkAnchoLogic() {
+    if (_empresaId != null && _tipoTelaId != null) {
+      final rollos = ref
+          .read(rollosProvider)
+          .maybeWhen(data: (d) => d, orElse: () => <Rollo>[]);
+
+      // Buscar coincidencias histÃ³ricas
+      final matches = rollos
+          .where(
+            (r) => r.empresaId == _empresaId && r.tipoTelaId == _tipoTelaId,
+          )
+          .toList();
+
+      if (matches.isNotEmpty) {
+        // Verificar si tienen ancho
+        final withAncho = matches.where((r) => r.anchoId != null).toList();
+
+        if (withAncho.isNotEmpty) {
+          // Si la mayorÃ­a tiene ancho, activamos el dropdown
+          setState(() {
+            _tieneAnchoEspecial = true;
+            // Sugerir el mÃ¡s frecuente
+            final freq = <String, int>{};
+            for (var r in withAncho) {
+              freq[r.anchoId!] = (freq[r.anchoId!] ?? 0) + 1;
+            }
+            _anchoId = freq.entries
+                .reduce((a, b) => a.value >= b.value ? a : b)
+                .key;
+          });
+        } else {
+          // Si no tienen ancho, ocultamos
+          setState(() {
+            _tieneAnchoEspecial = false;
+            _anchoId = null;
+          });
+        }
+      } else {
+        // Si no hay historial, permitimos que el usuario decida (oculto por defecto)
+        setState(() {
+          _tieneAnchoEspecial = false;
+          _anchoId = null;
+        });
+      }
+    }
+  }
+
+  // âœ… FUNCIÃ“N PARA CREAR ANCHO RÃPIDO
+  Future<void> _addAncho() async {
+    final ctrl = TextEditingController();
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setStateDialog) {
+          return AlertDialog(
+            title: const Text("Nuevo Ancho"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: ctrl,
+                  decoration: const InputDecoration(hintText: "Ej: 1.50m"),
+                ),
+                if (_isSavingCatalog)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 20),
+                    child: CircularProgressIndicator(),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: _isSavingCatalog ? null : () => Navigator.pop(ctx),
+                child: const Text("Cancelar"),
+              ),
+              ElevatedButton(
+                onPressed: _isSavingCatalog
+                    ? null
+                    : () async {
+                        final name = ctrl.text.trim();
+                        if (name.isEmpty) return;
+
+                        setStateDialog(() => _isSavingCatalog = true);
+
+                        final id = Helpers.generarId();
+                        await ref
+                            .read(catalogServiceProvider)
+                            .addAncho(Ancho(id: id, nombre: name));
+                        ref.refresh(anchosProvider);
+
+                        setStateDialog(() => _isSavingCatalog = false);
+
+                        // Seleccionar el nuevo automÃ¡ticamente
+                        setState(() => _anchoId = id);
+
+                        if (mounted) Navigator.pop(ctx);
+                      },
+                child: const Text("Guardar"),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tipos = ref.watch(tiposTelaProvider);
+    final empresas = ref.watch(empresasProvider);
+    final anchos = ref.watch(anchosProvider);
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        20,
+        20,
+        MediaQuery.of(context).viewInsets.bottom + 20,
+      ),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("Agregar Tela al Lote", style: AppTextStyles.heading2),
+            const SizedBox(height: 20),
+
+            // Tipo de Tela
+            DropdownButtonFormField<String>(
+              value: _tipoTelaId,
+              items: tipos
+                  .map(
+                    (t) => DropdownMenuItem(value: t.id, child: Text(t.nombre)),
+                  )
+                  .toList(),
+              onChanged: (v) {
+                setState(() => _tipoTelaId = v);
+                _checkAnchoLogic(); // Ejecutar lÃ³gica
+              },
+              decoration: const InputDecoration(labelText: "Tipo de Tela"),
+            ),
+            const SizedBox(height: 12),
+
+            // Empresa
+            DropdownButtonFormField<String>(
+              value: _empresaId,
+              items: empresas
+                  .map(
+                    (e) => DropdownMenuItem(value: e.id, child: Text(e.nombre)),
+                  )
+                  .toList(),
+              onChanged: (v) {
+                setState(() => _empresaId = v);
+                _checkAnchoLogic(); // Ejecutar lÃ³gica
+              },
+              decoration: const InputDecoration(labelText: "Empresa"),
+            ),
+            const SizedBox(height: 12),
+
+            // âœ… ANCHO: Mostrar solo si la lÃ³gica lo determina
+            if (_tieneAnchoEspecial)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12.0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _anchoId,
+                        items: anchos
+                            .map(
+                              (a) => DropdownMenuItem(
+                                value: a.id,
+                                child: Text(a.nombre),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (v) => setState(() => _anchoId = v),
+                        decoration: const InputDecoration(
+                          labelText: "Ancho Especial *",
+                        ),
+                        validator: (v) => _tieneAnchoEspecial && v == null
+                            ? "Requerido"
+                            : null,
+                      ),
+                    ),
+                    // BotÃ³n (+) para crear nuevo ancho
+                    IconButton(
+                      icon: const Icon(Icons.add),
+                      onPressed: _addAncho,
+                    ),
+                  ],
+                ),
+              ),
+
+            TextFormField(
+              controller: _precioController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: "Precio Compra USD *",
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            ElevatedButton.icon(
+              onPressed: () {
+                if (_tipoTelaId == null ||
+                    _empresaId == null ||
+                    _precioController.text.isEmpty)
+                  return;
+                // Si tiene ancho especial, validar que estÃ© seleccionado
+                if (_tieneAnchoEspecial && _anchoId == null) return;
+
+                final item = LoteItem(
+                  id: Helpers.generarId(),
+                  tipoTelaId: _tipoTelaId!,
+                  empresaId: _empresaId!,
+                  anchoId: _anchoId,
+                  precioUSD: double.tryParse(_precioController.text) ?? 0,
+                );
+
+                widget.onAdd(item);
+                Navigator.pop(context);
+              },
+              icon: const Icon(Icons.add),
+              label: const Text("AGREGAR"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.success,
+                minimumSize: const Size(double.infinity, 50),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -1277,6 +2066,37 @@ class LocalStorageService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyDrafts);
   }
+}
+
+
+===== D:\inv\inv_telas\lib\services\lote_service.dart =====
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:inv_telas/models/lote.dart';
+import 'firebase_service.dart';
+import '../config/env.dart';
+
+class LoteService extends FirebaseService {
+  final String _collection = Env.col('lotes');
+
+  Future<List<Lote>> getLotes() async => await getAll<Lote>(
+    collectionPath: _collection,
+    fromJson: Lote.fromJson,
+    orderBy: 'fecha',
+    descending: true,
+  );
+
+  Future<void> addLote(Lote lote) async => await create(
+    collectionPath: _collection,
+    id: lote.id,
+    data: lote.toJson(),
+  );
+
+  Future<void> updateLote(Lote lote) async => await update(
+    collectionPath: _collection,
+    id: lote.id,
+    data: lote.toJson(),
+  );
 }
 
 
@@ -2428,27 +3248,25 @@ class NewRolloDialog extends ConsumerStatefulWidget {
 class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   final _formKey = GlobalKey<FormState>();
 
-  // Usamos TextEditingController para cantidad para permitir ediciÃ³n manual
+  // Controladores
   final _cantidadController = TextEditingController(text: '1');
   late TextEditingController _codigoController;
   late TextEditingController _metrajeController;
-  // âœ… NUEVOS CONTROLADORES
   final _loteController = TextEditingController();
   final _numeroRolloController = TextEditingController();
   final _observacionesController = TextEditingController();
 
+  // Estado de selecciÃ³n
   String? _tipoTelaId;
   String? _sucursalId;
   String? _empresaId;
   String? _colorId;
   DateTime? _fecha;
 
-  // âœ… ESTADO CHECKBOXES
+  // Estado Checkboxes y Ancho
   bool _habilitarAncho = false;
   bool _habilitarLote = false;
   bool _habilitarNumRollo = false;
-
-  // âœ… VALOR SELECCIONADO DE ANCHO
   String? _anchoId;
 
   bool _isSavingCatalog = false;
@@ -2473,12 +3291,8 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     super.dispose();
   }
 
-  String _normalize(String text) {
-    return text.trim().toLowerCase();
-  }
+  String _normalize(String text) => text.trim().toLowerCase();
 
-  // --- MÃ‰TODO RESET PARCIAL (NUEVO) ---
-  /// Limpia solo los campos variables del rollo, manteniendo Empresa, Sucursal y Tipo
   void _resetFieldsForNextInput() {
     _codigoController.clear();
     _metrajeController.clear();
@@ -2487,16 +3301,10 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     _numeroRolloController.clear();
     _observacionesController.clear();
     setState(() {
-      _colorId = null; // Resetear color
+      _colorId = null;
       _anchoId = null;
-      // _empresaId, _sucursalId, _tipoTelaId se mantienen iguales
-      // Reseteamos valores pero MANTENEMOS los checkboxes activos si el usuario
-      // estÃ¡ cargando una tanda especÃ­fica (ej. todos con lote)
-      //_anchoId = null;
-      // Opcional: descomentar para resetear checkboxes tambiÃ©n
-      // _habilitarAncho = false;
-      // _habilitarLote = false;
-      // _habilitarNumRollo = false;
+      // No reseteamos _habilitarAncho aquÃ­, porque depende de la selecciÃ³n actual de Empresa/Tipo
+      // que se mantiene fija.
     });
   }
 
@@ -2529,1230 +3337,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                     _buildCantidadSelector(),
                     const SizedBox(height: 12),
 
-                    _buildDropdownWithAdd<TipoTela>(
-                      "Tipo de Tela",
-                      tipos,
-                      _tipoTelaId,
-                      (id) {
-                        setState(() => _tipoTelaId = id);
-                        _autoFillData();
-                      },
-                      (item) => item.id,
-                      (item) => item.nombre,
-                      () => _addTipoTela(tipos),
-                    ),
-
-                    _buildDropdownWithAdd<Sucursal>(
-                      "Sucursal",
-                      sucursales,
-                      _sucursalId,
-                      (id) => setState(() => _sucursalId = id),
-                      (item) => item.id,
-                      (item) => item.nombre,
-                      () => _addSucursal(sucursales),
-                    ),
-
-                    _buildDropdownWithAdd<Empresa>(
-                      "Empresa",
-                      empresas,
-                      _empresaId,
-                      (id) {
-                        setState(() => _empresaId = id);
-                        _autoFillData();
-                      },
-                      (item) => item.id,
-                      (item) => item.nombre,
-                      () => _addEmpresa(empresas),
-                    ),
-
-                    _buildColorDropdownWithAdd("Color", colores, _colorId, (
-                      id,
-                    ) {
-                      setState(() => _colorId = id);
-                      _autoFillData();
-                    }, () => _addColor(colores)),
-
-                    TextFormField(
-                      controller: _codigoController,
-                      decoration: const InputDecoration(
-                        labelText: "CÃ³digo de Color *",
-                      ),
-                      validator: (v) =>
-                          v == null || v.trim().isEmpty ? 'Requerido' : null,
-                    ),
-
-                    TextFormField(
-                      controller: _metrajeController,
-                      decoration: const InputDecoration(
-                        labelText: "Metraje por Rollo (m) *",
-                      ),
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      validator: (v) =>
-                          v == null || v.trim().isEmpty ? 'Requerido' : null,
-                    ),
-
-                    _buildDateSelector(),
-
-                    const Divider(height: 32, thickness: 1),
-
-                    // âœ… SECCIÃ“N CHECKBOXES Y CAMPOS ESPECIALES
-                    const Text(
-                      "Opciones Adicionales",
-                      style: AppTextStyles.heading3,
-                    ),
-                    const SizedBox(height: 10),
-
-                    // 1. ANCHO
-                    _buildCheckboxTile(
-                      title: "Ancho Especial",
-                      subtitle: "Ej: Magitex (1.50m / 1.60m)",
-                      value: _habilitarAncho,
-                      onChanged: (v) =>
-                          setState(() => _habilitarAncho = v ?? false),
-                    ),
-                    if (_habilitarAncho)
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          left: 16,
-                          bottom: 16,
-                          top: 4,
-                        ),
-                        child: _buildDropdownWithAdd<Ancho>(
-                          "Seleccionar Ancho",
-                          anchos,
-                          _anchoId,
-                          (id) => setState(() => _anchoId = id),
-                          (item) => item.id,
-                          (item) => item.nombre,
-                          () => _addAncho(anchos),
-                        ),
-                      ),
-
-                    // 2. LOTE
-                    _buildCheckboxTile(
-                      title: "Lote",
-                      subtitle: "Identificador de lote",
-                      value: _habilitarLote,
-                      onChanged: (v) =>
-                          setState(() => _habilitarLote = v ?? false),
-                    ),
-                    if (_habilitarLote)
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          left: 16,
-                          bottom: 16,
-                          top: 4,
-                        ),
-                        child: TextFormField(
-                          controller: _loteController,
-                          decoration: const InputDecoration(
-                            labelText: "NÃºmero de Lote",
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-
-                    // 3. NUMERO DE ROLLO
-                    _buildCheckboxTile(
-                      title: "NÃºmero de Rollo",
-                      subtitle: "Identificador Ãºnico del rollo",
-                      value: _habilitarNumRollo,
-                      onChanged: (v) =>
-                          setState(() => _habilitarNumRollo = v ?? false),
-                    ),
-                    if (_habilitarNumRollo)
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          left: 16,
-                          bottom: 16,
-                          top: 4,
-                        ),
-                        child: TextFormField(
-                          controller: _numeroRolloController,
-                          decoration: const InputDecoration(
-                            labelText: "NÂ° de Rollo",
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-
-                    const SizedBox(height: 16),
-
-                    // 4. OBSERVACIONES (Siempre visible)
-                    TextFormField(
-                      controller: _observacionesController,
-                      maxLines: 3,
-                      decoration: const InputDecoration(
-                        labelText: "Observaciones",
-                        alignLabelWithHint: true,
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          _buildActions(),
-        ],
-      ),
-    );
-  }
-
-  // --- WIDGETS AUXILIARES ---
-
-  Widget _buildCheckboxTile({
-    required String title,
-    required String subtitle,
-    required bool value,
-    required ValueChanged<bool?> onChanged,
-  }) {
-    return CheckboxListTile(
-      title: Text(title),
-      subtitle: Text(subtitle, style: AppTextStyles.caption),
-      value: value,
-      onChanged: onChanged,
-      contentPadding: EdgeInsets.zero,
-      controlAffinity: ListTileControlAffinity.leading,
-      activeColor: AppColors.primary,
-    );
-  }
-
-  // âœ… AUTOFILL MEJORADO
-  void _autoFillData() {
-    if (_empresaId != null && _tipoTelaId != null && _colorId != null) {
-      final rollos = ref
-          .read(rollosProvider)
-          .maybeWhen(data: (d) => d, orElse: () => <Rollo>[]);
-
-      // Buscar coincidencias exactas
-      final matches = rollos
-          .where(
-            (r) =>
-                r.empresaId == _empresaId &&
-                r.tipoTelaId == _tipoTelaId &&
-                r.colorId == _colorId,
-          )
-          .toList();
-
-      if (matches.isNotEmpty) {
-        final lastMatch = matches.first; // El mÃ¡s reciente por fecha
-
-        setState(() {
-          // Autollenar cÃ³digo y metraje
-          _codigoController.text = lastMatch.codigoColor;
-          if (lastMatch.metraje > 0) {
-            _metrajeController.text = lastMatch.metraje % 1 == 0
-                ? lastMatch.metraje.toInt().toString()
-                : lastMatch.metraje.toString();
-          }
-
-          // Autollenar Ancho si existe
-          if (lastMatch.anchoId != null && lastMatch.anchoId!.isNotEmpty) {
-            _habilitarAncho = true;
-            _anchoId = lastMatch.anchoId;
-          } else {
-            // Si el historial dice que no tiene ancho, no marcamos el checkbox
-            _habilitarAncho = false;
-            _anchoId = null;
-          }
-        });
-      }
-    }
-  }
-
-  double? _calcularMetrajeMasFrecuente(List<Rollo> rollos) {
-    if (rollos.isEmpty) return null;
-    final Map<double, int> frecuencias = {};
-    for (var r in rollos) {
-      frecuencias[r.metraje] = (frecuencias[r.metraje] ?? 0) + 1;
-    }
-    return frecuencias.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
-  }
-
-  // --- WIDGETS AUXILIARES ---
-
-  Widget _buildHeader(int pendingCount) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text("Nuevo Rollo de Tela", style: AppTextStyles.heading2),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // BOTÃ“N PENDIENTES CON BADGE
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  IconButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const PendingScreen(),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.inventory_2_outlined, size: 26),
-                    tooltip: 'Ver Pendientes',
-                  ),
-                  if (pendingCount > 0)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
-                        ),
-                        constraints: const BoxConstraints(minWidth: 18),
-                        child: Text(
-                          '$pendingCount',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              // BOTÃ“N CERRAR
-              IconButton(
-                onPressed: _isSaving ? null : () => Navigator.pop(context),
-                icon: const Icon(Icons.close),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCantidadSelector() {
-    return InputDecorator(
-      decoration: const InputDecoration(
-        labelText: "Cantidad de Rollos",
-        border: OutlineInputBorder(),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // BotÃ³n Menos
-          IconButton(
-            onPressed: () {
-              int c = int.tryParse(_cantidadController.text) ?? 1;
-              if (c > 1) _cantidadController.text = (c - 1).toString();
-              setState(() {});
-            },
-            icon: const Icon(Icons.remove_circle_outline),
-          ),
-
-          // Input NumÃ©rico
-          SizedBox(
-            width: 60,
-            child: TextField(
-              controller: _cantidadController,
-              textAlign: TextAlign.center,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              style: AppTextStyles.heading2,
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.zero,
-              ),
-              onChanged: (val) {
-                // Asegurar que si borra todo, quede en 1 o permita escribir
-                if (val.isEmpty) _cantidadController.text = '1';
-              },
-            ),
-          ),
-
-          // BotÃ³n MÃ¡s
-          IconButton(
-            onPressed: () {
-              int current = int.tryParse(_cantidadController.text) ?? 0;
-              _cantidadController.text = (current + 1).toString();
-              setState(() {}); // Actualiza visual
-            },
-            icon: const Icon(Icons.add_circle_outline),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDateSelector() {
-    return InputDecorator(
-      decoration: const InputDecoration(labelText: "Fecha de Ingreso"),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(_fecha == null ? 'Seleccionar' : Helpers.formatearFecha(_fecha)),
-          IconButton(
-            icon: const Icon(Icons.calendar_today),
-            onPressed: _pickDate,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActions() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_isSaving)
-            const Padding(
-              padding: EdgeInsets.only(bottom: 12.0),
-              child: LinearProgressIndicator(minHeight: 4),
-            ),
-
-          Row(
-            children: [
-              // BOTÃ“N 1: AÃ‘ADIR A LOTE (Local)
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _isSaving ? null : _agregarALote,
-                  icon: const Icon(Icons.save_alt),
-                  label: const Text("AÃ±adir a Lote"),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    side: const BorderSide(color: AppColors.primary),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-
-              // BOTÃ“N 2: SUBIR INDIVIDUAL (Firebase)
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: _isSaving ? null : _subirIndividual,
-                  icon: const Icon(Icons.cloud_upload),
-                  label: const Text("Subir Individual"),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.success,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "El modal permanecerÃ¡ abierto para carga continua.",
-            style: AppTextStyles.caption.copyWith(fontSize: 10),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Dropdown GenÃ©rico
-  Widget _buildDropdownWithAdd<T>(
-    String label,
-    List<T> items,
-    String? selectedId,
-    ValueChanged<String?> onChanged,
-    String Function(T) getId,
-    String Function(T) getLabel,
-    VoidCallback onAdd,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: DropdownButtonFormField<String>(
-              value: selectedId,
-              items: items
-                  .map(
-                    (e) => DropdownMenuItem(
-                      value: getId(e),
-                      child: Text(getLabel(e)),
-                    ),
-                  )
-                  .toList(),
-              onChanged: onChanged,
-              decoration: InputDecoration(
-                labelText: label,
-                border: const OutlineInputBorder(),
-              ),
-            ),
-          ),
-          IconButton(onPressed: onAdd, icon: const Icon(Icons.add)),
-        ],
-      ),
-    );
-  }
-
-  // Dropdown de Color con Vista Previa
-  Widget _buildColorDropdownWithAdd(
-    String label,
-    List<ColorTela> colores,
-    String? selectedId,
-    ValueChanged<String?> onChanged,
-    VoidCallback onAdd,
-  ) {
-    Color? bgColor;
-    Color textColor = Colors.black;
-
-    if (selectedId != null) {
-      final selected = colores.firstWhere(
-        (c) => c.id == selectedId,
-        orElse: () => ColorTela(id: '', nombre: '', hex: '#FFFFFF'),
-      );
-      bgColor = Helpers.hexToColorFlutter(selected.hex);
-      textColor = _getTextColorForBackground(bgColor);
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: DropdownButtonFormField<String>(
-              value: selectedId,
-              dropdownColor: Colors.white,
-              style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
-              items: colores
-                  .map(
-                    (e) => DropdownMenuItem(
-                      value: e.id,
-                      child: Text(
-                        e.nombre,
-                        style: const TextStyle(color: Colors.black),
-                      ),
-                    ),
-                  )
-                  .toList(),
-              onChanged: onChanged,
-              decoration: InputDecoration(
-                labelText: label,
-                labelStyle: TextStyle(color: textColor),
-                filled: true,
-                fillColor: bgColor,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: bgColor ?? Colors.grey),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-          ),
-          IconButton(onPressed: onAdd, icon: const Icon(Icons.add)),
-        ],
-      ),
-    );
-  }
-
-  Color _getTextColorForBackground(Color background) {
-    final brightness = background.computeLuminance();
-    return brightness < 0.5 ? Colors.white : Colors.black;
-  }
-
-  Future<void> _pickDate() async {
-    final d = await showDatePicker(
-      context: context,
-      initialDate: _fecha ?? DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-    );
-    if (d != null) setState(() => _fecha = d);
-  }
-
-  Future<void> _subirIndividual() async {
-    if (_isSaving) return;
-    if (!_formKey.currentState!.validate()) return;
-
-    final confirmar = await ConfirmDialog.show(
-      context: context,
-      titulo: "Â¿Subir a Firebase?",
-      mensaje:
-          "Se crearÃ¡n ${_cantidadController.text} rollos directamente en la nube.",
-      textoConfirmar: "Subir Ahora",
-    );
-    if (confirmar != true) return;
-
-    setState(() => _isSaving = true);
-
-    try {
-      final rollos = _generarListaRollos();
-      final ok = await ref.read(rollosProvider.notifier).crearRollos(rollos);
-
-      if (ok && mounted) {
-        _mostrarExito("âœ… ${rollos.length} rollos subidos a Firebase");
-        _resetFieldsForNextInput(); // RESET PARCIAL
-      } else {
-        throw Exception("Error al guardar en Provider");
-      }
-    } catch (e) {
-      _mostrarError("Error al subir: $e");
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
-    }
-  }
-
-  Future<void> _agregarALote() async {
-    if (_isSaving) return;
-    if (!_formKey.currentState!.validate()) return;
-
-    final confirmar = await ConfirmDialog.show(
-      context: context,
-      titulo: "Â¿AÃ±adir a Pendientes?",
-      mensaje:
-          "Se guardarÃ¡n ${_cantidadController.text} rollos localmente para subir despuÃ©s.",
-      textoConfirmar: "Guardar Local",
-    );
-
-    if (confirmar != true) return;
-
-    setState(() => _isSaving = true);
-    try {
-      final rollos = _generarListaRollos();
-      for (var rollo in rollos) {
-        await ref.read(draftsProvider.notifier).add(rollo);
-      }
-      if (mounted) {
-        _mostrarExito("ðŸ“¦ ${rollos.length} rollos aÃ±adidos a pendientes");
-        _resetFieldsForNextInput(); // RESET PARCIAL
-      }
-    } catch (e) {
-      _mostrarError("Error al guardar local: $e");
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
-    }
-  }
-
-  List<Rollo> _generarListaRollos() {
-    final codigo = _codigoController.text.trim();
-    final metraje = double.tryParse(_metrajeController.text) ?? 0;
-    final cantidad = int.tryParse(_cantidadController.text) ?? 1;
-
-    return List.generate(
-      cantidad,
-      (index) => Rollo(
-        id: Helpers.generarId(),
-        sucursalId: _sucursalId,
-        empresaId: _empresaId ?? '',
-        colorId: _colorId ?? '',
-        codigoColor: codigo,
-        tipoTelaId: _tipoTelaId ?? '',
-        metraje: metraje,
-        fecha: _fecha?.toIso8601String(),
-        fechaCreacion: DateTime.now(),
-        anchoId: _habilitarAncho ? _anchoId : null,
-        lote: _habilitarLote ? _loteController.text.trim() : null,
-        numeroRollo: _habilitarNumRollo
-            ? _numeroRolloController.text.trim()
-            : null,
-        notas: _observacionesController.text.trim(),
-      ),
-    );
-  }
-
-  void _mostrarExito(String mensaje) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensaje),
-        backgroundColor: AppColors.success,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
-  void _mostrarError(String mensaje) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensaje),
-        backgroundColor: AppColors.error,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  // ================= QUICK ADD PROFESIONAL =================
-
-  void _addAncho(List<Ancho> lista) => _quickAddGeneric<Ancho>(
-    title: "Nuevo Ancho",
-    existingItems: lista,
-    getName: (a) => a.nombre,
-    onCreate: (name) async {
-      final id = Helpers.generarId();
-      await ref
-          .read(catalogServiceProvider)
-          .addAncho(Ancho(id: id, nombre: name));
-      ref.refresh(anchosProvider);
-      return id;
-    },
-    onSelected: (id) => setState(() => _anchoId = id),
-  );
-
-  void _addTipoTela(List<TipoTela> lista) => _quickAddGeneric<TipoTela>(
-    title: "Nuevo Tipo de Tela",
-    existingItems: lista,
-    getName: (t) => t.nombre,
-    onCreate: (name) async {
-      final newId = Helpers.generarId();
-      await ref
-          .read(catalogServiceProvider)
-          .addTipoTela(TipoTela(id: newId, nombre: name));
-      ref.refresh(tiposTelaProvider);
-      return newId;
-    },
-    onSelected: (id) => setState(() => _tipoTelaId = id),
-  );
-
-  void _addSucursal(List<Sucursal> lista) => _quickAddGeneric<Sucursal>(
-    title: "Nueva Sucursal",
-    existingItems: lista,
-    getName: (s) => s.nombre,
-    onCreate: (name) async {
-      final newId = Helpers.generarId();
-      await ref
-          .read(catalogServiceProvider)
-          .addSucursal(Sucursal(id: newId, nombre: name));
-      ref.refresh(sucursalesProvider);
-      return newId;
-    },
-    onSelected: (id) => setState(() => _sucursalId = id),
-  );
-
-  void _addEmpresa(List<Empresa> lista) => _quickAddGeneric<Empresa>(
-    title: "Nueva Empresa",
-    existingItems: lista,
-    getName: (e) => e.nombre,
-    onCreate: (name) async {
-      final newId = Helpers.generarId();
-      await ref
-          .read(catalogServiceProvider)
-          .addEmpresa(Empresa(id: newId, nombre: name));
-      ref.refresh(empresasProvider);
-      return newId;
-    },
-    onSelected: (id) => setState(() => _empresaId = id),
-  );
-
-  void _addColor(List<ColorTela> lista) {
-    showDialog(
-      context: context,
-      builder: (context) => _ColorPickerDialog(
-        ref: ref,
-        existingColors: lista,
-        onColorCreated: (id) {
-          setState(() {
-            _colorId = id;
-          });
-        },
-      ),
-    );
-  }
-
-  Future<void> _quickAddGeneric<T>({
-    required String title,
-    required List<T> existingItems,
-    required String Function(T) getName,
-    required Future<String> Function(String name) onCreate,
-    required void Function(String id) onSelected,
-  }) async {
-    final ctrl = TextEditingController();
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setStateDialog) {
-          return AlertDialog(
-            title: Text(title),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: ctrl,
-                  decoration: const InputDecoration(hintText: "Ingrese nombre"),
-                ),
-                if (_isSavingCatalog)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 20),
-                    child: CircularProgressIndicator(),
-                  ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: _isSavingCatalog ? null : () => Navigator.pop(ctx),
-                child: const Text("Cancelar"),
-              ),
-              ElevatedButton(
-                onPressed: _isSavingCatalog
-                    ? null
-                    : () async {
-                        final input = _normalize(ctrl.text);
-                        if (input.isEmpty) return;
-
-                        final exists = existingItems.any(
-                          (e) => _normalize(getName(e)) == input,
-                        );
-
-                        if (exists) {
-                          _showAlert(
-                            title: "Registro duplicado",
-                            message: "Ya existe este registro en el catÃ¡logo.",
-                            icon: Icons.error_outline,
-                            color: Colors.red,
-                          );
-                          return;
-                        }
-
-                        setStateDialog(() => _isSavingCatalog = true);
-                        final newId = await onCreate(ctrl.text.trim());
-                        setStateDialog(() => _isSavingCatalog = false);
-
-                        onSelected(newId);
-                        if (mounted) Navigator.pop(ctx);
-                      },
-                child: const Text("Guardar"),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  void _showAlert({
-    required String title,
-    required String message,
-    IconData icon = Icons.warning_amber_rounded,
-    Color color = Colors.orange,
-  }) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(icon, color: color, size: 28),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                title,
-                style: TextStyle(fontWeight: FontWeight.bold, color: color),
-              ),
-            ),
-          ],
-        ),
-        content: Text(message, style: const TextStyle(fontSize: 15)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("Aceptar"),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ================= DIALOG DE COLOR REFACTORIZADO =================
-
-class _ColorPickerDialog extends StatefulWidget {
-  final WidgetRef ref;
-  final List<ColorTela> existingColors;
-  final Function(String id) onColorCreated;
-
-  const _ColorPickerDialog({
-    required this.ref,
-    required this.existingColors,
-    required this.onColorCreated,
-  });
-
-  @override
-  State<_ColorPickerDialog> createState() => _ColorPickerDialogState();
-}
-
-class _ColorPickerDialogState extends State<_ColorPickerDialog>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  final _nameController = TextEditingController();
-  Color _selectedColor = Colors.blue;
-  String get _hexColor =>
-      '#${_selectedColor.value.toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
-
-  final Map<int, double> _heightFactors = {0: 0.36, 1: 0.42, 2: 0.6};
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-    _tabController.addListener(_onTabChanged);
-  }
-
-  void _onTabChanged() {
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
-  @override
-  void dispose() {
-    _tabController.removeListener(_onTabChanged);
-    _tabController.dispose();
-    _nameController.dispose();
-    super.dispose();
-  }
-
-  bool useWhiteForeground(Color background) {
-    double luminance =
-        (0.299 * background.red +
-            0.587 * background.green +
-            0.114 * background.blue) /
-        255;
-    return luminance < 0.5;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
-    final currentHeightFactor = _heightFactors[_tabController.index] ?? 0.36;
-
-    return Dialog(
-      insetPadding: const EdgeInsets.all(16),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: screenHeight * 0.85),
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  "Nuevo Color",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 15),
-
-                TabBar(
-                  controller: _tabController,
-                  tabs: const [
-                    Tab(icon: Icon(Icons.palette), text: "Base"),
-                    Tab(icon: Icon(Icons.color_lens), text: "Rueda"),
-                    Tab(icon: Icon(Icons.tune), text: "Picker"),
-                  ],
-                ),
-                const SizedBox(height: 10),
-
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                  height: screenHeight * currentHeightFactor,
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _navColoresBase(),
-                      _navRuedaColor(),
-                      _navColorPickerAvanzado(),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 15),
-                Container(
-                  height: 40,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: _selectedColor,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.black12),
-                  ),
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _nameController,
-                          decoration: const InputDecoration(
-                            labelText: "Nombre del color",
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '#${_selectedColor.value.toRadixString(16).substring(2).toUpperCase()}',
-                        style: TextStyle(
-                          color: useWhiteForeground(_selectedColor)
-                              ? Colors.white
-                              : Colors.black,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text("Cancelar"),
-                    ),
-                    const SizedBox(width: 10),
-                    ElevatedButton(
-                      onPressed: () async {
-                        final name = _nameController.text.trim();
-                        if (name.isEmpty) return;
-
-                        final exists = widget.existingColors.any(
-                          (c) => c.nombre.toLowerCase() == name.toLowerCase(),
-                        );
-                        if (exists) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("Este color ya existe"),
-                            ),
-                          );
-                          return;
-                        }
-
-                        final hex =
-                            '#${_selectedColor.value.toRadixString(16).substring(2)}';
-                        final newId = Helpers.generarId();
-
-                        await widget.ref
-                            .read(catalogServiceProvider)
-                            .addColor(
-                              ColorTela(id: newId, nombre: name, hex: hex),
-                            );
-
-                        widget.ref.refresh(coloresProvider);
-
-                        widget.onColorCreated(newId);
-                        if (mounted) Navigator.pop(context);
-                      },
-                      child: const Text("Guardar"),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-Widget _navColoresBase() {
-    final colores = [
-      Colors.red,
-      Colors.blue,
-      Colors.green,
-      Colors.yellow,
-      Colors.orange,
-      Colors.purple,
-      Colors.black,
-      Colors.white,
-    ];
-    return GridView.builder(
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-      ),
-      itemCount: colores.length,
-      itemBuilder: (ctx, i) => GestureDetector(
-        onTap: () => setState(() => _selectedColor = colores[i]),
-        child: Container(
-          decoration: BoxDecoration(
-            color: colores[i],
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: _selectedColor == colores[i]
-                  ? Colors.black
-                  : Colors.transparent,
-              width: 2,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _navRuedaColor() {
-    return flex.ColorPicker(
-      color: _selectedColor,
-      onColorChanged: (color) => setState(() => _selectedColor = color),
-      enableShadesSelection: false,
-      pickersEnabled: const {
-        flex.ColorPickerType.wheel: true,
-        flex.ColorPickerType.primary: false,
-        flex.ColorPickerType.accent: false,
-      },
-    );
-  }
-
-  Widget _navColorPickerAvanzado() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isMobile = constraints.maxWidth < 400;
-        return flutter_picker.ColorPicker(
-          pickerColor: _selectedColor,
-          onColorChanged: (color) => setState(() => _selectedColor = color),
-          enableAlpha: true,
-          displayThumbColor: true,
-          showLabel: false,
-          paletteType: isMobile
-              ? flutter_picker.PaletteType.hsv
-              : flutter_picker.PaletteType.hsvWithHue,
-          pickerAreaHeightPercent: isMobile ? 0.6 : 0.7,
-          hexInputBar: true,
-        );
-      },
-    );
-  }
-}
-
-
-===== D:\inv\inv_telas\lib\widgets\dialogs\Untitled-1.dart =====
-
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:inv_telas/models/models.dart';
-import 'package:inv_telas/providers/providers.dart';
-import 'package:inv_telas/screens/pending_screen.dart';
-import 'package:inv_telas/utils/utils.dart';
-import 'package:inv_telas/widgets/widgets.dart';
-import 'package:flex_color_picker/flex_color_picker.dart' as flex;
-import 'package:flutter_colorpicker/flutter_colorpicker.dart' as flutter_picker;
-
-class NewRolloDialog extends ConsumerStatefulWidget {
-  const NewRolloDialog({super.key});
-
-  @override
-  ConsumerState<NewRolloDialog> createState() => _NewRolloDialogState();
-}
-
-class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
-  final _formKey = GlobalKey<FormState>();
-
-  // Controladores
-  final _cantidadController = TextEditingController(text: '1');
-  late TextEditingController _codigoController;
-  late TextEditingController _metrajeController;
-
-  // âœ… NUEVOS CONTROLADORES
-  final _loteController = TextEditingController();
-  final _numeroRolloController = TextEditingController();
-  final _observacionesController = TextEditingController();
-
-  // Estado de selecciÃ³n
-  String? _tipoTelaId;
-  String? _sucursalId;
-  String? _empresaId;
-  String? _colorId;
-  DateTime? _fecha;
-
-  // âœ… ESTADO CHECKBOXES
-  bool _habilitarAncho = false;
-  bool _habilitarLote = false;
-  bool _habilitarNumRollo = false;
-
-  // âœ… VALOR SELECCIONADO DE ANCHO (ID)
-  String? _anchoId;
-
-  bool _isSavingCatalog = false;
-  bool _isSaving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _codigoController = TextEditingController();
-    _metrajeController = TextEditingController();
-    _fecha = DateTime.now();
-  }
-
-  @override
-  void dispose() {
-    _codigoController.dispose();
-    _metrajeController.dispose();
-    _cantidadController.dispose();
-    _loteController.dispose();
-    _numeroRolloController.dispose();
-    _observacionesController.dispose();
-    super.dispose();
-  }
-
-  String _normalize(String text) => text.trim().toLowerCase();
-
-  /// Resetea campos variables para carga rÃ¡pida, manteniendo contexto (Empresa/Tipo)
-  void _resetFieldsForNextInput() {
-    _codigoController.clear();
-    _metrajeController.clear();
-    _cantidadController.text = '1';
-    _loteController.clear();
-    _numeroRolloController.clear();
-    _observacionesController.clear();
-
-    setState(() {
-      _colorId = null;
-      _anchoId = null;
-      // Mantenemos _empresaId, _sucursalId, _tipoTelaId y los Checkboxes activos
-      // para facilitar la carga masiva de rollos similares.
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final tipos = ref.watch(tiposTelaProvider);
-    final sucursales = ref.watch(sucursalesProvider);
-    final empresas = ref.watch(empresasProvider);
-    final colores = ref.watch(coloresProvider);
-    final anchos = ref.watch(anchosProvider); // Provider de Anchos
-    final drafts = ref.watch(draftsProvider);
-
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.92,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        children: [
-          _buildHeader(drafts.length),
-          Expanded(
-            child: AbsorbPointer(
-              absorbing: _isSaving,
-              child: Form(
-                key: _formKey,
-                child: ListView(
-                  padding: const EdgeInsets.all(20),
-                  children: [
-                    _buildCantidadSelector(),
-                    const SizedBox(height: 12),
-
-                    // Dropdowns Principales
                     _buildDropdownWithAdd<TipoTela>(
                       "Tipo de Tela",
                       tipos,
@@ -3825,10 +3409,10 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                     ),
                     const SizedBox(height: 10),
 
-                    // 1. ANCHO (CatÃ¡logo)
+                    // 1. ANCHO (LÃ³gica Inteligente)
                     _buildCheckboxTile(
                       title: "Ancho Especial",
-                      subtitle: "Ej: Magitex (1.50m / 1.60m)",
+                      subtitle: "Se detecta automÃ¡ticamente segÃºn empresa/tela",
                       value: _habilitarAncho,
                       onChanged: (v) =>
                           setState(() => _habilitarAncho = v ?? false),
@@ -3900,8 +3484,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                       ),
 
                     const SizedBox(height: 16),
-
-                    // 4. OBSERVACIONES
                     TextFormField(
                       controller: _observacionesController,
                       maxLines: 3,
@@ -3943,12 +3525,63 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     );
   }
 
+  /// LÃ“GICA DE AUTODETECCIÃ“N Y AUTOLLENADO
   void _autoFillData() {
-    if (_empresaId != null && _tipoTelaId != null && _colorId != null) {
+    if (_empresaId != null && _tipoTelaId != null) {
       final rollos = ref
           .read(rollosProvider)
           .maybeWhen(data: (d) => d, orElse: () => <Rollo>[]);
 
+      // Filtrar por Empresa y Tipo de Tela
+      final matches = rollos
+          .where(
+            (r) => r.empresaId == _empresaId && r.tipoTelaId == _tipoTelaId,
+          )
+          .toList();
+
+      if (matches.isNotEmpty) {
+        final lastMatch = matches.first;
+
+        // 1. Autollenar Ancho si existe en el historial
+        // Verificamos si la mayorÃ­a tiene ancho o no
+        final withAncho = matches.where((r) => r.anchoId != null).toList();
+
+        setState(() {
+          if (withAncho.isNotEmpty) {
+            _habilitarAncho = true;
+            // Calcular ancho mÃ¡s frecuente
+            final freq = <String, int>{};
+            for (var r in withAncho) {
+              freq[r.anchoId!] = (freq[r.anchoId!] ?? 0) + 1;
+            }
+            final bestAncho = freq.entries
+                .reduce((a, b) => a.value >= b.value ? a : b)
+                .key;
+            _anchoId = bestAncho;
+          } else {
+            // Si el historial es nulo (ej. Piel de Sirena), deshabilitamos
+            _habilitarAncho = false;
+            _anchoId = null;
+          }
+
+          // Autollenar color y cÃ³digo solo si ya estÃ¡ seleccionado el color (para no sobrescribir)
+          // Opcional: Si se quiere autollenar el color basado en la tela/empresa genÃ©rica
+          // Pero usualmente el color se selecciona despuÃ©s.
+        });
+      } else {
+        // Si es una combinaciÃ³n NUEVA sin historial
+        setState(() {
+          _habilitarAncho = false; // Por defecto false, usuario puede marcar
+          _anchoId = null;
+        });
+      }
+    }
+
+    // LÃ³gica de autollenado de cÃ³digo/metraje si ya se seleccionÃ³ color
+    if (_empresaId != null && _tipoTelaId != null && _colorId != null) {
+      final rollos = ref
+          .read(rollosProvider)
+          .maybeWhen(data: (d) => d, orElse: () => <Rollo>[]);
       final matches = rollos
           .where(
             (r) =>
@@ -3959,23 +3592,13 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
           .toList();
 
       if (matches.isNotEmpty) {
-        final lastMatch = matches.first;
-
+        final last = matches.first;
         setState(() {
-          _codigoController.text = lastMatch.codigoColor;
-          if (lastMatch.metraje > 0) {
-            _metrajeController.text = lastMatch.metraje % 1 == 0
-                ? lastMatch.metraje.toInt().toString()
-                : lastMatch.metraje.toString();
-          }
-
-          // Autollenar Ancho si existe en el historial
-          if (lastMatch.anchoId != null && lastMatch.anchoId!.isNotEmpty) {
-            _habilitarAncho = true;
-            _anchoId = lastMatch.anchoId;
-          } else {
-            _habilitarAncho = false;
-            _anchoId = null;
+          _codigoController.text = last.codigoColor;
+          if (last.metraje > 0) {
+            _metrajeController.text = last.metraje % 1 == 0
+                ? last.metraje.toInt().toString()
+                : last.metraje.toString();
           }
         });
       }
@@ -3996,16 +3619,11 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                 alignment: Alignment.center,
                 children: [
                   IconButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const PendingScreen(),
-                        ),
-                      );
-                    },
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const PendingScreen()),
+                    ),
                     icon: const Icon(Icons.inventory_2_outlined, size: 26),
-                    tooltip: 'Ver Pendientes',
                   ),
                   if (pendingCount > 0)
                     Positioned(
@@ -4149,7 +3767,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
           ),
           const SizedBox(height: 8),
           Text(
-            "El modal permanecerÃ¡ abierto para carga continua.",
+            "Campos opcionales y observaciones incluidos.",
             style: AppTextStyles.caption.copyWith(fontSize: 10),
             textAlign: TextAlign.center,
           ),
@@ -4266,69 +3884,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     if (d != null) setState(() => _fecha = d);
   }
 
-  Future<void> _subirIndividual() async {
-    if (_isSaving) return;
-    if (!_formKey.currentState!.validate()) return;
-
-    final confirmar = await ConfirmDialog.show(
-      context: context,
-      titulo: "Â¿Subir a Firebase?",
-      mensaje:
-          "Se crearÃ¡n ${_cantidadController.text} rollos directamente en la nube.",
-      textoConfirmar: "Subir Ahora",
-    );
-    if (confirmar != true) return;
-
-    setState(() => _isSaving = true);
-
-    try {
-      final rollos = _generarListaRollos();
-      final ok = await ref.read(rollosProvider.notifier).crearRollos(rollos);
-
-      if (ok && mounted) {
-        _mostrarExito("âœ… ${rollos.length} rollos subidos a Firebase");
-        _resetFieldsForNextInput();
-      } else {
-        throw Exception("Error al guardar");
-      }
-    } catch (e) {
-      _mostrarError("Error al subir: $e");
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
-    }
-  }
-
-  Future<void> _agregarALote() async {
-    if (_isSaving) return;
-    if (!_formKey.currentState!.validate()) return;
-
-    final confirmar = await ConfirmDialog.show(
-      context: context,
-      titulo: "Â¿AÃ±adir a Pendientes?",
-      mensaje:
-          "Se guardarÃ¡n ${_cantidadController.text} rollos localmente para subir despuÃ©s.",
-      textoConfirmar: "Guardar Local",
-    );
-
-    if (confirmar != true) return;
-
-    setState(() => _isSaving = true);
-    try {
-      final rollos = _generarListaRollos();
-      for (var rollo in rollos) {
-        await ref.read(draftsProvider.notifier).add(rollo);
-      }
-      if (mounted) {
-        _mostrarExito("ðŸ“¦ ${rollos.length} rollos aÃ±adidos a pendientes");
-        _resetFieldsForNextInput();
-      }
-    } catch (e) {
-      _mostrarError("Error al guardar local: $e");
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
-    }
-  }
-
   List<Rollo> _generarListaRollos() {
     final codigo = _codigoController.text.trim();
     final metraje = double.tryParse(_metrajeController.text) ?? 0;
@@ -4346,7 +3901,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
         metraje: metraje,
         fecha: _fecha?.toIso8601String(),
         fechaCreacion: DateTime.now(),
-        // Campos Nuevos
         anchoId: _habilitarAncho ? _anchoId : null,
         lote: _habilitarLote ? _loteController.text.trim() : null,
         numeroRollo: _habilitarNumRollo
@@ -4355,6 +3909,48 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
         notas: _observacionesController.text.trim(),
       ),
     );
+  }
+
+  Future<void> _subirIndividual() async {
+    if (_isSaving) return;
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSaving = true);
+    try {
+      final rollos = _generarListaRollos();
+      final ok = await ref.read(rollosProvider.notifier).crearRollos(rollos);
+      if (ok && mounted) {
+        _mostrarExito("âœ… ${rollos.length} rollos subidos a Firebase");
+        _resetFieldsForNextInput();
+      } else {
+        throw Exception("Error al guardar");
+      }
+    } catch (e) {
+      _mostrarError("Error al subir: $e");
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _agregarALote() async {
+    if (_isSaving) return;
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSaving = true);
+    try {
+      final rollos = _generarListaRollos();
+      for (var rollo in rollos) {
+        await ref.read(draftsProvider.notifier).add(rollo);
+      }
+      if (mounted) {
+        _mostrarExito("ðŸ“¦ ${rollos.length} rollos aÃ±adidos a pendientes");
+        _resetFieldsForNextInput();
+      }
+    } catch (e) {
+      _mostrarError("Error al guardar local: $e");
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
   void _mostrarExito(String mensaje) {
@@ -4432,12 +4028,12 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     existingItems: lista,
     getName: (e) => e.nombre,
     onCreate: (name) async {
-      final newId = Helpers.generarId();
+      final id = Helpers.generarId();
       await ref
           .read(catalogServiceProvider)
-          .addEmpresa(Empresa(id: newId, nombre: name));
+          .addEmpresa(Empresa(id: id, nombre: name));
       ref.refresh(empresasProvider);
-      return newId;
+      return id;
     },
     onSelected: (id) => setState(() => _empresaId = id),
   );
@@ -4497,7 +4093,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                         );
                         if (exists) {
                           _showAlert(
-                            title: "Registro duplicado",
+                            title: "Duplicado",
                             message: "Ya existe este registro.",
                             icon: Icons.error_outline,
                             color: Colors.red,
@@ -4584,18 +4180,10 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    _tabController.addListener(_onTabChanged);
-  }
-
-  void _onTabChanged() {
-    if (mounted) {
-      setState(() {});
-    }
   }
 
   @override
   void dispose() {
-    _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     _nameController.dispose();
     super.dispose();
@@ -4639,7 +4227,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                 const SizedBox(height: 10),
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
                   height: screenHeight * currentHeightFactor,
                   child: TabBarView(
                     controller: _tabController,
@@ -4657,9 +4244,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                   decoration: BoxDecoration(
                     color: _selectedColor,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.black12),
                   ),
-                  alignment: Alignment.center,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -4668,7 +4253,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                         child: TextField(
                           controller: _nameController,
                           decoration: const InputDecoration(
-                            labelText: "Nombre del color",
+                            labelText: "Nombre",
                             border: OutlineInputBorder(),
                           ),
                         ),
@@ -4798,4 +4383,514 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
       hexInputBar: true,
     ),
   );
+}
+
+
+===== D:\inv\inv_telas\lib\widgets\dialogs\Untitled-1.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/models/models.dart';
+import 'package:inv_telas/models/lote.dart';
+import 'package:inv_telas/providers/providers.dart';
+import 'package:inv_telas/utils/utils.dart';
+import 'package:inv_telas/widgets/confirm_dialog.dart';
+import 'package:intl/intl.dart';
+
+class LoteScreen extends ConsumerStatefulWidget {
+  const LoteScreen({super.key});
+
+  @override
+  ConsumerState<LoteScreen> createState() => _LoteScreenState();
+}
+
+class _LoteScreenState extends ConsumerState<LoteScreen> {
+  final _formKey = GlobalKey<FormState>();
+
+  // Controladores Lote
+  final _nombreController = TextEditingController();
+  final _tipoCambioController = TextEditingController();
+  final _encargadoController = TextEditingController();
+  DateTime _fecha = DateTime.now();
+
+  // Estado de Items temporales
+  List<LoteItem> _itemsTemp = [];
+
+  bool _isSaving = false;
+
+  @override
+  void dispose() {
+    _nombreController.dispose();
+    _tipoCambioController.dispose();
+    _encargadoController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveLote() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_itemsTemp.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Agregue al menos una tela al lote"),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    final nuevoLote = Lote(
+      id: Helpers.generarId(),
+      nombre: _nombreController.text.trim(),
+      fecha: _fecha,
+      tipoCambio: double.tryParse(_tipoCambioController.text) ?? 0,
+      encargado: _encargadoController.text.trim(),
+      items: _itemsTemp,
+    );
+
+    await ref.read(lotesProvider.notifier).add(nuevoLote);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Lote guardado correctamente"),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      Navigator.pop(context); // Regresa al menÃº
+    }
+    setState(() => _isSaving = false);
+  }
+
+  void _addItem() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _AddLoteItemSheet(
+        onAdd: (item) {
+          // ValidaciÃ³n de duplicados
+          if (_itemsTemp.any((e) => e.comboKey == item.comboKey)) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Esta combinaciÃ³n ya existe en el lote"),
+                backgroundColor: Colors.red,
+              ),
+            );
+            return;
+          }
+          setState(() {
+            _itemsTemp.add(item);
+          });
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Nuevo Lote de Compra"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.save),
+            onPressed: _isSaving ? null : _saveLote,
+          ),
+        ],
+      ),
+      body: AbsorbPointer(
+        absorbing: _isSaving,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Datos Principales
+                TextFormField(
+                  controller: _nombreController,
+                  decoration: const InputDecoration(
+                    labelText: "Nombre del Lote *",
+                  ),
+                  validator: (v) => v!.isEmpty ? "Requerido" : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _encargadoController,
+                  decoration: const InputDecoration(
+                    labelText: "Encargado de Compra *",
+                  ),
+                  validator: (v) => v!.isEmpty ? "Requerido" : null,
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _tipoCambioController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: "Tipo de Cambio (BS) *",
+                        ),
+                        validator: (v) => v!.isEmpty ? "Requerido" : null,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: InputDecorator(
+                        decoration: const InputDecoration(labelText: "Fecha"),
+                        child: Text(DateFormat('dd/MM/yyyy').format(_fecha)),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const Divider(height: 32),
+
+                // SecciÃ³n Items
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      "Telas en el Lote",
+                      style: AppTextStyles.heading3,
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: _addItem,
+                      icon: const Icon(Icons.add),
+                      label: const Text("Agregar Tela"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                // Lista de Items
+                if (_itemsTemp.isEmpty)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(20.0),
+                      child: Text("No hay telas agregadas"),
+                    ),
+                  )
+                else
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _itemsTemp.length,
+                    itemBuilder: (context, index) {
+                      final item = _itemsTemp[index];
+                      return _buildItemCard(item, index);
+                    },
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildItemCard(LoteItem item, int index) {
+    final tipos = ref.read(tiposTelaProvider);
+    final empresas = ref.read(empresasProvider);
+    final anchos = ref.read(anchosProvider);
+
+    final tipoName = tipos
+        .firstWhere(
+          (t) => t.id == item.tipoTelaId,
+          orElse: () => TipoTela(id: '', nombre: 'Desconocido'),
+        )
+        .nombre;
+    final empresaName = empresas
+        .firstWhere(
+          (e) => e.id == item.empresaId,
+          orElse: () => Empresa(id: '', nombre: 'Desconocida'),
+        )
+        .nombre;
+    String anchoName = item.anchoId != null
+        ? anchos
+              .firstWhere(
+                (a) => a.id == item.anchoId,
+                orElse: () => Ancho(id: '', nombre: ''),
+              )
+              .nombre
+        : 'N/A';
+
+    return Card(
+      child: ListTile(
+        title: Text("$tipoName - $empresaName ($anchoName)"),
+        subtitle: Text("Precio: \$${item.precioUSD.toStringAsFixed(2)}"),
+        trailing: IconButton(
+          icon: const Icon(Icons.delete, color: Colors.red),
+          onPressed: () => setState(() => _itemsTemp.removeAt(index)),
+        ),
+      ),
+    );
+  }
+}
+
+// ================= SHEET PARA AGREGAR ITEM CON LÃ“GICA MEJORADA =================
+
+class _AddLoteItemSheet extends ConsumerStatefulWidget {
+  final Function(LoteItem) onAdd;
+  const _AddLoteItemSheet({required this.onAdd});
+
+  @override
+  ConsumerState<_AddLoteItemSheet> createState() => _AddLoteItemSheetState();
+}
+
+class _AddLoteItemSheetState extends ConsumerState<_AddLoteItemSheet> {
+  String? _tipoTelaId;
+  String? _empresaId;
+  String? _anchoId;
+  final _precioController = TextEditingController();
+
+  bool _tieneAnchoEspecial = false; // Controlado por lÃ³gica inteligente
+  bool _isSavingCatalog = false; // Para loading en creaciÃ³n rÃ¡pida
+
+  @override
+  void dispose() {
+    _precioController.dispose();
+    super.dispose();
+  }
+
+  // âœ… LÃ“GICA INTELIGENTE DE ANCHO (MISMA QUE NEWROLLODIALOG)
+  void _checkAnchoLogic() {
+    if (_empresaId != null && _tipoTelaId != null) {
+      final rollos = ref.read(rollosProvider).maybeWhen(
+            data: (d) => d,
+            orElse: () => <Rollo>[],
+          );
+
+      // Buscar coincidencias histÃ³ricas
+      final matches = rollos
+          .where(
+            (r) => r.empresaId == _empresaId && r.tipoTelaId == _tipoTelaId,
+          )
+          .toList();
+
+      if (matches.isNotEmpty) {
+        // Verificar si tienen ancho
+        final withAncho = matches.where((r) => r.anchoId != null).toList();
+
+        if (withAncho.isNotEmpty) {
+          // Si la mayorÃ­a tiene ancho, activamos el dropdown
+          setState(() {
+            _tieneAnchoEspecial = true;
+            // Sugerir el mÃ¡s frecuente
+            final freq = <String, int>{};
+            for (var r in withAncho) {
+              freq[r.anchoId!] = (freq[r.anchoId!] ?? 0) + 1;
+            }
+            _anchoId = freq.entries
+                .reduce((a, b) => a.value >= b.value ? a : b)
+                .key;
+          });
+        } else {
+          // Si no tienen ancho, ocultamos
+          setState(() {
+            _tieneAnchoEspecial = false;
+            _anchoId = null;
+          });
+        }
+      } else {
+        // Si no hay historial, permitimos que el usuario decida (oculto por defecto)
+        setState(() {
+          _tieneAnchoEspecial = false;
+          _anchoId = null;
+        });
+      }
+    }
+  }
+
+  // âœ… FUNCIÃ“N PARA CREAR ANCHO RÃPIDO
+  Future<void> _addAncho() async {
+    final ctrl = TextEditingController();
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setStateDialog) {
+          return AlertDialog(
+            title: const Text("Nuevo Ancho"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: ctrl,
+                  decoration: const InputDecoration(
+                    hintText: "Ej: 1.50m",
+                  ),
+                ),
+                if (_isSavingCatalog)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 20),
+                    child: CircularProgressIndicator(),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: _isSavingCatalog ? null : () => Navigator.pop(ctx),
+                child: const Text("Cancelar"),
+              ),
+              ElevatedButton(
+                onPressed: _isSavingCatalog
+                    ? null
+                    : () async {
+                        final name = ctrl.text.trim();
+                        if (name.isEmpty) return;
+
+                        setStateDialog(() => _isSavingCatalog = true);
+
+                        final id = Helpers.generarId();
+                        await ref.read(catalogServiceProvider).addAncho(
+                              Ancho(id: id, nombre: name),
+                            );
+                        ref.refresh(anchosProvider);
+
+                        setStateDialog(() => _isSavingCatalog = false);
+
+                        // Seleccionar el nuevo automÃ¡ticamente
+                        setState(() => _anchoId = id);
+                        
+                        if (mounted) Navigator.pop(ctx);
+                      },
+                child: const Text("Guardar"),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tipos = ref.watch(tiposTelaProvider);
+    final empresas = ref.watch(empresasProvider);
+    final anchos = ref.watch(anchosProvider);
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        20,
+        20,
+        MediaQuery.of(context).viewInsets.bottom + 20,
+      ),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("Agregar Tela al Lote", style: AppTextStyles.heading2),
+            const SizedBox(height: 20),
+
+            // Tipo de Tela
+            DropdownButtonFormField<String>(
+              value: _tipoTelaId,
+              items: tipos
+                  .map((t) => DropdownMenuItem(value: t.id, child: Text(t.nombre)))
+                  .toList(),
+              onChanged: (v) {
+                setState(() => _tipoTelaId = v);
+                _checkAnchoLogic(); // Ejecutar lÃ³gica
+              },
+              decoration: const InputDecoration(labelText: "Tipo de Tela"),
+            ),
+            const SizedBox(height: 12),
+
+            // Empresa
+            DropdownButtonFormField<String>(
+              value: _empresaId,
+              items: empresas
+                  .map((e) => DropdownMenuItem(value: e.id, child: Text(e.nombre)))
+                  .toList(),
+              onChanged: (v) {
+                setState(() => _empresaId = v);
+                _checkAnchoLogic(); // Ejecutar lÃ³gica
+              },
+              decoration: const InputDecoration(labelText: "Empresa"),
+            ),
+            const SizedBox(height: 12),
+
+            // âœ… ANCHO: Mostrar solo si la lÃ³gica lo determina
+            if (_tieneAnchoEspecial)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12.0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _anchoId,
+                        items: anchos
+                            .map((a) => DropdownMenuItem(
+                                  value: a.id,
+                                  child: Text(a.nombre),
+                                ))
+                            .toList(),
+                        onChanged: (v) => setState(() => _anchoId = v),
+                        decoration: const InputDecoration(
+                          labelText: "Ancho Especial *",
+                        ),
+                        validator: (v) =>
+                            _tieneAnchoEspecial && v == null ? "Requerido" : null,
+                      ),
+                    ),
+                    // BotÃ³n (+) para crear nuevo ancho
+                    IconButton(
+                      icon: const Icon(Icons.add),
+                      onPressed: _addAncho,
+                    ),
+                  ],
+                ),
+              ),
+
+            TextFormField(
+              controller: _precioController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: "Precio Compra USD *"),
+            ),
+            const SizedBox(height: 20),
+
+            ElevatedButton.icon(
+              onPressed: () {
+                if (_tipoTelaId == null ||
+                    _empresaId == null ||
+                    _precioController.text.isEmpty) return;
+                // Si tiene ancho especial, validar que estÃ© seleccionado
+                if (_tieneAnchoEspecial && _anchoId == null) return;
+
+                final item = LoteItem(
+                  id: Helpers.generarId(),
+                  tipoTelaId: _tipoTelaId!,
+                  empresaId: _empresaId!,
+                  anchoId: _anchoId,
+                  precioUSD: double.tryParse(_precioController.text) ?? 0,
+                );
+
+                widget.onAdd(item);
+                Navigator.pop(context);
+              },
+              icon: const Icon(Icons.add),
+              label: const Text("AGREGAR"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.success,
+                minimumSize: const Size(double.infinity, 50),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/models/models.dart';
 import 'package:inv_telas/providers/providers.dart';
+import 'package:inv_telas/screens/json_view_screen.dart';
 import 'package:inv_telas/screens/pending_screen.dart';
+import 'package:inv_telas/screens/lote_screen.dart';
 import 'package:inv_telas/utils/utils.dart';
 import 'package:inv_telas/widgets/widgets.dart';
 import 'package:collection/collection.dart';
@@ -30,6 +32,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: _buildAppBar(),
+      drawer: _buildDrawer(),
       body: rollosState.when(
         data: (rollos) {
           final rollosFiltrados = _filtrarRollos(rollos);
@@ -87,7 +90,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       elevation: 1,
       shadowColor: Colors.grey[200],
       actions: [
-        // Botón de Pendientes
         IconButton(
           icon: const Icon(Icons.cloud_sync),
           onPressed: () {
@@ -99,6 +101,95 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           tooltip: 'Ver Pendientes',
         ),
       ],
+    );
+  }
+
+  // ✅ NUEVO MÉTODO: MENÚ LATERAL
+  Widget _buildDrawer() {
+    return Drawer(
+      child: Column(
+        children: [
+          const DrawerHeader(
+            decoration: BoxDecoration(color: AppColors.primary),
+            child: SizedBox(
+              width: double.infinity,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Icon(Icons.inventory_2, color: Colors.white, size: 40),
+                  SizedBox(height: 10),
+                  Text(
+                    "Menú Principal",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Opción 1: Inventario (Actual)
+          ListTile(
+            leading: const Icon(Icons.home_work_outlined),
+            title: const Text(
+              "Inventario",
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            subtitle: const Text("Rollos en stock"),
+            selected: true, // Resaltar que estamos en esta pantalla
+            selectedTileColor: AppColors.primary.withOpacity(0.1),
+            onTap: () => Navigator.pop(context), // Solo cierra el drawer
+          ),
+          const Divider(),
+
+          // Opción 2: Gestión de Lotes
+          ListTile(
+            leading: const Icon(Icons.add_shopping_cart),
+            title: const Text("Gestión de Lotes"),
+            subtitle: const Text("Ingresos y precios de compra"),
+            onTap: () {
+              Navigator.pop(context); // Cierra el drawer
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const LoteScreen()),
+              );
+            },
+          ),
+
+          const Divider(),
+
+          ListTile(
+            leading: const Icon(Icons.code),
+            title: const Text("Ver JSON"),
+            subtitle: const Text("Datos crudos de Firebase"),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const JsonViewScreen()),
+              );
+            },
+          ),
+
+          const Divider(),
+          // Espaciador para empujar opciones futuras hacia abajo si es necesario
+          const Spacer(),
+
+          // Opción de cierre de sesión o configuración (opcional)
+          /*ListTile(
+            leading: const Icon(Icons.settings),
+            title: const Text("Configuración"),
+            onTap: () {
+              Navigator.pop(context);
+            },
+          ),*/
+          const SizedBox(height: 20),
+        ],
+      ),
     );
   }
 
