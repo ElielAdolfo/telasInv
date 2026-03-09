@@ -1,6 +1,8 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:inv_telas/providers/auth_provider.dart';
+import 'package:inv_telas/screens/auth_screen.dart';
 import 'package:inv_telas/screens/homeScreen.dart';
 import 'firebase_options.dart';
 
@@ -32,7 +34,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Inventario de Rollos',
+      title: 'Inventario de Telas',
       debugShowCheckedModeBanner: false,
       home: FutureBuilder<FirebaseApp>(
         future: _initializeFirebase(),
@@ -56,14 +58,35 @@ class MyApp extends StatelessWidget {
             );
           }
 
-          // ✅ CONECTADO
-          if (snapshot.hasData) {
+          return Consumer(
+            builder: (context, ref, child) {
+              final authState = ref.watch(authProvider);
+
+              return authState.when(
+                data: (user) {
+                  if (user != null) {
+                    // Usuario logueado -> Ir a Home
+                    return const HomeScreen();
+                  } else {
+                    // No hay usuario -> Ir a Login
+                    return const AuthScreen();
+                  }
+                },
+                loading: () => const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                ),
+                error: (e, st) => const AuthScreen(), // En error, mostrar login
+              );
+            },
+          );
+        },
+      ),
+      // ✅ CONECTADO
+      /*if (snapshot.hasData) {
             return SafeArea(child: Scaffold(body: HomeScreen()));
           }
 
-          return const SizedBox();
-        },
-      ),
+          return const SizedBox();*/
     );
   }
 }

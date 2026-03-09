@@ -98,6 +98,8 @@ class DefaultFirebaseOptions {
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:inv_telas/providers/auth_provider.dart';
+import 'package:inv_telas/screens/auth_screen.dart';
 import 'package:inv_telas/screens/homeScreen.dart';
 import 'firebase_options.dart';
 
@@ -129,7 +131,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Inventario de Rollos',
+      title: 'Inventario de Telas',
       debugShowCheckedModeBanner: false,
       home: FutureBuilder<FirebaseApp>(
         future: _initializeFirebase(),
@@ -153,17 +155,42 @@ class MyApp extends StatelessWidget {
             );
           }
 
-          // ✅ CONECTADO
-          if (snapshot.hasData) {
+          return Consumer(
+            builder: (context, ref, child) {
+              final authState = ref.watch(authProvider);
+
+              return authState.when(
+                data: (user) {
+                  if (user != null) {
+                    // Usuario logueado -> Ir a Home
+                    return const HomeScreen();
+                  } else {
+                    // No hay usuario -> Ir a Login
+                    return const AuthScreen();
+                  }
+                },
+                loading: () => const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                ),
+                error: (e, st) => const AuthScreen(), // En error, mostrar login
+              );
+            },
+          );
+        },
+      ),
+      // ✅ CONECTADO
+      /*if (snapshot.hasData) {
             return SafeArea(child: Scaffold(body: HomeScreen()));
           }
 
-          return const SizedBox();
-        },
-      ),
+          return const SizedBox();*/
     );
   }
 }
+
+
+===== D:\inv\inv_telas\lib\Untitled-1.dart =====
+
 
 
 ===== D:\inv\inv_telas\lib\config\env.dart =====
@@ -372,6 +399,8 @@ class Lote {
   final double tipoCambio;
   final String encargado; // Nombre de la persona
   final List<LoteItem> items;
+  final bool activo;
+  final DateTime? fechaActivacion;
 
   Lote({
     required this.id,
@@ -380,6 +409,8 @@ class Lote {
     required this.tipoCambio,
     required this.encargado,
     this.items = const [],
+    this.activo = false, // Por defecto inactivo
+    this.fechaActivacion,
   });
 
   factory Lote.fromJson(Map<String, dynamic> json) {
@@ -396,6 +427,10 @@ class Lote {
       tipoCambio: (json['tipoCambio'] ?? 0).toDouble(),
       encargado: json['encargado'] ?? '',
       items: itemsList,
+      activo: json['activo'] ?? false,
+      fechaActivacion: json['fechaActivacion'] != null 
+          ? DateTime.parse(json['fechaActivacion']) 
+          : null,
     );
   }
 
@@ -406,6 +441,8 @@ class Lote {
     'tipoCambio': tipoCambio,
     'encargado': encargado,
     'items': items.map((e) => e.toJson()).toList(),
+    'activo': activo,
+    'fechaActivacion': fechaActivacion?.toIso8601String(),
   };
 }
 
@@ -435,6 +472,10 @@ class Rollo {
   final String? numeroRollo;
   
   final String? loteId;
+  final double? precioUsd; // Precio en dólares (histórico)
+  final double? tipoCambio; // Tipo de cambio (histórico)
+  final double? precioCompra; // Precio final en Bolivianos (calculado)
+
   Rollo({
     required this.id,
     this.sucursalId,
@@ -451,6 +492,9 @@ class Rollo {
     this.lote,
     this.numeroRollo,
     this.loteId,
+    this.precioUsd,
+    this.tipoCambio,
+    this.precioCompra,
   });
 
   factory Rollo.fromJson(Map<String, dynamic> json) => Rollo(
@@ -475,6 +519,9 @@ class Rollo {
     lote: json['lote'],
     numeroRollo: json['numeroRollo'],
     loteId: json['loteId'],
+    precioUsd: (json['precioUsd'] as num?)?.toDouble(),
+    tipoCambio: (json['tipoCambio'] as num?)?.toDouble(),
+    precioCompra: (json['precioCompra'] as num?)?.toDouble(),
   );
 
   Map<String, dynamic> toJson() => {
@@ -493,6 +540,9 @@ class Rollo {
     'lote': lote,
     'numeroRollo': numeroRollo,
     'loteId': loteId,
+    'precioUsd': precioUsd,
+    'tipoCambio': tipoCambio,
+    'precioCompra': precioCompra,
   };
 }
 
@@ -525,6 +575,127 @@ class HistorialMovimiento {
     'sucursalDestinoId': sucursalDestinoId,
     'fecha': fecha.toIso8601String(),
   };
+}
+
+
+===== D:\inv\inv_telas\lib\models\usuario.dart =====
+
+class Usuario {
+  final String id;
+  final String email;
+  final String nombre;
+  final String rol; // ADMIN, VENDEDOR, SUCURSAL, CONSULTAS
+  final String? sucursalId; // Solo para Vendedor/Responsable
+  final bool activo;
+
+  Usuario({
+    required this.id,
+    required this.email,
+    required this.nombre,
+    this.rol = 'VENDEDOR',
+    this.sucursalId,
+    this.activo = true,
+  });
+
+  factory Usuario.fromJson(Map<String, dynamic> json) => Usuario(
+    id: json['id'] ?? '',
+    email: json['email'] ?? '',
+    nombre: json['nombre'] ?? '',
+    rol: json['rol'] ?? 'VENDEDOR',
+    sucursalId: json['sucursalId'],
+    activo: json['activo'] ?? true,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'email': email,
+    'nombre': nombre,
+    'rol': rol,
+    'sucursalId': sucursalId,
+    'activo': activo,
+  };
+}
+
+
+===== D:\inv\inv_telas\lib\providers\auth_provider.dart =====
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
+import 'package:inv_telas/models/usuario.dart';
+import 'package:inv_telas/services/auth_service.dart';
+
+// Provider del servicio
+final authServiceProvider = Provider<AuthService>((ref) => AuthService());
+
+// Provider del estado del usuario
+final authProvider = StateNotifierProvider<AuthNotifier, AsyncValue<Usuario?>>((
+  ref,
+) {
+  return AuthNotifier(ref.watch(authServiceProvider));
+});
+
+class AuthNotifier extends StateNotifier<AsyncValue<Usuario?>> {
+  final AuthService _authService;
+
+  AuthNotifier(this._authService) : super(const AsyncValue.loading()) {
+    _checkSession();
+    _initAdmin();
+  }
+
+  // Verificar si ya hay sesiÃ³n activa al arrancar
+  Future<void> _checkSession() async {
+    state = const AsyncValue.loading();
+    try {
+      final user = await _authService.getUsuarioActual();
+      state = AsyncValue.data(user);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
+  }
+
+  // Crear el Admin automÃ¡tico al arrancar
+  Future<void> _initAdmin() async {
+    await _authService.seedAdminUser();
+  }
+
+  // Login
+  Future<String?> login(String email, String pass) async {
+    state = const AsyncValue.loading();
+    try {
+      final user = await _authService.login(email, pass);
+      if (user != null) {
+        state = AsyncValue.data(user);
+        return null; // Ã‰xito
+      } else {
+        state = const AsyncValue.data(null);
+        return "Usuario o contraseÃ±a incorrectos";
+      }
+    } catch (e) {
+      state = const AsyncValue.data(null);
+      return "Error de conexiÃ³n";
+    }
+  }
+
+  // Register
+  Future<String?> register({
+    required String email,
+    required String pass,
+    required String nombre,
+    String rol = 'VENDEDOR',
+  }) async {
+    return await _authService.register(
+      email: email,
+      password: pass,
+      nombre: nombre,
+      rol: rol,
+    );
+  }
+
+  // Logout
+  Future<void> logout() async {
+    await _authService.logout();
+    state = const AsyncValue.data(null);
+  }
 }
 
 
@@ -777,6 +948,27 @@ final lotesProvider = StateNotifierProvider<LotesNotifier, List<Lote>>((ref) {
   return LotesNotifier(ref.watch(loteServiceProvider));
 });
 
+final loteActivoProvider = Provider<Lote?>((ref) {
+  final lotes = ref.watch(lotesProvider);
+  final hoy = DateTime.now();
+
+  // Buscar un lote que esté activo y cuya fecha de activación sea hoy
+  try {
+    return lotes.firstWhere(
+      (l) =>
+          l.activo &&
+          l.fechaActivacion != null &&
+          _esMismoDia(l.fechaActivacion!, hoy),
+    );
+  } catch (e) {
+    return null; // No hay lote activo
+  }
+});
+
+bool _esMismoDia(DateTime a, DateTime b) {
+  return a.year == b.year && a.month == b.month && a.day == b.day;
+}
+
 class LotesNotifier extends StateNotifier<List<Lote>> {
   final LoteService _service;
 
@@ -797,6 +989,343 @@ class LotesNotifier extends StateNotifier<List<Lote>> {
   Future<void> update(Lote lote) async {
     await _service.updateLote(lote);
     await load();
+  }
+
+  // ✅ MÉTODO PARA ACTIVAR LOTE (RADIO BUTTON LÓGICA)
+  Future<void> setActiveLote(String? loteId) async {
+    final hoy = DateTime.now();
+
+    // 1. Desactivar todos los lotes existentes
+    final batchUpdates = <Future<void>>[];
+
+    for (var lote in state) {
+      if (lote.activo) {
+        final updated = Lote(
+          id: lote.id,
+          nombre: lote.nombre,
+          fecha: lote.fecha,
+          tipoCambio: lote.tipoCambio,
+          encargado: lote.encargado,
+          items: lote.items,
+          activo: false,
+          fechaActivacion: lote.fechaActivacion,
+        );
+        batchUpdates.add(_service.updateLote(updated));
+      }
+    }
+
+    // 2. Activar el seleccionado (si no es null)
+    if (loteId != null) {
+      final loteToActivate = state.firstWhere((l) => l.id == loteId);
+      final updated = Lote(
+        id: loteToActivate.id,
+        nombre: loteToActivate.nombre,
+        fecha: loteToActivate.fecha,
+        tipoCambio: loteToActivate.tipoCambio,
+        encargado: loteToActivate.encargado,
+        items: loteToActivate.items,
+        activo: true,
+        fechaActivacion: hoy,
+      );
+      batchUpdates.add(_service.updateLote(updated));
+    }
+
+    await Future.wait(batchUpdates);
+    await load();
+  }
+}
+
+
+===== D:\inv\inv_telas\lib\screens\auth_screen.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/models/usuario.dart';
+import 'package:inv_telas/providers/auth_provider.dart';
+import 'package:inv_telas/providers/providers.dart';
+import 'package:inv_telas/utils/utils.dart';
+import 'package:inv_telas/screens/homeScreen.dart';
+
+class AuthScreen extends ConsumerStatefulWidget {
+  const AuthScreen({super.key});
+
+  @override
+  ConsumerState<AuthScreen> createState() => _AuthScreenState();
+}
+
+class _AuthScreenState extends ConsumerState<AuthScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  // Controladores Login
+  final _emailLoginCtrl = TextEditingController();
+  final _passLoginCtrl = TextEditingController();
+
+  // Controladores Registro
+  final _emailRegCtrl = TextEditingController();
+  final _passRegCtrl = TextEditingController();
+  final _nameRegCtrl = TextEditingController();
+
+  // Estado UI
+  bool _isLoading = false;
+  bool _obscurePass = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _emailLoginCtrl.dispose();
+    _passLoginCtrl.dispose();
+    _emailRegCtrl.dispose();
+    _passRegCtrl.dispose();
+    _nameRegCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleLogin() async {
+    if (_isLoading) return;
+    if (_emailLoginCtrl.text.isEmpty || _passLoginCtrl.text.isEmpty) {
+      _showError("Complete todos los campos");
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final errorMsg = await ref
+        .read(authProvider.notifier)
+        .login(_emailLoginCtrl.text, _passLoginCtrl.text);
+
+    setState(() => _isLoading = false);
+
+    if (errorMsg != null) {
+      _showError(errorMsg);
+    }
+    // Si es exitoso, el Provider automÃ¡ticamente cambiarÃ¡ el estado
+    // y el main.dart redirigirÃ¡ al HomeScreen.
+  }
+
+  Future<void> _handleRegister() async {
+    if (_isLoading) return;
+    if (_emailRegCtrl.text.isEmpty ||
+        _passRegCtrl.text.isEmpty ||
+        _nameRegCtrl.text.isEmpty) {
+      _showError("Complete todos los campos");
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final errorMsg = await ref
+        .read(authProvider.notifier)
+        .register(
+          email: _emailRegCtrl.text,
+          pass: _passRegCtrl.text,
+          nombre: _nameRegCtrl.text,
+          rol: 'VENDEDOR', // Por defecto
+        );
+
+    setState(() => _isLoading = false);
+
+    if (errorMsg != null) {
+      _showError(errorMsg);
+    } else {
+      _showSuccess("Cuenta creada. Ahora inicie sesiÃ³n.");
+      _tabController.animateTo(0); // Ir al tab de login
+    }
+  }
+
+  void _showError(String msg) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
+  }
+
+  void _showSuccess(String msg) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.green));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Escuchar cambios de autenticaciÃ³n para navegar
+    ref.listen<AsyncValue<Usuario?>>(authProvider, (prev, next) {
+      next.whenData((user) {
+        if (user != null) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const HomeScreen()),
+          );
+        }
+      });
+    });
+
+    return Scaffold(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AppColors.primary.withOpacity(0.8), AppColors.primary],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Card(
+              elevation: 8,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Container(
+                width: 400,
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Logo / TÃ­tulo
+                    Icon(Icons.inventory_2, size: 50, color: AppColors.primary),
+                    const SizedBox(height: 10),
+                    Text("Inventario Telas", style: AppTextStyles.heading2),
+                    const SizedBox(height: 20),
+
+                    // Tabs
+                    TabBar(
+                      controller: _tabController,
+                      labelColor: AppColors.primary,
+                      indicatorColor: AppColors.primary,
+                      tabs: const [
+                        Tab(text: "Iniciar SesiÃ³n"),
+                        Tab(text: "Registrar"),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Contenido Tabs
+                    SizedBox(
+                      height: 300, // Altura fija para evitar saltos
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [_buildLoginForm(), _buildRegisterForm()],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- FORMULARIOS ---
+
+  Widget _buildLoginForm() {
+    return Column(
+      children: [
+        TextField(
+          controller: _emailLoginCtrl,
+          decoration: const InputDecoration(
+            labelText: "Correo electrÃ³nico",
+            prefixIcon: Icon(Icons.email_outlined),
+          ),
+          keyboardType: TextInputType.emailAddress,
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _passLoginCtrl,
+          decoration: InputDecoration(
+            labelText: "ContraseÃ±a",
+            prefixIcon: const Icon(Icons.lock_outline),
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscurePass ? Icons.visibility : Icons.visibility_off,
+              ),
+              onPressed: () => setState(() => _obscurePass = !_obscurePass),
+            ),
+          ),
+          obscureText: _obscurePass,
+        ),
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: ElevatedButton(
+            onPressed: _isLoading ? null : _handleLogin,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: _isLoading
+                ? const CircularProgressIndicator(color: Colors.white)
+                : const Text(
+                    "ENTRAR",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRegisterForm() {
+    return Column(
+      children: [
+        TextField(
+          controller: _nameRegCtrl,
+          decoration: const InputDecoration(
+            labelText: "Nombre completo",
+            prefixIcon: Icon(Icons.person_outline),
+          ),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _emailRegCtrl,
+          decoration: const InputDecoration(
+            labelText: "Correo electrÃ³nico",
+            prefixIcon: Icon(Icons.email_outlined),
+          ),
+          keyboardType: TextInputType.emailAddress,
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _passRegCtrl,
+          decoration: const InputDecoration(
+            labelText: "ContraseÃ±a",
+            prefixIcon: Icon(Icons.lock_outline),
+          ),
+          obscureText: true,
+        ),
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: ElevatedButton(
+            onPressed: _isLoading ? null : _handleRegister,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.success,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: _isLoading
+                ? const CircularProgressIndicator(color: Colors.white)
+                : const Text(
+                    "CREAR CUENTA",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -1196,7 +1725,6 @@ import 'package:inv_telas/models/models.dart';
 import 'package:inv_telas/models/lote.dart';
 import 'package:inv_telas/providers/providers.dart';
 import 'package:inv_telas/utils/utils.dart';
-import 'package:inv_telas/widgets/confirm_dialog.dart';
 import 'package:intl/intl.dart';
 
 class LoteScreen extends ConsumerStatefulWidget {
@@ -1207,18 +1735,129 @@ class LoteScreen extends ConsumerStatefulWidget {
 }
 
 class _LoteScreenState extends ConsumerState<LoteScreen> {
-  final _formKey = GlobalKey<FormState>();
+  @override
+  Widget build(BuildContext context) {
+    final lotes = ref.watch(lotesProvider);
+    final activeLote = ref.watch(loteActivoProvider);
 
-  // Controladores Lote
+    return Scaffold(
+      appBar: AppBar(title: const Text("GestiÃ³n de Lotes")),
+      body: lotes.isEmpty
+          ? const Center(
+              child: Text(
+                "No hay lotes creados.\nUse el botÃ³n + para crear uno.",
+                textAlign: TextAlign.center,
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(8),
+              itemCount: lotes.length,
+              itemBuilder: (context, index) {
+                final lote = lotes[index];
+                final isCurrentlyActive = activeLote?.id == lote.id;
+
+                // Verificar expiraciÃ³n
+                bool isExpired = false;
+                if (lote.activo && lote.fechaActivacion != null) {
+                  final hoy = DateTime.now();
+                  isExpired =
+                      !(lote.fechaActivacion!.year == hoy.year &&
+                          lote.fechaActivacion!.month == hoy.month &&
+                          lote.fechaActivacion!.day == hoy.day);
+                }
+
+                return Card(
+                  elevation: isCurrentlyActive ? 4 : 1,
+                  color: isCurrentlyActive
+                      ? AppColors.primary.withOpacity(0.1)
+                      : null,
+                  child: ListTile(
+                    leading: Checkbox(
+                      value: isCurrentlyActive,
+                      activeColor: isExpired ? Colors.grey : AppColors.primary,
+                      onChanged: (val) {
+                        if (val == true) {
+                          ref
+                              .read(lotesProvider.notifier)
+                              .setActiveLote(lote.id);
+                        } else {
+                          ref.read(lotesProvider.notifier).setActiveLote(null);
+                        }
+                      },
+                    ),
+                    title: Text(
+                      lote.nombre,
+                      style: TextStyle(
+                        fontWeight: isCurrentlyActive
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        decoration: isExpired
+                            ? TextDecoration.lineThrough
+                            : null,
+                      ),
+                    ),
+                    subtitle: Text(
+                      "Encargado: ${lote.encargado}\n"
+                      "TC: ${lote.tipoCambio} BS | Items: ${lote.items.length}",
+                      style: TextStyle(color: isExpired ? Colors.red : null),
+                    ),
+                    isThreeLine: true,
+                    trailing: const Icon(Icons.edit),
+                    onTap: () => _navigateToForm(lote),
+                  ),
+                );
+              },
+            ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _navigateToForm(null),
+        backgroundColor: AppColors.primary,
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
+    );
+  }
+
+  void _navigateToForm(Lote? lote) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LoteFormScreen(lote: lote),
+        fullscreenDialog: true,
+      ),
+    );
+  }
+}
+
+// ==========================================
+// FORM SCREEN (Crear / Editar Lote)
+// ==========================================
+class LoteFormScreen extends ConsumerStatefulWidget {
+  final Lote? lote;
+  const LoteFormScreen({super.key, this.lote});
+
+  @override
+  ConsumerState<LoteFormScreen> createState() => _LoteFormScreenState();
+}
+
+class _LoteFormScreenState extends ConsumerState<LoteFormScreen> {
+  final _formKey = GlobalKey<FormState>();
   final _nombreController = TextEditingController();
   final _tipoCambioController = TextEditingController();
   final _encargadoController = TextEditingController();
   DateTime _fecha = DateTime.now();
-
-  // Estado de Items temporales
   List<LoteItem> _itemsTemp = [];
-
   bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.lote != null) {
+      _nombreController.text = widget.lote!.nombre;
+      _tipoCambioController.text = widget.lote!.tipoCambio.toString();
+      _encargadoController.text = widget.lote!.encargado;
+      _fecha = widget.lote!.fecha;
+      _itemsTemp = List.from(widget.lote!.items);
+    }
+  }
 
   @override
   void dispose() {
@@ -1233,7 +1872,7 @@ class _LoteScreenState extends ConsumerState<LoteScreen> {
     if (_itemsTemp.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Agregue al menos una tela al lote"),
+          content: Text("Agregue al menos una tela"),
           backgroundColor: Colors.orange,
         ),
       );
@@ -1243,58 +1882,31 @@ class _LoteScreenState extends ConsumerState<LoteScreen> {
     setState(() => _isSaving = true);
 
     final nuevoLote = Lote(
-      id: Helpers.generarId(),
+      id: widget.lote?.id ?? Helpers.generarId(),
       nombre: _nombreController.text.trim(),
       fecha: _fecha,
       tipoCambio: double.tryParse(_tipoCambioController.text) ?? 0,
       encargado: _encargadoController.text.trim(),
       items: _itemsTemp,
+      // Mantener estado activo si ya estaba activo
+      activo: widget.lote?.activo ?? false,
+      fechaActivacion: widget.lote?.fechaActivacion,
     );
 
-    await ref.read(lotesProvider.notifier).add(nuevoLote);
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Lote guardado correctamente"),
-          backgroundColor: AppColors.success,
-        ),
-      );
-      Navigator.pop(context); // Regresa al menÃº
+    if (widget.lote == null) {
+      await ref.read(lotesProvider.notifier).add(nuevoLote);
+    } else {
+      await ref.read(lotesProvider.notifier).update(nuevoLote);
     }
-    setState(() => _isSaving = false);
-  }
 
-  void _addItem() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _AddLoteItemSheet(
-        onAdd: (item) {
-          // ValidaciÃ³n de duplicados
-          if (_itemsTemp.any((e) => e.comboKey == item.comboKey)) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text("Esta combinaciÃ³n ya existe en el lote"),
-                backgroundColor: Colors.red,
-              ),
-            );
-            return;
-          }
-          setState(() {
-            _itemsTemp.add(item);
-          });
-        },
-      ),
-    );
+    if (mounted) Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Nuevo Lote de Compra"),
+        title: Text(widget.lote == null ? "Nuevo Lote" : "Editar Lote"),
         actions: [
           IconButton(
             icon: const Icon(Icons.save),
@@ -1311,7 +1923,6 @@ class _LoteScreenState extends ConsumerState<LoteScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Datos Principales
                 TextFormField(
                   controller: _nombreController,
                   decoration: const InputDecoration(
@@ -1349,10 +1960,7 @@ class _LoteScreenState extends ConsumerState<LoteScreen> {
                     ),
                   ],
                 ),
-
                 const Divider(height: 32),
-
-                // SecciÃ³n Items
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -1361,9 +1969,9 @@ class _LoteScreenState extends ConsumerState<LoteScreen> {
                       style: AppTextStyles.heading3,
                     ),
                     ElevatedButton.icon(
-                      onPressed: _addItem,
+                      onPressed: () => _addItem(),
                       icon: const Icon(Icons.add),
-                      label: const Text("Agregar Tela"),
+                      label: const Text("Agregar"),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                       ),
@@ -1371,8 +1979,6 @@ class _LoteScreenState extends ConsumerState<LoteScreen> {
                   ],
                 ),
                 const SizedBox(height: 10),
-
-                // Lista de Items
                 if (_itemsTemp.isEmpty)
                   const Center(
                     child: Padding(
@@ -1398,6 +2004,28 @@ class _LoteScreenState extends ConsumerState<LoteScreen> {
     );
   }
 
+  void _addItem() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _AddLoteItemSheet(
+        onAdd: (item) {
+          if (_itemsTemp.any((e) => e.comboKey == item.comboKey)) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("CombinaciÃ³n duplicada"),
+                backgroundColor: Colors.red,
+              ),
+            );
+            return;
+          }
+          setState(() => _itemsTemp.add(item));
+        },
+      ),
+    );
+  }
+
   Widget _buildItemCard(LoteItem item, int index) {
     final tipos = ref.read(tiposTelaProvider);
     final empresas = ref.read(empresasProvider);
@@ -1406,13 +2034,13 @@ class _LoteScreenState extends ConsumerState<LoteScreen> {
     final tipoName = tipos
         .firstWhere(
           (t) => t.id == item.tipoTelaId,
-          orElse: () => TipoTela(id: '', nombre: 'Desconocido'),
+          orElse: () => TipoTela(id: '', nombre: '?'),
         )
         .nombre;
     final empresaName = empresas
         .firstWhere(
           (e) => e.id == item.empresaId,
-          orElse: () => Empresa(id: '', nombre: 'Desconocida'),
+          orElse: () => Empresa(id: '', nombre: '?'),
         )
         .nombre;
     String anchoName = item.anchoId != null
@@ -1437,8 +2065,7 @@ class _LoteScreenState extends ConsumerState<LoteScreen> {
   }
 }
 
-// ================= SHEET PARA AGREGAR ITEM CON LÃ“GICA MEJORADA =================
-
+// ================= SHEET PARA AGREGAR ITEM =================
 class _AddLoteItemSheet extends ConsumerStatefulWidget {
   final Function(LoteItem) onAdd;
   const _AddLoteItemSheet({required this.onAdd});
@@ -1452,9 +2079,8 @@ class _AddLoteItemSheetState extends ConsumerState<_AddLoteItemSheet> {
   String? _empresaId;
   String? _anchoId;
   final _precioController = TextEditingController();
-
-  bool _tieneAnchoEspecial = false; // Controlado por lÃ³gica inteligente
-  bool _isSavingCatalog = false; // Para loading en creaciÃ³n rÃ¡pida
+  bool _tieneAnchoEspecial = false;
+  bool _isSavingCatalog = false;
 
   @override
   void dispose() {
@@ -1462,14 +2088,11 @@ class _AddLoteItemSheetState extends ConsumerState<_AddLoteItemSheet> {
     super.dispose();
   }
 
-  // âœ… LÃ“GICA INTELIGENTE DE ANCHO (MISMA QUE NEWROLLODIALOG)
   void _checkAnchoLogic() {
     if (_empresaId != null && _tipoTelaId != null) {
       final rollos = ref
           .read(rollosProvider)
           .maybeWhen(data: (d) => d, orElse: () => <Rollo>[]);
-
-      // Buscar coincidencias histÃ³ricas
       final matches = rollos
           .where(
             (r) => r.empresaId == _empresaId && r.tipoTelaId == _tipoTelaId,
@@ -1477,14 +2100,10 @@ class _AddLoteItemSheetState extends ConsumerState<_AddLoteItemSheet> {
           .toList();
 
       if (matches.isNotEmpty) {
-        // Verificar si tienen ancho
         final withAncho = matches.where((r) => r.anchoId != null).toList();
-
-        if (withAncho.isNotEmpty) {
-          // Si la mayorÃ­a tiene ancho, activamos el dropdown
-          setState(() {
-            _tieneAnchoEspecial = true;
-            // Sugerir el mÃ¡s frecuente
+        setState(() {
+          _tieneAnchoEspecial = withAncho.isNotEmpty;
+          if (_tieneAnchoEspecial) {
             final freq = <String, int>{};
             for (var r in withAncho) {
               freq[r.anchoId!] = (freq[r.anchoId!] ?? 0) + 1;
@@ -1492,16 +2111,11 @@ class _AddLoteItemSheetState extends ConsumerState<_AddLoteItemSheet> {
             _anchoId = freq.entries
                 .reduce((a, b) => a.value >= b.value ? a : b)
                 .key;
-          });
-        } else {
-          // Si no tienen ancho, ocultamos
-          setState(() {
-            _tieneAnchoEspecial = false;
+          } else {
             _anchoId = null;
-          });
-        }
+          }
+        });
       } else {
-        // Si no hay historial, permitimos que el usuario decida (oculto por defecto)
         setState(() {
           _tieneAnchoEspecial = false;
           _anchoId = null;
@@ -1510,7 +2124,6 @@ class _AddLoteItemSheetState extends ConsumerState<_AddLoteItemSheet> {
     }
   }
 
-  // âœ… FUNCIÃ“N PARA CREAR ANCHO RÃPIDO
   Future<void> _addAncho() async {
     final ctrl = TextEditingController();
     await showDialog(
@@ -1545,20 +2158,14 @@ class _AddLoteItemSheetState extends ConsumerState<_AddLoteItemSheet> {
                     : () async {
                         final name = ctrl.text.trim();
                         if (name.isEmpty) return;
-
                         setStateDialog(() => _isSavingCatalog = true);
-
                         final id = Helpers.generarId();
                         await ref
                             .read(catalogServiceProvider)
                             .addAncho(Ancho(id: id, nombre: name));
                         ref.refresh(anchosProvider);
-
                         setStateDialog(() => _isSavingCatalog = false);
-
-                        // Seleccionar el nuevo automÃ¡ticamente
                         setState(() => _anchoId = id);
-
                         if (mounted) Navigator.pop(ctx);
                       },
                 child: const Text("Guardar"),
@@ -1593,8 +2200,6 @@ class _AddLoteItemSheetState extends ConsumerState<_AddLoteItemSheet> {
           children: [
             const Text("Agregar Tela al Lote", style: AppTextStyles.heading2),
             const SizedBox(height: 20),
-
-            // Tipo de Tela
             DropdownButtonFormField<String>(
               value: _tipoTelaId,
               items: tipos
@@ -1604,13 +2209,11 @@ class _AddLoteItemSheetState extends ConsumerState<_AddLoteItemSheet> {
                   .toList(),
               onChanged: (v) {
                 setState(() => _tipoTelaId = v);
-                _checkAnchoLogic(); // Ejecutar lÃ³gica
+                _checkAnchoLogic();
               },
               decoration: const InputDecoration(labelText: "Tipo de Tela"),
             ),
             const SizedBox(height: 12),
-
-            // Empresa
             DropdownButtonFormField<String>(
               value: _empresaId,
               items: empresas
@@ -1620,13 +2223,11 @@ class _AddLoteItemSheetState extends ConsumerState<_AddLoteItemSheet> {
                   .toList(),
               onChanged: (v) {
                 setState(() => _empresaId = v);
-                _checkAnchoLogic(); // Ejecutar lÃ³gica
+                _checkAnchoLogic();
               },
               decoration: const InputDecoration(labelText: "Empresa"),
             ),
             const SizedBox(height: 12),
-
-            // âœ… ANCHO: Mostrar solo si la lÃ³gica lo determina
             if (_tieneAnchoEspecial)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12.0),
@@ -1647,12 +2248,8 @@ class _AddLoteItemSheetState extends ConsumerState<_AddLoteItemSheet> {
                         decoration: const InputDecoration(
                           labelText: "Ancho Especial *",
                         ),
-                        validator: (v) => _tieneAnchoEspecial && v == null
-                            ? "Requerido"
-                            : null,
                       ),
                     ),
-                    // BotÃ³n (+) para crear nuevo ancho
                     IconButton(
                       icon: const Icon(Icons.add),
                       onPressed: _addAncho,
@@ -1660,7 +2257,6 @@ class _AddLoteItemSheetState extends ConsumerState<_AddLoteItemSheet> {
                   ],
                 ),
               ),
-
             TextFormField(
               controller: _precioController,
               keyboardType: TextInputType.number,
@@ -1669,14 +2265,12 @@ class _AddLoteItemSheetState extends ConsumerState<_AddLoteItemSheet> {
               ),
             ),
             const SizedBox(height: 20),
-
             ElevatedButton.icon(
               onPressed: () {
                 if (_tipoTelaId == null ||
                     _empresaId == null ||
                     _precioController.text.isEmpty)
                   return;
-                // Si tiene ancho especial, validar que estÃ© seleccionado
                 if (_tieneAnchoEspecial && _anchoId == null) return;
 
                 final item = LoteItem(
@@ -1686,7 +2280,6 @@ class _AddLoteItemSheetState extends ConsumerState<_AddLoteItemSheet> {
                   anchoId: _anchoId,
                   precioUSD: double.tryParse(_precioController.text) ?? 0,
                 );
-
                 widget.onAdd(item);
                 Navigator.pop(context);
               },
@@ -1900,6 +2493,152 @@ class _PendingScreenState extends ConsumerState<PendingScreen> {
     );
     if (confirm == true) {
       await ref.read(draftsProvider.notifier).remove(id);
+    }
+  }
+}
+
+
+===== D:\inv\inv_telas\lib\services\auth_service.dart =====
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:inv_telas/models/usuario.dart';
+import 'package:inv_telas/config/env.dart';
+
+class AuthService {
+  final _auth = FirebaseAuth.instance;
+  final _firestore = FirebaseFirestore.instance;
+
+  // Obtener usuario actual (si ya estÃ¡ logueado)
+  Future<Usuario?> getUsuarioActual() async {
+    final user = _auth.currentUser;
+    if (user == null) return null;
+
+    return await _fetchUserData(user.uid);
+  }
+
+  // Login
+  Future<Usuario?> login(String email, String password) async {
+    try {
+      final cred = await _auth.signInWithEmailAndPassword(
+        email: email.trim(),
+        password: password.trim(),
+      );
+
+      if (cred.user == null) return null;
+
+      // Sincronizar datos con Firestore (por si cambiaron roles)
+      return await _fetchUserData(cred.user!.uid);
+    } catch (e) {
+      print("Error login: $e");
+      return null;
+    }
+  }
+
+  // Registro de usuarios
+  Future<String?> register({
+    required String email,
+    required String password,
+    required String nombre,
+    String rol = 'VENDEDOR',
+  }) async {
+    try {
+      // 1. Crear en Firebase Auth
+      final cred = await _auth.createUserWithEmailAndPassword(
+        email: email.trim(),
+        password: password.trim(),
+      );
+
+      if (cred.user == null) return "Error al crear usuario";
+
+      // 2. Guardar en Firestore
+      final usuario = Usuario(
+        id: cred.user!.uid,
+        email: email.trim(),
+        nombre: nombre.trim(),
+        rol: rol,
+      );
+
+      await _firestore
+          .collection(Env.col('users'))
+          .doc(usuario.id)
+          .set(usuario.toJson());
+
+      return null; // Null significa Ã©xito
+    } on FirebaseAuthException catch (e) {
+      return e.message;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  // Logout
+  Future<void> logout() => _auth.signOut();
+
+  // --- LÃ“GICA DEL ADMIN AUTOMÃTICO ---
+
+  Future<void> seedAdminUser() async {
+    const adminEmail = "admin@admin.com";
+    const adminPass = "123456Aa";
+
+    try {
+      // Verificar si ya existe en Firestore (mÃ¡s rÃ¡pido que verificar en Auth)
+      final query = await _firestore
+          .collection(Env.col('users'))
+          .where('email', isEqualTo: adminEmail)
+          .limit(1)
+          .get();
+
+      if (query.docs.isEmpty) {
+        print("ðŸŒ± Creando usuario Admin inicial...");
+
+        // Intentar crear en Auth
+        try {
+          final cred = await _auth.createUserWithEmailAndPassword(
+            email: adminEmail,
+            password: adminPass,
+          );
+
+          // Crear en Firestore
+          final admin = Usuario(
+            id: cred.user!.uid,
+            email: adminEmail,
+            nombre: "Administrador",
+            rol: 'ADMIN',
+          );
+          await _firestore
+              .collection(Env.col('users'))
+              .doc(admin.id)
+              .set(admin.toJson());
+          print("âœ… Admin creado exitosamente");
+        } on FirebaseAuthException catch (e) {
+          // Si el error es "email-already-in-use", significa que alguien intentÃ³ crearlo antes
+          // pero no estÃ¡ en nuestra DB. Intentamos recuperar el UID.
+          if (e.code == 'email-already-in-use') {
+            print("âš ï¸ Admin ya existÃ­a en Auth, sincronizando DB...");
+            // Nota: Para obtener el UID de un usuario existente sin login es complejo.
+            // Lo ideal es que el Admin ya se haya logueado alguna vez.
+            // Por seguridad, si el email ya existe, simplemente ignoramos.
+          } else {
+            print("Error semilla Admin: $e");
+          }
+        }
+      }
+    } catch (e) {
+      print("Error verificando Admin: $e");
+    }
+  }
+
+  // Helper para leer datos de Firestore
+  Future<Usuario?> _fetchUserData(String uid) async {
+    try {
+      final doc = await _firestore.collection(Env.col('users')).doc(uid).get();
+      if (doc.exists && doc.data() != null) {
+        return Usuario.fromJson(doc.data()!);
+      }
+      return null;
+    } catch (e) {
+      return null;
     }
   }
 }
@@ -3231,6 +3970,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/models/models.dart';
+import 'package:inv_telas/models/lote.dart';
 import 'package:inv_telas/providers/providers.dart';
 import 'package:inv_telas/screens/pending_screen.dart';
 import 'package:inv_telas/utils/utils.dart';
@@ -3255,6 +3995,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   final _loteController = TextEditingController();
   final _numeroRolloController = TextEditingController();
   final _observacionesController = TextEditingController();
+  final _precioManualController = TextEditingController(); // âœ… NUEVO
 
   // Estado de selecciÃ³n
   String? _tipoTelaId;
@@ -3268,6 +4009,11 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   bool _habilitarLote = false;
   bool _habilitarNumRollo = false;
   String? _anchoId;
+
+  // âœ… Estado para precio calculado
+  double _precioCalculadoBS = 0.0;
+  double _precioCalculadoUSD = 0.0;
+  bool _precioEncontradoEnLote = false;
 
   bool _isSavingCatalog = false;
   bool _isSaving = false;
@@ -3288,6 +4034,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     _loteController.dispose();
     _numeroRolloController.dispose();
     _observacionesController.dispose();
+    _precioManualController.dispose();
     super.dispose();
   }
 
@@ -3300,9 +4047,13 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     _loteController.clear();
     _numeroRolloController.clear();
     _observacionesController.clear();
+    _precioManualController.clear();
     setState(() {
       _colorId = null;
       _anchoId = null;
+      _precioCalculadoBS = 0.0;
+      _precioCalculadoUSD = 0.0;
+      _precioEncontradoEnLote = false;
       // No reseteamos _habilitarAncho aquÃ­, porque depende de la selecciÃ³n actual de Empresa/Tipo
       // que se mantiene fija.
     });
@@ -3316,6 +4067,9 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     final colores = ref.watch(coloresProvider);
     final anchos = ref.watch(anchosProvider);
     final drafts = ref.watch(draftsProvider);
+
+    // âœ… OBSERVAR LOTE ACTIVO
+    final loteActivo = ref.watch(loteActivoProvider);
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.92,
@@ -3402,6 +4156,31 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
 
                     const Divider(height: 32, thickness: 1),
 
+                    // âœ… SECCIÃ“N DE LOTE Y PRECIO
+                    if (loteActivo != null) ...[
+                      _buildActiveLoteBanner(loteActivo),
+                      const SizedBox(height: 12),
+                      if (_precioEncontradoEnLote)
+                        _buildPriceDisplay()
+                      else if (_tipoTelaId != null && _empresaId != null)
+                        const Text(
+                          "âš ï¸ Esta tela no estÃ¡ en el lote activo.",
+                          style: TextStyle(color: Colors.red),
+                        ),
+                    ] else ...[
+                      TextFormField(
+                        controller: _precioManualController,
+                        keyboardType: TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: "Precio Compra (BS) *",
+                        ),
+                      ),
+                    ],
+
+                    const Divider(height: 32, thickness: 1),
+
                     // SecciÃ³n Opciones Adicionales
                     const Text(
                       "Opciones Adicionales",
@@ -3414,8 +4193,10 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                       title: "Ancho Especial",
                       subtitle: "Se detecta automÃ¡ticamente segÃºn empresa/tela",
                       value: _habilitarAncho,
-                      onChanged: (v) =>
-                          setState(() => _habilitarAncho = v ?? false),
+                      onChanged: (v) {
+                        setState(() => _habilitarAncho = v ?? false);
+                        _autoFillData();
+                      },
                     ),
                     if (_habilitarAncho)
                       Padding(
@@ -3428,7 +4209,10 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                           "Seleccionar Ancho",
                           anchos,
                           _anchoId,
-                          (id) => setState(() => _anchoId = id),
+                          (id) {
+                            setState(() => _anchoId = id);
+                            _autoFillData();
+                          },
                           (item) => item.id,
                           (item) => item.nombre,
                           () => _addAncho(anchos),
@@ -3506,6 +4290,57 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     );
   }
 
+  // âœ… WIDGETS DE UI PARA LOTE
+  Widget _buildActiveLoteBanner(Lote lote) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.inventory, color: AppColors.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              "Lote Activo: ${lote.nombre}",
+              style: AppTextStyles.heading3.copyWith(color: AppColors.primary),
+            ),
+          ),
+          Text(
+            "TC: ${lote.tipoCambio}",
+            style: AppTextStyles.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPriceDisplay() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8.0),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text("Precio Compra:", style: AppTextStyles.body),
+            Text(
+              "${_precioCalculadoBS.toStringAsFixed(2)} BS",
+              style: AppTextStyles.heading3.copyWith(color: Colors.green[700]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // --- WIDGETS AUXILIARES ---
 
   Widget _buildCheckboxTile({
@@ -3527,12 +4362,14 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
 
   /// LÃ“GICA DE AUTODETECCIÃ“N Y AUTOLLENADO
   void _autoFillData() {
+    final loteActivo = ref.read(loteActivoProvider);
+
+    // 1. LÃ³gica de Ancho (Igual que antes)
     if (_empresaId != null && _tipoTelaId != null) {
       final rollos = ref
           .read(rollosProvider)
           .maybeWhen(data: (d) => d, orElse: () => <Rollo>[]);
 
-      // Filtrar por Empresa y Tipo de Tela
       final matches = rollos
           .where(
             (r) => r.empresaId == _empresaId && r.tipoTelaId == _tipoTelaId,
@@ -3554,10 +4391,9 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
             for (var r in withAncho) {
               freq[r.anchoId!] = (freq[r.anchoId!] ?? 0) + 1;
             }
-            final bestAncho = freq.entries
+            _anchoId = freq.entries
                 .reduce((a, b) => a.value >= b.value ? a : b)
                 .key;
-            _anchoId = bestAncho;
           } else {
             // Si el historial es nulo (ej. Piel de Sirena), deshabilitamos
             _habilitarAncho = false;
@@ -3577,7 +4413,38 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
       }
     }
 
-    // LÃ³gica de autollenado de cÃ³digo/metraje si ya se seleccionÃ³ color
+    // 2. LÃ³gica de Precio (Si hay Lote Activo)
+    if (loteActivo != null && _empresaId != null && _tipoTelaId != null) {
+      final item = loteActivo.items.firstWhere(
+        (i) =>
+            i.tipoTelaId == _tipoTelaId &&
+            i.empresaId == _empresaId &&
+            (i.anchoId == _anchoId || (!_habilitarAncho && i.anchoId == null)),
+        orElse: () => LoteItem(
+          id: '',
+          tipoTelaId: '',
+          empresaId: '',
+          precioUSD: 0,
+        ),
+      );
+
+      setState(() {
+        if (item.precioUSD > 0) {
+          _precioCalculadoUSD = item.precioUSD;
+          _precioCalculadoBS = item.precioUSD * loteActivo.tipoCambio;
+          _precioEncontradoEnLote = true;
+        } else {
+          _precioCalculadoBS = 0;
+          _precioEncontradoEnLote = false;
+        }
+      });
+    } else {
+      setState(() {
+        _precioEncontradoEnLote = false;
+      });
+    }
+
+    // 3. LÃ³gica de autollenado de cÃ³digo/metraje
     if (_empresaId != null && _tipoTelaId != null && _colorId != null) {
       final rollos = ref
           .read(rollosProvider)
@@ -3888,6 +4755,24 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     final codigo = _codigoController.text.trim();
     final metraje = double.tryParse(_metrajeController.text) ?? 0;
     final cantidad = int.tryParse(_cantidadController.text) ?? 1;
+    final loteActivo = ref.read(loteActivoProvider);
+
+    // Variables de precio
+    String? loteId;
+    double? precioUsd;
+    double? tipoCambio;
+    double? precioFinal;
+
+    if (loteActivo != null && _precioEncontradoEnLote) {
+      // Si hay lote activo y encontramos precio
+      loteId = loteActivo.id;
+      precioUsd = _precioCalculadoUSD;
+      tipoCambio = loteActivo.tipoCambio;
+      precioFinal = _precioCalculadoBS;
+    } else {
+      // Si no hay lote, usar precio manual
+      precioFinal = double.tryParse(_precioManualController.text) ?? 0;
+    }
 
     return List.generate(
       cantidad,
@@ -3907,6 +4792,10 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
             ? _numeroRolloController.text.trim()
             : null,
         notas: _observacionesController.text.trim(),
+        loteId: loteId,
+        precioUsd: precioUsd,
+        tipoCambio: tipoCambio,
+        precioCompra: precioFinal,
       ),
     );
   }
@@ -3914,6 +4803,13 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   Future<void> _subirIndividual() async {
     if (_isSaving) return;
     if (!_formKey.currentState!.validate()) return;
+    // Validar precio
+    final loteActivo = ref.read(loteActivoProvider);
+    if (loteActivo == null &&
+        (double.tryParse(_precioManualController.text) ?? 0) <= 0) {
+      _mostrarError("Ingrese un precio vÃ¡lido.");
+      return;
+    }
 
     setState(() => _isSaving = true);
     try {
@@ -3935,6 +4831,13 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   Future<void> _agregarALote() async {
     if (_isSaving) return;
     if (!_formKey.currentState!.validate()) return;
+    // Validar precio
+    final loteActivo = ref.read(loteActivoProvider);
+    if (loteActivo == null &&
+        (double.tryParse(_precioManualController.text) ?? 0) <= 0) {
+      _mostrarError("Ingrese un precio vÃ¡lido.");
+      return;
+    }
 
     setState(() => _isSaving = true);
     try {
@@ -4383,514 +5286,4 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
       hexInputBar: true,
     ),
   );
-}
-
-
-===== D:\inv\inv_telas\lib\widgets\dialogs\Untitled-1.dart =====
-
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:inv_telas/models/models.dart';
-import 'package:inv_telas/models/lote.dart';
-import 'package:inv_telas/providers/providers.dart';
-import 'package:inv_telas/utils/utils.dart';
-import 'package:inv_telas/widgets/confirm_dialog.dart';
-import 'package:intl/intl.dart';
-
-class LoteScreen extends ConsumerStatefulWidget {
-  const LoteScreen({super.key});
-
-  @override
-  ConsumerState<LoteScreen> createState() => _LoteScreenState();
-}
-
-class _LoteScreenState extends ConsumerState<LoteScreen> {
-  final _formKey = GlobalKey<FormState>();
-
-  // Controladores Lote
-  final _nombreController = TextEditingController();
-  final _tipoCambioController = TextEditingController();
-  final _encargadoController = TextEditingController();
-  DateTime _fecha = DateTime.now();
-
-  // Estado de Items temporales
-  List<LoteItem> _itemsTemp = [];
-
-  bool _isSaving = false;
-
-  @override
-  void dispose() {
-    _nombreController.dispose();
-    _tipoCambioController.dispose();
-    _encargadoController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _saveLote() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (_itemsTemp.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Agregue al menos una tela al lote"),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    setState(() => _isSaving = true);
-
-    final nuevoLote = Lote(
-      id: Helpers.generarId(),
-      nombre: _nombreController.text.trim(),
-      fecha: _fecha,
-      tipoCambio: double.tryParse(_tipoCambioController.text) ?? 0,
-      encargado: _encargadoController.text.trim(),
-      items: _itemsTemp,
-    );
-
-    await ref.read(lotesProvider.notifier).add(nuevoLote);
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Lote guardado correctamente"),
-          backgroundColor: AppColors.success,
-        ),
-      );
-      Navigator.pop(context); // Regresa al menÃº
-    }
-    setState(() => _isSaving = false);
-  }
-
-  void _addItem() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _AddLoteItemSheet(
-        onAdd: (item) {
-          // ValidaciÃ³n de duplicados
-          if (_itemsTemp.any((e) => e.comboKey == item.comboKey)) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text("Esta combinaciÃ³n ya existe en el lote"),
-                backgroundColor: Colors.red,
-              ),
-            );
-            return;
-          }
-          setState(() {
-            _itemsTemp.add(item);
-          });
-        },
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Nuevo Lote de Compra"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.save),
-            onPressed: _isSaving ? null : _saveLote,
-          ),
-        ],
-      ),
-      body: AbsorbPointer(
-        absorbing: _isSaving,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Datos Principales
-                TextFormField(
-                  controller: _nombreController,
-                  decoration: const InputDecoration(
-                    labelText: "Nombre del Lote *",
-                  ),
-                  validator: (v) => v!.isEmpty ? "Requerido" : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _encargadoController,
-                  decoration: const InputDecoration(
-                    labelText: "Encargado de Compra *",
-                  ),
-                  validator: (v) => v!.isEmpty ? "Requerido" : null,
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _tipoCambioController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: "Tipo de Cambio (BS) *",
-                        ),
-                        validator: (v) => v!.isEmpty ? "Requerido" : null,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: InputDecorator(
-                        decoration: const InputDecoration(labelText: "Fecha"),
-                        child: Text(DateFormat('dd/MM/yyyy').format(_fecha)),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const Divider(height: 32),
-
-                // SecciÃ³n Items
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      "Telas en el Lote",
-                      style: AppTextStyles.heading3,
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: _addItem,
-                      icon: const Icon(Icons.add),
-                      label: const Text("Agregar Tela"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-
-                // Lista de Items
-                if (_itemsTemp.isEmpty)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(20.0),
-                      child: Text("No hay telas agregadas"),
-                    ),
-                  )
-                else
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _itemsTemp.length,
-                    itemBuilder: (context, index) {
-                      final item = _itemsTemp[index];
-                      return _buildItemCard(item, index);
-                    },
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildItemCard(LoteItem item, int index) {
-    final tipos = ref.read(tiposTelaProvider);
-    final empresas = ref.read(empresasProvider);
-    final anchos = ref.read(anchosProvider);
-
-    final tipoName = tipos
-        .firstWhere(
-          (t) => t.id == item.tipoTelaId,
-          orElse: () => TipoTela(id: '', nombre: 'Desconocido'),
-        )
-        .nombre;
-    final empresaName = empresas
-        .firstWhere(
-          (e) => e.id == item.empresaId,
-          orElse: () => Empresa(id: '', nombre: 'Desconocida'),
-        )
-        .nombre;
-    String anchoName = item.anchoId != null
-        ? anchos
-              .firstWhere(
-                (a) => a.id == item.anchoId,
-                orElse: () => Ancho(id: '', nombre: ''),
-              )
-              .nombre
-        : 'N/A';
-
-    return Card(
-      child: ListTile(
-        title: Text("$tipoName - $empresaName ($anchoName)"),
-        subtitle: Text("Precio: \$${item.precioUSD.toStringAsFixed(2)}"),
-        trailing: IconButton(
-          icon: const Icon(Icons.delete, color: Colors.red),
-          onPressed: () => setState(() => _itemsTemp.removeAt(index)),
-        ),
-      ),
-    );
-  }
-}
-
-// ================= SHEET PARA AGREGAR ITEM CON LÃ“GICA MEJORADA =================
-
-class _AddLoteItemSheet extends ConsumerStatefulWidget {
-  final Function(LoteItem) onAdd;
-  const _AddLoteItemSheet({required this.onAdd});
-
-  @override
-  ConsumerState<_AddLoteItemSheet> createState() => _AddLoteItemSheetState();
-}
-
-class _AddLoteItemSheetState extends ConsumerState<_AddLoteItemSheet> {
-  String? _tipoTelaId;
-  String? _empresaId;
-  String? _anchoId;
-  final _precioController = TextEditingController();
-
-  bool _tieneAnchoEspecial = false; // Controlado por lÃ³gica inteligente
-  bool _isSavingCatalog = false; // Para loading en creaciÃ³n rÃ¡pida
-
-  @override
-  void dispose() {
-    _precioController.dispose();
-    super.dispose();
-  }
-
-  // âœ… LÃ“GICA INTELIGENTE DE ANCHO (MISMA QUE NEWROLLODIALOG)
-  void _checkAnchoLogic() {
-    if (_empresaId != null && _tipoTelaId != null) {
-      final rollos = ref.read(rollosProvider).maybeWhen(
-            data: (d) => d,
-            orElse: () => <Rollo>[],
-          );
-
-      // Buscar coincidencias histÃ³ricas
-      final matches = rollos
-          .where(
-            (r) => r.empresaId == _empresaId && r.tipoTelaId == _tipoTelaId,
-          )
-          .toList();
-
-      if (matches.isNotEmpty) {
-        // Verificar si tienen ancho
-        final withAncho = matches.where((r) => r.anchoId != null).toList();
-
-        if (withAncho.isNotEmpty) {
-          // Si la mayorÃ­a tiene ancho, activamos el dropdown
-          setState(() {
-            _tieneAnchoEspecial = true;
-            // Sugerir el mÃ¡s frecuente
-            final freq = <String, int>{};
-            for (var r in withAncho) {
-              freq[r.anchoId!] = (freq[r.anchoId!] ?? 0) + 1;
-            }
-            _anchoId = freq.entries
-                .reduce((a, b) => a.value >= b.value ? a : b)
-                .key;
-          });
-        } else {
-          // Si no tienen ancho, ocultamos
-          setState(() {
-            _tieneAnchoEspecial = false;
-            _anchoId = null;
-          });
-        }
-      } else {
-        // Si no hay historial, permitimos que el usuario decida (oculto por defecto)
-        setState(() {
-          _tieneAnchoEspecial = false;
-          _anchoId = null;
-        });
-      }
-    }
-  }
-
-  // âœ… FUNCIÃ“N PARA CREAR ANCHO RÃPIDO
-  Future<void> _addAncho() async {
-    final ctrl = TextEditingController();
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setStateDialog) {
-          return AlertDialog(
-            title: const Text("Nuevo Ancho"),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: ctrl,
-                  decoration: const InputDecoration(
-                    hintText: "Ej: 1.50m",
-                  ),
-                ),
-                if (_isSavingCatalog)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 20),
-                    child: CircularProgressIndicator(),
-                  ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: _isSavingCatalog ? null : () => Navigator.pop(ctx),
-                child: const Text("Cancelar"),
-              ),
-              ElevatedButton(
-                onPressed: _isSavingCatalog
-                    ? null
-                    : () async {
-                        final name = ctrl.text.trim();
-                        if (name.isEmpty) return;
-
-                        setStateDialog(() => _isSavingCatalog = true);
-
-                        final id = Helpers.generarId();
-                        await ref.read(catalogServiceProvider).addAncho(
-                              Ancho(id: id, nombre: name),
-                            );
-                        ref.refresh(anchosProvider);
-
-                        setStateDialog(() => _isSavingCatalog = false);
-
-                        // Seleccionar el nuevo automÃ¡ticamente
-                        setState(() => _anchoId = id);
-                        
-                        if (mounted) Navigator.pop(ctx);
-                      },
-                child: const Text("Guardar"),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final tipos = ref.watch(tiposTelaProvider);
-    final empresas = ref.watch(empresasProvider);
-    final anchos = ref.watch(anchosProvider);
-
-    return Container(
-      padding: EdgeInsets.fromLTRB(
-        20,
-        20,
-        20,
-        MediaQuery.of(context).viewInsets.bottom + 20,
-      ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text("Agregar Tela al Lote", style: AppTextStyles.heading2),
-            const SizedBox(height: 20),
-
-            // Tipo de Tela
-            DropdownButtonFormField<String>(
-              value: _tipoTelaId,
-              items: tipos
-                  .map((t) => DropdownMenuItem(value: t.id, child: Text(t.nombre)))
-                  .toList(),
-              onChanged: (v) {
-                setState(() => _tipoTelaId = v);
-                _checkAnchoLogic(); // Ejecutar lÃ³gica
-              },
-              decoration: const InputDecoration(labelText: "Tipo de Tela"),
-            ),
-            const SizedBox(height: 12),
-
-            // Empresa
-            DropdownButtonFormField<String>(
-              value: _empresaId,
-              items: empresas
-                  .map((e) => DropdownMenuItem(value: e.id, child: Text(e.nombre)))
-                  .toList(),
-              onChanged: (v) {
-                setState(() => _empresaId = v);
-                _checkAnchoLogic(); // Ejecutar lÃ³gica
-              },
-              decoration: const InputDecoration(labelText: "Empresa"),
-            ),
-            const SizedBox(height: 12),
-
-            // âœ… ANCHO: Mostrar solo si la lÃ³gica lo determina
-            if (_tieneAnchoEspecial)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12.0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value: _anchoId,
-                        items: anchos
-                            .map((a) => DropdownMenuItem(
-                                  value: a.id,
-                                  child: Text(a.nombre),
-                                ))
-                            .toList(),
-                        onChanged: (v) => setState(() => _anchoId = v),
-                        decoration: const InputDecoration(
-                          labelText: "Ancho Especial *",
-                        ),
-                        validator: (v) =>
-                            _tieneAnchoEspecial && v == null ? "Requerido" : null,
-                      ),
-                    ),
-                    // BotÃ³n (+) para crear nuevo ancho
-                    IconButton(
-                      icon: const Icon(Icons.add),
-                      onPressed: _addAncho,
-                    ),
-                  ],
-                ),
-              ),
-
-            TextFormField(
-              controller: _precioController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: "Precio Compra USD *"),
-            ),
-            const SizedBox(height: 20),
-
-            ElevatedButton.icon(
-              onPressed: () {
-                if (_tipoTelaId == null ||
-                    _empresaId == null ||
-                    _precioController.text.isEmpty) return;
-                // Si tiene ancho especial, validar que estÃ© seleccionado
-                if (_tieneAnchoEspecial && _anchoId == null) return;
-
-                final item = LoteItem(
-                  id: Helpers.generarId(),
-                  tipoTelaId: _tipoTelaId!,
-                  empresaId: _empresaId!,
-                  anchoId: _anchoId,
-                  precioUSD: double.tryParse(_precioController.text) ?? 0,
-                );
-
-                widget.onAdd(item);
-                Navigator.pop(context);
-              },
-              icon: const Icon(Icons.add),
-              label: const Text("AGREGAR"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.success,
-                minimumSize: const Size(double.infinity, 50),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

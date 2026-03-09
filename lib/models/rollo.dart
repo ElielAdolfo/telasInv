@@ -14,12 +14,16 @@
   final String? anchoId; // ID del catálogo de anchos
   final String? lote;
   final String? numeroRollo;
-  
+
   final String? loteId;
   final double? precioUsd; // Precio en dólares (histórico)
   final double? tipoCambio; // Tipo de cambio (histórico)
   final double? precioCompra; // Precio final en Bolivianos (calculado)
 
+  final bool activo; // ✅ NUEVO
+  final String? usuarioCreadorId; // ✅ NUEVO
+  final String? usuarioEliminadorId; // ✅ NUEVO
+  final DateTime? fechaEliminacion; // ✅ NUEVO
   Rollo({
     required this.id,
     this.sucursalId,
@@ -39,6 +43,10 @@
     this.precioUsd,
     this.tipoCambio,
     this.precioCompra,
+    this.activo = true,
+    this.usuarioCreadorId,
+    this.usuarioEliminadorId,
+    this.fechaEliminacion,
   });
 
   factory Rollo.fromJson(Map<String, dynamic> json) => Rollo(
@@ -66,6 +74,12 @@
     precioUsd: (json['precioUsd'] as num?)?.toDouble(),
     tipoCambio: (json['tipoCambio'] as num?)?.toDouble(),
     precioCompra: (json['precioCompra'] as num?)?.toDouble(),
+    activo: json['activo'] ?? true,
+    usuarioCreadorId: json['usuarioCreadorId'],
+    usuarioEliminadorId: json['usuarioEliminadorId'],
+    fechaEliminacion: json['fechaEliminacion'] != null
+        ? DateTime.parse(json['fechaEliminacion'])
+        : null,
   );
 
   Map<String, dynamic> toJson() => {
@@ -87,6 +101,10 @@
     'precioUsd': precioUsd,
     'tipoCambio': tipoCambio,
     'precioCompra': precioCompra,
+    'activo': activo,
+    'usuarioCreadorId': usuarioCreadorId,
+    'usuarioEliminadorId': usuarioEliminadorId,
+    'fechaEliminacion': fechaEliminacion?.toIso8601String(),
   };
 }
 

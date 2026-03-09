@@ -48,11 +48,19 @@ class ColorTela {
   final String id;
   final String nombre;
   final String hex;
+  final bool activo;
+  final String? usuarioCreadorId;
+  final DateTime? fechaEliminacion;
+  final String? usuarioEliminadorId;
   final DateTime? fechaCreacion;
   ColorTela({
     required this.id,
     required this.nombre,
     this.hex = '#3b82f6',
+    this.activo = true,
+    this.usuarioCreadorId,
+    this.fechaEliminacion,
+    this.usuarioEliminadorId,
     this.fechaCreacion,
   });
   factory ColorTela.fromJson(Map<String, dynamic> json) => ColorTela(
@@ -62,12 +70,23 @@ class ColorTela {
     fechaCreacion: json['fechaCreacion'] != null
         ? DateTime.parse(json['fechaCreacion'])
         : null,
+
+    activo: json['activo'] ?? true,
+    usuarioCreadorId: json['usuarioCreadorId'],
+    usuarioEliminadorId: json['usuarioEliminadorId'],
+    fechaEliminacion: json['fechaEliminacion'] != null 
+        ? DateTime.parse(json['fechaEliminacion']) 
+        : null,
   );
   Map<String, dynamic> toJson() => {
     'id': id,
     'nombre': nombre,
     'hex': hex,
     'fechaCreacion': fechaCreacion?.toIso8601String(),
+    'activo': activo,
+    'usuarioCreadorId': usuarioCreadorId,
+    'usuarioEliminadorId': usuarioEliminadorId,
+    'fechaEliminacion': fechaEliminacion?.toIso8601String(),
   };
 }
 
@@ -111,5 +130,3 @@ class Ancho {
     'fechaCreacion': fechaCreacion?.toIso8601String(),
   };
 }
-
-
