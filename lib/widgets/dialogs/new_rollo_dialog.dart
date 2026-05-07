@@ -690,7 +690,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
         children: [
           Expanded(
             child: DropdownButtonFormField<String>(
-              value: selectedId,
+              initialValue: selectedId,
               items: items
                   .map(
                     (e) => DropdownMenuItem(
@@ -735,7 +735,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
         children: [
           Expanded(
             child: DropdownButtonFormField<String>(
-              value: selectedId,
+              initialValue: selectedId,
               dropdownColor: Colors.white,
               style: TextStyle(color: txtColor, fontWeight: FontWeight.w600),
               items: colores

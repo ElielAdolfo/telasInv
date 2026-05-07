@@ -116,7 +116,7 @@ class HomeFilters extends ConsumerWidget {
     return SizedBox(
       width: 150,
       child: DropdownButtonFormField<String>(
-        value: valueId.isEmpty ? null : valueId,
+        initialValue: valueId.isEmpty ? null : valueId,
         isExpanded: true,
         decoration: InputDecoration(
           labelText: label,

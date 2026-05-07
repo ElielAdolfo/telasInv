@@ -6,7 +6,6 @@ import 'package:inv_telas/screens/auth_screen.dart';
 import 'package:inv_telas/screens/homeScreen.dart';
 import 'firebase_options.dart';
 
-import 'package:inv_telas/services/seed_service.dart';
 
 import 'package:intl/date_symbol_data_local.dart';
 

@@ -480,7 +480,7 @@ class _AddLoteItemSheetState extends ConsumerState<_AddLoteItemSheet> {
             const Text("Agregar Tela al Lote", style: AppTextStyles.heading2),
             const SizedBox(height: 20),
             DropdownButtonFormField<String>(
-              value: _tipoTelaId,
+              initialValue: _tipoTelaId,
               items: tipos
                   .map(
                     (t) => DropdownMenuItem(value: t.id, child: Text(t.nombre)),
@@ -494,7 +494,7 @@ class _AddLoteItemSheetState extends ConsumerState<_AddLoteItemSheet> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _empresaId,
+              initialValue: _empresaId,
               items: empresas
                   .map(
                     (e) => DropdownMenuItem(value: e.id, child: Text(e.nombre)),
@@ -514,7 +514,7 @@ class _AddLoteItemSheetState extends ConsumerState<_AddLoteItemSheet> {
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _anchoId,
+                        initialValue: _anchoId,
                         items: anchos
                             .map(
                               (a) => DropdownMenuItem(
@@ -548,8 +548,9 @@ class _AddLoteItemSheetState extends ConsumerState<_AddLoteItemSheet> {
               onPressed: () {
                 if (_tipoTelaId == null ||
                     _empresaId == null ||
-                    _precioController.text.isEmpty)
+                    _precioController.text.isEmpty) {
                   return;
+                }
                 if (_tieneAnchoEspecial && _anchoId == null) return;
 
                 final item = LoteItem(

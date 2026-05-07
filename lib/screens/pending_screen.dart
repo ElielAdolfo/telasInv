@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:inv_telas/models/models.dart';
 import 'package:inv_telas/providers/providers.dart';
 import 'package:inv_telas/utils/constants.dart';
 import 'package:inv_telas/widgets/confirm_dialog.dart';

@@ -117,7 +117,7 @@ class GroupDetailDialog extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         title: const Text("Mover Rollo"),
         content: DropdownButtonFormField<String>(
-          value: selectedId,
+          initialValue: selectedId,
           items: sucursales
               .map(
                 (s) => DropdownMenuItem(

@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:inv_telas/models/lote.dart';
 import 'firebase_service.dart';
 import '../config/env.dart';

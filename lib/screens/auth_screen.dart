@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/models/usuario.dart';
 import 'package:inv_telas/providers/auth_provider.dart';
-import 'package:inv_telas/providers/providers.dart';
 import 'package:inv_telas/utils/utils.dart';
 import 'package:inv_telas/screens/homeScreen.dart';
 
