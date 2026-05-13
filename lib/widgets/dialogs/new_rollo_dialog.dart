@@ -233,16 +233,15 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                       Column(
                         children: [
                           // ✅ SELECTOR MONEDA
-                          DropdownButtonFormField<String?>(
+                          DropdownButtonFormField<String>(
                             value: _monedaSeleccionadaId,
                             decoration: const InputDecoration(
                               labelText: "Moneda",
                               border: OutlineInputBorder(),
                             ),
                             items: [
-                              // Nueva Moneda
                               const DropdownMenuItem(
-                                value: null,
+                                value: '__new__',
                                 child: Text(
                                   "+ Nueva Moneda",
                                   style: TextStyle(
@@ -252,7 +251,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                                 ),
                               ),
 
-                              // BD
                               ...ref
                                   .watch(monedasProvider)
                                   .map(
@@ -264,8 +262,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                             ],
 
                             onChanged: (value) async {
-                              // Nueva moneda
-                              if (value == null) {
+                              if (value == '__new__') {
                                 final nueva = await showDialog<Moneda>(
                                   context: context,
                                   builder: (_) => const NewCurrencyDialog(),
@@ -295,7 +292,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                               });
                             },
                           ),
-
                           const SizedBox(height: 12),
 
                           // ✅ SI ES BS
