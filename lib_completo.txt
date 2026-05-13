@@ -103,7 +103,6 @@ import 'package:inv_telas/screens/auth_screen.dart';
 import 'package:inv_telas/screens/homeScreen.dart';
 import 'firebase_options.dart';
 
-import 'package:inv_telas/services/seed_service.dart';
 
 import 'package:intl/date_symbol_data_local.dart';
 
@@ -191,6 +190,39 @@ class MyApp extends StatelessWidget {
 
 ===== D:\inv\inv_telas\lib\Untitled-1.dart =====
 
+class Rollo {
+  // ... campos existentes
+  final bool activo; // âœ… NUEVO
+  final String? usuarioCreadorId; // âœ… NUEVO
+  final String? usuarioEliminadorId; // âœ… NUEVO
+  final DateTime? fechaEliminacion; // âœ… NUEVO
+
+  Rollo({
+    // ... constructores existentes
+    this.activo = true, 
+    this.usuarioCreadorId,
+    this.usuarioEliminadorId,
+    this.fechaEliminacion,
+  });
+
+  factory Rollo.fromJson(Map<String, dynamic> json) => Rollo(
+    // ... mapeos existentes
+    activo: json['activo'] ?? true,
+    usuarioCreadorId: json['usuarioCreadorId'],
+    usuarioEliminadorId: json['usuarioEliminadorId'],
+    fechaEliminacion: json['fechaEliminacion'] != null 
+        ? DateTime.parse(json['fechaEliminacion']) 
+        : null,
+  );
+
+  Map<String, dynamic> toJson() => {
+    // ... mapeos existentes
+    'activo': activo,
+    'usuarioCreadorId': usuarioCreadorId,
+    'usuarioEliminadorId': usuarioEliminadorId,
+    'fechaEliminacion': fechaEliminacion?.toIso8601String(),
+  };
+}
 
 
 ===== D:\inv\inv_telas\lib\config\env.dart =====
@@ -269,11 +301,19 @@ class ColorTela {
   final String id;
   final String nombre;
   final String hex;
+  final bool activo;
+  final String? usuarioCreadorId;
+  final DateTime? fechaEliminacion;
+  final String? usuarioEliminadorId;
   final DateTime? fechaCreacion;
   ColorTela({
     required this.id,
     required this.nombre,
     this.hex = '#3b82f6',
+    this.activo = true,
+    this.usuarioCreadorId,
+    this.fechaEliminacion,
+    this.usuarioEliminadorId,
     this.fechaCreacion,
   });
   factory ColorTela.fromJson(Map<String, dynamic> json) => ColorTela(
@@ -283,12 +323,23 @@ class ColorTela {
     fechaCreacion: json['fechaCreacion'] != null
         ? DateTime.parse(json['fechaCreacion'])
         : null,
+
+    activo: json['activo'] ?? true,
+    usuarioCreadorId: json['usuarioCreadorId'],
+    usuarioEliminadorId: json['usuarioEliminadorId'],
+    fechaEliminacion: json['fechaEliminacion'] != null
+        ? DateTime.parse(json['fechaEliminacion'])
+        : null,
   );
   Map<String, dynamic> toJson() => {
     'id': id,
     'nombre': nombre,
     'hex': hex,
     'fechaCreacion': fechaCreacion?.toIso8601String(),
+    'activo': activo,
+    'usuarioCreadorId': usuarioCreadorId,
+    'usuarioEliminadorId': usuarioEliminadorId,
+    'fechaEliminacion': fechaEliminacion?.toIso8601String(),
   };
 }
 
@@ -333,7 +384,39 @@ class Ancho {
   };
 }
 
+class Moneda {
+  final String id;
+  final String nombre;
+  final String? simbolo;
+  final bool activo;
+  final DateTime? fechaCreacion;
 
+  Moneda({
+    required this.id,
+    required this.nombre,
+    this.simbolo,
+    this.activo = true,
+    this.fechaCreacion,
+  });
+
+  factory Moneda.fromJson(Map<String, dynamic> json) => Moneda(
+    id: json['id'] ?? '',
+    nombre: json['nombre'] ?? '',
+    simbolo: json['simbolo'],
+    activo: json['activo'] ?? true,
+    fechaCreacion: json['fechaCreacion'] != null
+        ? DateTime.parse(json['fechaCreacion'])
+        : null,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'nombre': nombre,
+    'simbolo': simbolo,
+    'activo': activo,
+    'fechaCreacion': fechaCreacion?.toIso8601String(),
+  };
+}
 
 
 ===== D:\inv\inv_telas\lib\models\filtros_model.dart =====
@@ -467,14 +550,22 @@ class Rollo {
   final DateTime fechaCreacion;
   final List<HistorialMovimiento> historial;
 
-  final String? anchoId; // ID del catálogo de anchos
+  final String? anchoId;
   final String? lote;
   final String? numeroRollo;
-  
+
   final String? loteId;
-  final double? precioUsd; // Precio en dólares (histórico)
-  final double? tipoCambio; // Tipo de cambio (histórico)
-  final double? precioCompra; // Precio final en Bolivianos (calculado)
+  final double? precioUsd;
+  final double? tipoCambio;
+  final double? precioCompra;
+
+  final bool activo;
+  final String? usuarioCreadorId;
+  final String? usuarioEliminadorId;
+  final DateTime? fechaEliminacion;
+
+  // ✅ NUEVO
+  final String? monedaId;
 
   Rollo({
     required this.id,
@@ -495,6 +586,13 @@ class Rollo {
     this.precioUsd,
     this.tipoCambio,
     this.precioCompra,
+    this.activo = true,
+    this.usuarioCreadorId,
+    this.usuarioEliminadorId,
+    this.fechaEliminacion,
+
+    // ✅ AGREGADO
+    this.monedaId,
   });
 
   factory Rollo.fromJson(Map<String, dynamic> json) => Rollo(
@@ -522,6 +620,15 @@ class Rollo {
     precioUsd: (json['precioUsd'] as num?)?.toDouble(),
     tipoCambio: (json['tipoCambio'] as num?)?.toDouble(),
     precioCompra: (json['precioCompra'] as num?)?.toDouble(),
+    activo: json['activo'] ?? true,
+    usuarioCreadorId: json['usuarioCreadorId'],
+    usuarioEliminadorId: json['usuarioEliminadorId'],
+    fechaEliminacion: json['fechaEliminacion'] != null
+        ? DateTime.parse(json['fechaEliminacion'])
+        : null,
+
+    // ✅ AGREGADO
+    monedaId: json['monedaId'],
   );
 
   Map<String, dynamic> toJson() => {
@@ -543,6 +650,13 @@ class Rollo {
     'precioUsd': precioUsd,
     'tipoCambio': tipoCambio,
     'precioCompra': precioCompra,
+    'activo': activo,
+    'usuarioCreadorId': usuarioCreadorId,
+    'usuarioEliminadorId': usuarioEliminadorId,
+    'fechaEliminacion': fechaEliminacion?.toIso8601String(),
+
+    // ✅ AGREGADO
+    'monedaId': monedaId,
   };
 }
 
@@ -1035,6 +1149,14 @@ class LotesNotifier extends StateNotifier<List<Lote>> {
   }
 }
 
+final monedasProvider =
+    StateNotifierProvider<CatalogNotifier<Moneda>, List<Moneda>>((ref) {
+      return CatalogNotifier<Moneda>(
+        ref.watch(catalogServiceProvider),
+        (s) => s.getMonedas(),
+      );
+    });
+
 
 ===== D:\inv\inv_telas\lib\screens\auth_screen.dart =====
 
@@ -1042,7 +1164,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/models/usuario.dart';
 import 'package:inv_telas/providers/auth_provider.dart';
-import 'package:inv_telas/providers/providers.dart';
 import 'package:inv_telas/utils/utils.dart';
 import 'package:inv_telas/screens/homeScreen.dart';
 
@@ -2201,7 +2322,7 @@ class _AddLoteItemSheetState extends ConsumerState<_AddLoteItemSheet> {
             const Text("Agregar Tela al Lote", style: AppTextStyles.heading2),
             const SizedBox(height: 20),
             DropdownButtonFormField<String>(
-              value: _tipoTelaId,
+              initialValue: _tipoTelaId,
               items: tipos
                   .map(
                     (t) => DropdownMenuItem(value: t.id, child: Text(t.nombre)),
@@ -2215,7 +2336,7 @@ class _AddLoteItemSheetState extends ConsumerState<_AddLoteItemSheet> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _empresaId,
+              initialValue: _empresaId,
               items: empresas
                   .map(
                     (e) => DropdownMenuItem(value: e.id, child: Text(e.nombre)),
@@ -2235,7 +2356,7 @@ class _AddLoteItemSheetState extends ConsumerState<_AddLoteItemSheet> {
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _anchoId,
+                        initialValue: _anchoId,
                         items: anchos
                             .map(
                               (a) => DropdownMenuItem(
@@ -2269,8 +2390,9 @@ class _AddLoteItemSheetState extends ConsumerState<_AddLoteItemSheet> {
               onPressed: () {
                 if (_tipoTelaId == null ||
                     _empresaId == null ||
-                    _precioController.text.isEmpty)
+                    _precioController.text.isEmpty) {
                   return;
+                }
                 if (_tieneAnchoEspecial && _anchoId == null) return;
 
                 final item = LoteItem(
@@ -2302,7 +2424,6 @@ class _AddLoteItemSheetState extends ConsumerState<_AddLoteItemSheet> {
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:inv_telas/models/models.dart';
 import 'package:inv_telas/providers/providers.dart';
 import 'package:inv_telas/utils/constants.dart';
 import 'package:inv_telas/widgets/confirm_dialog.dart';
@@ -2646,7 +2767,6 @@ class AuthService {
 
 ===== D:\inv\inv_telas\lib\services\catalog_service.dart =====
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:inv_telas/models/models.dart';
 import 'firebase_service.dart';
 import '../config/env.dart';
@@ -2657,6 +2777,7 @@ class CatalogService extends FirebaseService {
   final String _coloresCol = Env.col('catalog_colores');
   final String _tiposCol = Env.col('catalog_tipos_tela');
   final String _anchosCol = Env.col('catalog_anchos');
+  final String _monedaCol = Env.col('catalog_monedas');
 
   // EMPRESAS
   Future<List<Empresa>> getEmpresas() async => await getAll<Empresa>(
@@ -2717,6 +2838,19 @@ class CatalogService extends FirebaseService {
     collectionPath: _anchosCol,
     id: ancho.id,
     data: ancho.toJson(),
+  );
+
+  // MONEDAS
+  Future<List<Moneda>> getMonedas() async => await getAll<Moneda>(
+    collectionPath: _monedaCol,
+    fromJson: Moneda.fromJson,
+    orderBy: 'nombre',
+  );
+
+  Future<void> addMoneda(Moneda moneda) async => await create(
+    collectionPath: _monedaCol,
+    id: moneda.id,
+    data: moneda.toJson(),
   );
 }
 
@@ -2810,7 +2944,6 @@ class LocalStorageService {
 
 ===== D:\inv\inv_telas\lib\services\lote_service.dart =====
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:inv_telas/models/lote.dart';
 import 'firebase_service.dart';
 import '../config/env.dart';
@@ -3088,8 +3221,8 @@ export 'constants.dart'; export 'helpers.dart'; export 'validators.dart';
 ===== D:\inv\inv_telas\lib\utils\validators.dart =====
 
 class Validators {
-  static String? required(String? value, [String? fieldName]) => (value == null || value.trim().isEmpty) ? '\ es requerido' : null;
-  static String? positiveNumber(String? value, [String? fieldName]) { if (value == null || value.trim().isEmpty) return '\ es requerido'; final n = double.tryParse(value); return (n == null) ? 'Debe ser un numero valido' : (n <= 0) ? 'Debe ser mayor que cero' : null; }
+  static String? required(String? value, [String? fieldName]) => (value == null || value.trim().isEmpty) ? ' es requerido' : null;
+  static String? positiveNumber(String? value, [String? fieldName]) { if (value == null || value.trim().isEmpty) return ' es requerido'; final n = double.tryParse(value); return (n == null) ? 'Debe ser un numero valido' : (n <= 0) ? 'Debe ser mayor que cero' : null; }
 }
 
 
@@ -3560,7 +3693,7 @@ class HomeFilters extends ConsumerWidget {
     return SizedBox(
       width: 150,
       child: DropdownButtonFormField<String>(
-        value: valueId.isEmpty ? null : valueId,
+        initialValue: valueId.isEmpty ? null : valueId,
         isExpanded: true,
         decoration: InputDecoration(
           labelText: label,
@@ -3897,7 +4030,7 @@ class GroupDetailDialog extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         title: const Text("Mover Rollo"),
         content: DropdownButtonFormField<String>(
-          value: selectedId,
+          initialValue: selectedId,
           items: sucursales
               .map(
                 (s) => DropdownMenuItem(
@@ -3964,6 +4097,96 @@ class _InfoBox extends StatelessWidget {
 }
 
 
+===== D:\inv\inv_telas\lib\widgets\dialogs\new_currency_dialog.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/models/catalogos.dart';
+import 'package:inv_telas/providers/providers.dart';
+import 'package:inv_telas/utils/utils.dart';
+import 'package:uuid/uuid.dart';
+
+class NewCurrencyDialog extends ConsumerStatefulWidget {
+  const NewCurrencyDialog({super.key});
+
+  @override
+  ConsumerState<NewCurrencyDialog> createState() => _NewCurrencyDialogState();
+}
+
+class _NewCurrencyDialogState extends ConsumerState<NewCurrencyDialog> {
+  final _nameCtrl = TextEditingController();
+  final _symbolCtrl = TextEditingController();
+  bool _loading = false;
+
+  Future<void> _save() async {
+    if (_nameCtrl.text.isEmpty) return;
+    
+    setState(() => _loading = true);
+    
+    final newMoneda = Moneda(
+      id: const Uuid().v4().toString().substring(0, 12),
+      nombre: _nameCtrl.text.toUpperCase(),
+      simbolo: _symbolCtrl.text,
+    );
+
+    try {
+      // Usamos el servicio directamente o el notifier
+      await ref.read(catalogServiceProvider).addMoneda(newMoneda);
+      // Recargamos la lista de monedas
+      ref.read(monedasProvider.notifier).load();
+      
+      Navigator.pop(context, newMoneda); // Retornamos la nueva moneda
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error al crear moneda: $e"), backgroundColor: Colors.red),
+      );
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text("Nueva Moneda"),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _nameCtrl,
+            decoration: const InputDecoration(
+              labelText: "Nombre (ej. DÃ³lar, Yuan)",
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _symbolCtrl,
+            decoration: const InputDecoration(
+              labelText: "SÃ­mbolo (ej. \$, Â¥)",
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text("Cancelar"),
+        ),
+        ElevatedButton(
+          onPressed: _loading ? null : _save,
+          style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+          child: _loading 
+            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+            : const Text("Crear"),
+        ),
+      ],
+    );
+  }
+}
+
+
 ===== D:\inv\inv_telas\lib\widgets\dialogs\new_rollo_dialog.dart =====
 
 import 'package:flutter/material.dart';
@@ -3977,6 +4200,7 @@ import 'package:inv_telas/utils/utils.dart';
 import 'package:inv_telas/widgets/widgets.dart';
 import 'package:flex_color_picker/flex_color_picker.dart' as flex;
 import 'package:flutter_colorpicker/flutter_colorpicker.dart' as flutter_picker;
+import 'package:inv_telas/widgets/dialogs/new_currency_dialog.dart';
 
 class NewRolloDialog extends ConsumerStatefulWidget {
   const NewRolloDialog({super.key});
@@ -4015,6 +4239,12 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   double _precioCalculadoUSD = 0.0;
   bool _precioEncontradoEnLote = false;
 
+  Moneda? _monedaSeleccionada;
+  bool _isBs = true;
+
+  final _precioOriginalController = TextEditingController();
+  final _tipoCambioController = TextEditingController();
+
   bool _isSavingCatalog = false;
   bool _isSaving = false;
 
@@ -4024,6 +4254,8 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     _codigoController = TextEditingController();
     _metrajeController = TextEditingController();
     _fecha = DateTime.now();
+    _precioOriginalController.addListener(_calcularPrecioBs);
+    _tipoCambioController.addListener(_calcularPrecioBs);
   }
 
   @override
@@ -4035,6 +4267,8 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     _numeroRolloController.dispose();
     _observacionesController.dispose();
     _precioManualController.dispose();
+    _precioOriginalController.dispose();
+    _tipoCambioController.dispose();
     super.dispose();
   }
 
@@ -4057,6 +4291,20 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
       // No reseteamos _habilitarAncho aquÃ­, porque depende de la selecciÃ³n actual de Empresa/Tipo
       // que se mantiene fija.
     });
+  }
+
+  void _calcularPrecioBs() {
+    if (_isBs) return;
+
+    final original = double.tryParse(_precioOriginalController.text) ?? 0;
+
+    final tc = double.tryParse(_tipoCambioController.text) ?? 0;
+
+    final total = original * tc;
+
+    _precioManualController.text = total.toStringAsFixed(2);
+
+    setState(() {});
   }
 
   @override
@@ -4168,14 +4416,141 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                           style: TextStyle(color: Colors.red),
                         ),
                     ] else ...[
-                      TextFormField(
-                        controller: _precioManualController,
-                        keyboardType: TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        decoration: const InputDecoration(
-                          labelText: "Precio Compra (BS) *",
-                        ),
+                      Column(
+                        children: [
+                          // âœ… SELECTOR MONEDA
+                          DropdownButtonFormField<Moneda?>(
+                            value: _monedaSeleccionada,
+                            decoration: const InputDecoration(
+                              labelText: "Moneda",
+                              border: OutlineInputBorder(),
+                            ),
+                            items: [
+                              // Nueva Moneda
+                              const DropdownMenuItem(
+                                value: null,
+                                child: Text(
+                                  "+ Nueva Moneda",
+                                  style: TextStyle(
+                                    color: Colors.blue,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+
+                              // BD
+                              ...ref
+                                  .watch(monedasProvider)
+                                  .map(
+                                    (m) => DropdownMenuItem(
+                                      value: m,
+                                      child: Text(m.nombre),
+                                    ),
+                                  ),
+                            ],
+
+                            onChanged: (value) async {
+                              // Crear moneda
+                              if (value == null) {
+                                final nueva = await showDialog<Moneda>(
+                                  context: context,
+                                  builder: (_) => const NewCurrencyDialog(),
+                                );
+
+                                if (nueva != null) {
+                                  setState(() {
+                                    _monedaSeleccionada = nueva;
+                                    _isBs = false;
+                                  });
+                                }
+
+                                return;
+                              }
+
+                              setState(() {
+                                _monedaSeleccionada = value;
+                                _isBs = value.id == 'bs';
+
+                                _precioOriginalController.clear();
+                                _tipoCambioController.clear();
+                                _precioManualController.clear();
+                              });
+                            },
+                          ),
+
+                          const SizedBox(height: 12),
+
+                          // âœ… SI ES BS
+                          if (_isBs)
+                            TextFormField(
+                              controller: _precioManualController,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                              decoration: const InputDecoration(
+                                labelText: "Precio Compra (BS)",
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+
+                          // âœ… MONEDA EXTRANJERA
+                          if (!_isBs) ...[
+                            Row(
+                              children: [
+                                Expanded(
+                                  flex: 2,
+                                  child: TextFormField(
+                                    controller: _precioOriginalController,
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                          decimal: true,
+                                        ),
+                                    decoration: InputDecoration(
+                                      labelText:
+                                          "Monto ${_monedaSeleccionada?.nombre ?? ''}",
+                                      border: const OutlineInputBorder(),
+                                    ),
+                                  ),
+                                ),
+
+                                const SizedBox(width: 12),
+
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _tipoCambioController,
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                          decimal: true,
+                                        ),
+                                    decoration: const InputDecoration(
+                                      labelText: "T.C.",
+                                      border: OutlineInputBorder(),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 12),
+
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                "Total BS: ${_precioManualController.text}",
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ],
 
@@ -4309,10 +4684,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
               style: AppTextStyles.heading3.copyWith(color: AppColors.primary),
             ),
           ),
-          Text(
-            "TC: ${lote.tipoCambio}",
-            style: AppTextStyles.bodySmall,
-          ),
+          Text("TC: ${lote.tipoCambio}", style: AppTextStyles.bodySmall),
         ],
       ),
     );
@@ -4420,12 +4792,8 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
             i.tipoTelaId == _tipoTelaId &&
             i.empresaId == _empresaId &&
             (i.anchoId == _anchoId || (!_habilitarAncho && i.anchoId == null)),
-        orElse: () => LoteItem(
-          id: '',
-          tipoTelaId: '',
-          empresaId: '',
-          precioUSD: 0,
-        ),
+        orElse: () =>
+            LoteItem(id: '', tipoTelaId: '', empresaId: '', precioUSD: 0),
       );
 
       setState(() {
@@ -4658,7 +5026,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
         children: [
           Expanded(
             child: DropdownButtonFormField<String>(
-              value: selectedId,
+              initialValue: selectedId,
               items: items
                   .map(
                     (e) => DropdownMenuItem(
@@ -4703,7 +5071,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
         children: [
           Expanded(
             child: DropdownButtonFormField<String>(
-              value: selectedId,
+              initialValue: selectedId,
               dropdownColor: Colors.white,
               style: TextStyle(color: txtColor, fontWeight: FontWeight.w600),
               items: colores
@@ -4772,6 +5140,12 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     } else {
       // Si no hay lote, usar precio manual
       precioFinal = double.tryParse(_precioManualController.text) ?? 0;
+
+      if (!_isBs) {
+        precioUsd = double.tryParse(_precioOriginalController.text);
+
+        tipoCambio = double.tryParse(_tipoCambioController.text);
+      }
     }
 
     return List.generate(

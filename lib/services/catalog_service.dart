@@ -8,6 +8,7 @@ class CatalogService extends FirebaseService {
   final String _coloresCol = Env.col('catalog_colores');
   final String _tiposCol = Env.col('catalog_tipos_tela');
   final String _anchosCol = Env.col('catalog_anchos');
+  final String _monedaCol = Env.col('catalog_monedas');
 
   // EMPRESAS
   Future<List<Empresa>> getEmpresas() async => await getAll<Empresa>(
@@ -68,5 +69,18 @@ class CatalogService extends FirebaseService {
     collectionPath: _anchosCol,
     id: ancho.id,
     data: ancho.toJson(),
+  );
+
+  // MONEDAS
+  Future<List<Moneda>> getMonedas() async => await getAll<Moneda>(
+    collectionPath: _monedaCol,
+    fromJson: Moneda.fromJson,
+    orderBy: 'nombre',
+  );
+
+  Future<void> addMoneda(Moneda moneda) async => await create(
+    collectionPath: _monedaCol,
+    id: moneda.id,
+    data: moneda.toJson(),
   );
 }

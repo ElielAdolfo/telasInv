@@ -1,4 +1,6 @@
-﻿class Empresa {
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
+
+class Empresa {
   final String id;
   final String nombre;
   final DateTime? fechaCreacion;
@@ -74,8 +76,8 @@ class ColorTela {
     activo: json['activo'] ?? true,
     usuarioCreadorId: json['usuarioCreadorId'],
     usuarioEliminadorId: json['usuarioEliminadorId'],
-    fechaEliminacion: json['fechaEliminacion'] != null 
-        ? DateTime.parse(json['fechaEliminacion']) 
+    fechaEliminacion: json['fechaEliminacion'] != null
+        ? DateTime.parse(json['fechaEliminacion'])
         : null,
   );
   Map<String, dynamic> toJson() => {
@@ -128,5 +130,41 @@ class Ancho {
     'id': id,
     'nombre': nombre,
     'fechaCreacion': fechaCreacion?.toIso8601String(),
+  };
+}
+
+class Moneda {
+  final String id;
+  final String nombre;
+  final String? simbolo;
+  final bool activo;
+  final DateTime? fechaCreacion;
+
+  Moneda({
+    required this.id,
+    required this.nombre,
+    this.simbolo,
+    this.activo = true,
+    this.fechaCreacion,
+  });
+
+  factory Moneda.fromJson(Map<String, dynamic> json) => Moneda(
+    id: json['id'] ?? '',
+    nombre: json['nombre'] ?? '',
+    simbolo: json['simbolo'],
+    activo: json['activo'] ?? true,
+    fechaCreacion: json['fechaCreacion'] != null
+        ? (json['fechaCreacion'] as Timestamp).toDate()
+        : null,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'nombre': nombre,
+    'simbolo': simbolo,
+    'activo': activo,
+    'fechaCreacion': fechaCreacion != null
+        ? Timestamp.fromDate(fechaCreacion!)
+        : FieldValue.serverTimestamp(),
   };
 }

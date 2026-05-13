@@ -9,6 +9,7 @@ import 'package:inv_telas/utils/utils.dart';
 import 'package:inv_telas/widgets/widgets.dart';
 import 'package:flex_color_picker/flex_color_picker.dart' as flex;
 import 'package:flutter_colorpicker/flutter_colorpicker.dart' as flutter_picker;
+import 'package:inv_telas/widgets/dialogs/new_currency_dialog.dart';
 
 class NewRolloDialog extends ConsumerStatefulWidget {
   const NewRolloDialog({super.key});
@@ -47,6 +48,12 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   double _precioCalculadoUSD = 0.0;
   bool _precioEncontradoEnLote = false;
 
+  String? _monedaSeleccionadaId;
+  bool _isBs = true;
+
+  final _precioOriginalController = TextEditingController();
+  final _tipoCambioController = TextEditingController();
+
   bool _isSavingCatalog = false;
   bool _isSaving = false;
 
@@ -56,6 +63,8 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     _codigoController = TextEditingController();
     _metrajeController = TextEditingController();
     _fecha = DateTime.now();
+    _precioOriginalController.addListener(_calcularPrecioBs);
+    _tipoCambioController.addListener(_calcularPrecioBs);
   }
 
   @override
@@ -67,6 +76,8 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     _numeroRolloController.dispose();
     _observacionesController.dispose();
     _precioManualController.dispose();
+    _precioOriginalController.dispose();
+    _tipoCambioController.dispose();
     super.dispose();
   }
 
@@ -91,6 +102,20 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     });
   }
 
+  void _calcularPrecioBs() {
+    if (_isBs) return;
+
+    final original = double.tryParse(_precioOriginalController.text) ?? 0;
+
+    final tc = double.tryParse(_tipoCambioController.text) ?? 0;
+
+    final total = original * tc;
+
+    _precioManualController.text = total.toStringAsFixed(2);
+
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final tipos = ref.watch(tiposTelaProvider);
@@ -102,6 +127,11 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
 
     // ✅ OBSERVAR LOTE ACTIVO
     final loteActivo = ref.watch(loteActivoProvider);
+
+    final monedaSeleccionada = ref
+        .watch(monedasProvider)
+        .where((m) => m.id == _monedaSeleccionadaId)
+        .firstOrNull;
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.92,
@@ -200,14 +230,145 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                           style: TextStyle(color: Colors.red),
                         ),
                     ] else ...[
-                      TextFormField(
-                        controller: _precioManualController,
-                        keyboardType: TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        decoration: const InputDecoration(
-                          labelText: "Precio Compra (BS) *",
-                        ),
+                      Column(
+                        children: [
+                          // ✅ SELECTOR MONEDA
+                          DropdownButtonFormField<String?>(
+                            value: _monedaSeleccionadaId,
+                            decoration: const InputDecoration(
+                              labelText: "Moneda",
+                              border: OutlineInputBorder(),
+                            ),
+                            items: [
+                              // Nueva Moneda
+                              const DropdownMenuItem(
+                                value: null,
+                                child: Text(
+                                  "+ Nueva Moneda",
+                                  style: TextStyle(
+                                    color: Colors.blue,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+
+                              // BD
+                              ...ref
+                                  .watch(monedasProvider)
+                                  .map(
+                                    (m) => DropdownMenuItem(
+                                      value: m.id,
+                                      child: Text(m.nombre),
+                                    ),
+                                  ),
+                            ],
+
+                            onChanged: (value) async {
+                              // Nueva moneda
+                              if (value == null) {
+                                final nueva = await showDialog<Moneda>(
+                                  context: context,
+                                  builder: (_) => const NewCurrencyDialog(),
+                                );
+
+                                if (nueva != null) {
+                                  setState(() {
+                                    _monedaSeleccionadaId = nueva.id;
+                                    _isBs = nueva.id == 'bs';
+                                  });
+                                }
+
+                                return;
+                              }
+
+                              final moneda = ref
+                                  .read(monedasProvider)
+                                  .firstWhere((m) => m.id == value);
+
+                              setState(() {
+                                _monedaSeleccionadaId = value;
+                                _isBs = moneda.id == 'bs';
+
+                                _precioOriginalController.clear();
+                                _tipoCambioController.clear();
+                                _precioManualController.clear();
+                              });
+                            },
+                          ),
+
+                          const SizedBox(height: 12),
+
+                          // ✅ SI ES BS
+                          if (_isBs)
+                            TextFormField(
+                              controller: _precioManualController,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                              decoration: const InputDecoration(
+                                labelText: "Precio Compra (BS)",
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+
+                          // ✅ MONEDA EXTRANJERA
+                          if (!_isBs) ...[
+                            Row(
+                              children: [
+                                Expanded(
+                                  flex: 2,
+                                  child: TextFormField(
+                                    controller: _precioOriginalController,
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                          decimal: true,
+                                        ),
+                                    decoration: InputDecoration(
+                                      labelText:
+                                          "Monto ${monedaSeleccionada?.nombre ?? ''}",
+                                      border: const OutlineInputBorder(),
+                                    ),
+                                  ),
+                                ),
+
+                                const SizedBox(width: 12),
+
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _tipoCambioController,
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                          decimal: true,
+                                        ),
+                                    decoration: const InputDecoration(
+                                      labelText: "T.C.",
+                                      border: OutlineInputBorder(),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 12),
+
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                "Total BS: ${_precioManualController.text}",
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ],
 
@@ -341,10 +502,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
               style: AppTextStyles.heading3.copyWith(color: AppColors.primary),
             ),
           ),
-          Text(
-            "TC: ${lote.tipoCambio}",
-            style: AppTextStyles.bodySmall,
-          ),
+          Text("TC: ${lote.tipoCambio}", style: AppTextStyles.bodySmall),
         ],
       ),
     );
@@ -452,12 +610,8 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
             i.tipoTelaId == _tipoTelaId &&
             i.empresaId == _empresaId &&
             (i.anchoId == _anchoId || (!_habilitarAncho && i.anchoId == null)),
-        orElse: () => LoteItem(
-          id: '',
-          tipoTelaId: '',
-          empresaId: '',
-          precioUSD: 0,
-        ),
+        orElse: () =>
+            LoteItem(id: '', tipoTelaId: '', empresaId: '', precioUSD: 0),
       );
 
       setState(() {
@@ -804,6 +958,12 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     } else {
       // Si no hay lote, usar precio manual
       precioFinal = double.tryParse(_precioManualController.text) ?? 0;
+
+      if (!_isBs) {
+        precioUsd = double.tryParse(_precioOriginalController.text);
+
+        tipoCambio = double.tryParse(_tipoCambioController.text);
+      }
     }
 
     return List.generate(

@@ -11,19 +11,23 @@
   final DateTime fechaCreacion;
   final List<HistorialMovimiento> historial;
 
-  final String? anchoId; // ID del catálogo de anchos
+  final String? anchoId;
   final String? lote;
   final String? numeroRollo;
 
   final String? loteId;
-  final double? precioUsd; // Precio en dólares (histórico)
-  final double? tipoCambio; // Tipo de cambio (histórico)
-  final double? precioCompra; // Precio final en Bolivianos (calculado)
+  final double? precioUsd;
+  final double? tipoCambio;
+  final double? precioCompra;
 
-  final bool activo; // ✅ NUEVO
-  final String? usuarioCreadorId; // ✅ NUEVO
-  final String? usuarioEliminadorId; // ✅ NUEVO
-  final DateTime? fechaEliminacion; // ✅ NUEVO
+  final bool activo;
+  final String? usuarioCreadorId;
+  final String? usuarioEliminadorId;
+  final DateTime? fechaEliminacion;
+
+  // ✅ NUEVO
+  final String? monedaId;
+
   Rollo({
     required this.id,
     this.sucursalId,
@@ -47,6 +51,9 @@
     this.usuarioCreadorId,
     this.usuarioEliminadorId,
     this.fechaEliminacion,
+
+    // ✅ AGREGADO
+    this.monedaId,
   });
 
   factory Rollo.fromJson(Map<String, dynamic> json) => Rollo(
@@ -80,6 +87,9 @@
     fechaEliminacion: json['fechaEliminacion'] != null
         ? DateTime.parse(json['fechaEliminacion'])
         : null,
+
+    // ✅ AGREGADO
+    monedaId: json['monedaId'],
   );
 
   Map<String, dynamic> toJson() => {
@@ -105,6 +115,9 @@
     'usuarioCreadorId': usuarioCreadorId,
     'usuarioEliminadorId': usuarioEliminadorId,
     'fechaEliminacion': fechaEliminacion?.toIso8601String(),
+
+    // ✅ AGREGADO
+    'monedaId': monedaId,
   };
 }
 

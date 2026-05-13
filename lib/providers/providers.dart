@@ -331,3 +331,11 @@ class LotesNotifier extends StateNotifier<List<Lote>> {
     await load();
   }
 }
+
+final monedasProvider =
+    StateNotifierProvider<CatalogNotifier<Moneda>, List<Moneda>>((ref) {
+      return CatalogNotifier<Moneda>(
+        ref.watch(catalogServiceProvider),
+        (s) => s.getMonedas(),
+      );
+    });
