@@ -16,21 +16,48 @@ class _JsonViewScreenState extends State<JsonViewScreen> {
   Future<void> cargarDatos() async {
     final firestore = FirebaseFirestore.instance;
 
-    final rollos = await firestore.collection('rollos').get();
-    final empresas = await firestore.collection('catalog_empresas').get();
-    final colores = await firestore.collection('catalog_colores').get();
-    final tipos = await firestore.collection('catalog_tipos_tela').get();
+    final Map<String, dynamic> tempData = {};
 
-    data = {
-      "rollos": rollos.docs.map((e) => e.data()).toList(),
-      "empresas": empresas.docs.map((e) => e.data()).toList(),
-      "colores": colores.docs.map((e) => e.data()).toList(),
-      "tiposTela": tipos.docs.map((e) => e.data()).toList(),
-    };
+    // Lista automática de colecciones
+    final collections = [
+      'rollos',
+      'catalog_empresas',
+      'catalog_colores',
+      'catalog_tipos_tela',
+      'catalog_sucursales',
+      'catalog_monedas',
+      'catalog_anchos',
+      'users',
+    ];
+
+    for (final collectionName in collections) {
+      final snapshot = await firestore.collection(collectionName).get();
+
+      tempData[collectionName] = snapshot.docs
+          .map((doc) => convertirFirestore(doc.data()))
+          .toList();
+    }
 
     setState(() {
+      data = tempData;
       loading = false;
     });
+  }
+
+  dynamic convertirFirestore(dynamic value) {
+    if (value is Timestamp) {
+      return value.toDate().toIso8601String();
+    }
+
+    if (value is Map) {
+      return value.map((key, val) => MapEntry(key, convertirFirestore(val)));
+    }
+
+    if (value is List) {
+      return value.map(convertirFirestore).toList();
+    }
+
+    return value;
   }
 
   @override
