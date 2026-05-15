@@ -126,7 +126,8 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     final drafts = ref.watch(draftsProvider);
 
     // ✅ OBSERVAR LOTE ACTIVO
-    final loteActivo = ref.watch(loteActivoProvider);
+    final loteActivo = null;
+    //ref.watch(loteActivoProvider);
 
     final monedaSeleccionada = ref
         .watch(monedasProvider)
@@ -548,7 +549,8 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
 
   /// LÓGICA DE AUTODETECCIÓN Y AUTOLLENADO
   void _autoFillData() {
-    final loteActivo = ref.read(loteActivoProvider);
+    final loteActivo = null;
+    // ref.read(loteActivoProvider);
 
     // 1. Lógica de Ancho (Igual que antes)
     if (_empresaId != null && _tipoTelaId != null) {
@@ -601,14 +603,15 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
 
     // 2. Lógica de Precio (Si hay Lote Activo)
     if (loteActivo != null && _empresaId != null && _tipoTelaId != null) {
-      final item = loteActivo.items.firstWhere(
+      final item = null;
+      /*loteActivo.items.firstWhere(
         (i) =>
             i.tipoTelaId == _tipoTelaId &&
             i.empresaId == _empresaId &&
             (i.anchoId == _anchoId || (!_habilitarAncho && i.anchoId == null)),
         orElse: () =>
             LoteItem(id: '', tipoTelaId: '', empresaId: '', precioUSD: 0),
-      );
+      );*/
 
       setState(() {
         if (item.precioUSD > 0) {
@@ -937,7 +940,8 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     final codigo = _codigoController.text.trim();
     final metraje = double.tryParse(_metrajeController.text) ?? 0;
     final cantidad = int.tryParse(_cantidadController.text) ?? 1;
-    final loteActivo = ref.read(loteActivoProvider);
+    final loteActivo = null;
+    //ref.read(loteActivoProvider);
 
     // Variables de precio
     String? loteId;
@@ -992,7 +996,8 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     if (_isSaving) return;
     if (!_formKey.currentState!.validate()) return;
     // Validar precio
-    final loteActivo = ref.read(loteActivoProvider);
+    final loteActivo = null;
+    //ref.read(loteActivoProvider);
     if (loteActivo == null &&
         (double.tryParse(_precioManualController.text) ?? 0) <= 0) {
       _mostrarError("Ingrese un precio válido.");
@@ -1020,7 +1025,8 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     if (_isSaving) return;
     if (!_formKey.currentState!.validate()) return;
     // Validar precio
-    final loteActivo = ref.read(loteActivoProvider);
+    final loteActivo = null;
+    //ref.read(loteActivoProvider);
     if (loteActivo == null &&
         (double.tryParse(_precioManualController.text) ?? 0) <= 0) {
       _mostrarError("Ingrese un precio válido.");

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/models/models.dart';
+import 'package:inv_telas/moduloLotes/screens/lotes_screen.dart';
 import 'package:inv_telas/providers/providers.dart';
 import 'package:inv_telas/screens/json_view_screen.dart';
 import 'package:inv_telas/screens/pending_screen.dart';
-import 'package:inv_telas/screens/lote_screen.dart';
 import 'package:inv_telas/utils/utils.dart';
 import 'package:inv_telas/widgets/widgets.dart';
 import 'package:collection/collection.dart';
@@ -132,42 +132,43 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
 
-          // Opción 1: Inventario (Actual)
+          // Inventario
           ListTile(
-            leading: const Icon(Icons.home_work_outlined),
-            title: const Text(
-              "Inventario",
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
+            leading: const Icon(Icons.inventory_2_outlined),
+            title: const Text("Inventario"),
             subtitle: const Text("Rollos en stock"),
-            selected: true, // Resaltar que estamos en esta pantalla
+            selected: true,
             selectedTileColor: AppColors.primary.withOpacity(0.1),
-            onTap: () => Navigator.pop(context), // Solo cierra el drawer
+            onTap: () => Navigator.pop(context),
           ),
+
           const Divider(),
 
-          // Opción 2: Gestión de Lotes
+          // Lotes
           ListTile(
-            leading: const Icon(Icons.add_shopping_cart),
-            title: const Text("Gestión de Lotes"),
-            subtitle: const Text("Ingresos y precios de compra"),
+            leading: const Icon(Icons.layers),
+            title: const Text("Lotes"),
+            subtitle: const Text("Gestión de Lotes y Precios"),
             onTap: () {
-              Navigator.pop(context); // Cierra el drawer
+              Navigator.pop(context);
+
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const LoteScreen()),
+                MaterialPageRoute(builder: (_) => const LotesScreen()),
               );
             },
           ),
 
           const Divider(),
 
+          // JSON
           ListTile(
             leading: const Icon(Icons.code),
             title: const Text("Ver JSON"),
             subtitle: const Text("Datos crudos de Firebase"),
             onTap: () {
               Navigator.pop(context);
+
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const JsonViewScreen()),
@@ -175,18 +176,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             },
           ),
 
-          const Divider(),
-          // Espaciador para empujar opciones futuras hacia abajo si es necesario
           const Spacer(),
-
-          // Opción de cierre de sesión o configuración (opcional)
-          /*ListTile(
-            leading: const Icon(Icons.settings),
-            title: const Text("Configuración"),
-            onTap: () {
-              Navigator.pop(context);
-            },
-          ),*/
           const SizedBox(height: 20),
         ],
       ),
