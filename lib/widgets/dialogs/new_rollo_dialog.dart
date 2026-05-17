@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/models/models.dart';
 import 'package:inv_telas/models/lote.dart';
 import 'package:inv_telas/providers/providers.dart';
+import 'package:inv_telas/providers/lotes_providers.dart'; // Asegúrate que este provider exista
 import 'package:inv_telas/screens/pending_screen.dart';
 import 'package:inv_telas/utils/utils.dart';
 import 'package:inv_telas/widgets/widgets.dart';
@@ -25,10 +26,15 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   final _cantidadController = TextEditingController(text: '1');
   late TextEditingController _codigoController;
   late TextEditingController _metrajeController;
-  final _loteController = TextEditingController();
+  final _loteController =
+      TextEditingController(); // Texto libre si no es lote activo
   final _numeroRolloController = TextEditingController();
   final _observacionesController = TextEditingController();
-  final _precioManualController = TextEditingController(); // ✅ NUEVO
+
+  // Controladores manuales (para modo sin lote)
+  final _precioManualController = TextEditingController();
+  final _precioOriginalController = TextEditingController();
+  final _tipoCambioManualController = TextEditingController();
 
   // Estado de selección
   String? _tipoTelaId;
@@ -37,22 +43,17 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   String? _colorId;
   DateTime? _fecha;
 
+  // Estado Lote
+  String? _selectedLoteId;
+
   // Estado Checkboxes y Ancho
   bool _habilitarAncho = false;
-  bool _habilitarLote = false;
   bool _habilitarNumRollo = false;
   String? _anchoId;
 
-  // ✅ Estado para precio calculado
-  double _precioCalculadoBS = 0.0;
-  double _precioCalculadoUSD = 0.0;
-  bool _precioEncontradoEnLote = false;
-
+  // Moneda Manual (Modo sin Lote)
   String? _monedaSeleccionadaId;
   bool _isBs = true;
-
-  final _precioOriginalController = TextEditingController();
-  final _tipoCambioController = TextEditingController();
 
   bool _isSavingCatalog = false;
   bool _isSaving = false;
@@ -63,8 +64,10 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     _codigoController = TextEditingController();
     _metrajeController = TextEditingController();
     _fecha = DateTime.now();
-    _precioOriginalController.addListener(_calcularPrecioBs);
-    _tipoCambioController.addListener(_calcularPrecioBs);
+
+    // Listeners para cálculo manual
+    _precioOriginalController.addListener(_calcularPrecioBsManual);
+    _tipoCambioManualController.addListener(_calcularPrecioBsManual);
   }
 
   @override
@@ -77,487 +80,81 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     _observacionesController.dispose();
     _precioManualController.dispose();
     _precioOriginalController.dispose();
-    _tipoCambioController.dispose();
+    _tipoCambioManualController.dispose();
     super.dispose();
   }
 
-  String _normalize(String text) => text.trim().toLowerCase();
+  // ==========================================================
+  // LÓGICA DE FILTRADO Y CÁLCULO
+  // ==========================================================
 
-  void _resetFieldsForNextInput() {
-    _codigoController.clear();
-    _metrajeController.clear();
-    _cantidadController.text = '1';
-    _loteController.clear();
-    _numeroRolloController.clear();
-    _observacionesController.clear();
-    _precioManualController.clear();
-    setState(() {
-      _colorId = null;
-      _anchoId = null;
-      _precioCalculadoBS = 0.0;
-      _precioCalculadoUSD = 0.0;
-      _precioEncontradoEnLote = false;
-      // No reseteamos _habilitarAncho aquí, porque depende de la selección actual de Empresa/Tipo
-      // que se mantiene fija.
-    });
-  }
-
-  void _calcularPrecioBs() {
-    if (_isBs) return;
+  void _calcularPrecioBsManual() {
+    // Solo calcular si estamos en modo manual, moneda extranjera
+    if (_isBs || _selectedLoteId != null) return;
 
     final original = double.tryParse(_precioOriginalController.text) ?? 0;
-
-    final tc = double.tryParse(_tipoCambioController.text) ?? 0;
-
+    final tc = double.tryParse(_tipoCambioManualController.text) ?? 0;
     final total = original * tc;
 
     _precioManualController.text = total.toStringAsFixed(2);
-
     setState(() {});
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final tipos = ref.watch(tiposTelaProvider);
-    final sucursales = ref.watch(sucursalesProvider);
-    final empresas = ref.watch(empresasProvider);
-    final colores = ref.watch(coloresProvider);
-    final anchos = ref.watch(anchosProvider);
-    final drafts = ref.watch(draftsProvider);
-
-    // ✅ OBSERVAR LOTE ACTIVO
-    final loteActivo = null;
-    //ref.watch(loteActivoProvider);
-
-    final monedaSeleccionada = ref
-        .watch(monedasProvider)
-        .where((m) => m.id == _monedaSeleccionadaId)
-        .firstOrNull;
-
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.92,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        children: [
-          _buildHeader(drafts.length),
-          Expanded(
-            child: AbsorbPointer(
-              absorbing: _isSaving,
-              child: Form(
-                key: _formKey,
-                child: ListView(
-                  padding: const EdgeInsets.all(20),
-                  children: [
-                    _buildCantidadSelector(),
-                    const SizedBox(height: 12),
-
-                    _buildDropdownWithAdd<TipoTela>(
-                      "Tipo de Tela",
-                      tipos,
-                      _tipoTelaId,
-                      (id) {
-                        setState(() => _tipoTelaId = id);
-                        _autoFillData();
-                      },
-                      (item) => item.id,
-                      (item) => item.nombre,
-                      () => _addTipoTela(tipos),
-                    ),
-                    _buildDropdownWithAdd<Sucursal>(
-                      "Sucursal",
-                      sucursales,
-                      _sucursalId,
-                      (id) => setState(() => _sucursalId = id),
-                      (item) => item.id,
-                      (item) => item.nombre,
-                      () => _addSucursal(sucursales),
-                    ),
-                    _buildDropdownWithAdd<Empresa>(
-                      "Empresa",
-                      empresas,
-                      _empresaId,
-                      (id) {
-                        setState(() => _empresaId = id);
-                        _autoFillData();
-                      },
-                      (item) => item.id,
-                      (item) => item.nombre,
-                      () => _addEmpresa(empresas),
-                    ),
-                    _buildColorDropdownWithAdd("Color", colores, _colorId, (
-                      id,
-                    ) {
-                      setState(() => _colorId = id);
-                      _autoFillData();
-                    }, () => _addColor(colores)),
-
-                    TextFormField(
-                      controller: _codigoController,
-                      decoration: const InputDecoration(
-                        labelText: "Código de Color *",
-                      ),
-                      validator: (v) =>
-                          v == null || v.trim().isEmpty ? 'Requerido' : null,
-                    ),
-
-                    TextFormField(
-                      controller: _metrajeController,
-                      decoration: const InputDecoration(
-                        labelText: "Metraje por Rollo (m) *",
-                      ),
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      validator: (v) =>
-                          v == null || v.trim().isEmpty ? 'Requerido' : null,
-                    ),
-
-                    _buildDateSelector(),
-
-                    const Divider(height: 32, thickness: 1),
-
-                    // ✅ SECCIÓN DE LOTE Y PRECIO
-                    if (loteActivo != null) ...[
-                      _buildActiveLoteBanner(loteActivo),
-                      const SizedBox(height: 12),
-                      if (_precioEncontradoEnLote)
-                        _buildPriceDisplay()
-                      else if (_tipoTelaId != null && _empresaId != null)
-                        const Text(
-                          "⚠️ Esta tela no está en el lote activo.",
-                          style: TextStyle(color: Colors.red),
-                        ),
-                    ] else ...[
-                      Column(
-                        children: [
-                          // ✅ SELECTOR MONEDA
-                          DropdownButtonFormField<String>(
-                            value: _monedaSeleccionadaId,
-                            decoration: const InputDecoration(
-                              labelText: "Moneda",
-                              border: OutlineInputBorder(),
-                            ),
-                            items: [
-                              const DropdownMenuItem(
-                                value: '__new__',
-                                child: Text(
-                                  "+ Nueva Moneda",
-                                  style: TextStyle(
-                                    color: Colors.blue,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-
-                              ...ref
-                                  .watch(monedasProvider)
-                                  .map(
-                                    (m) => DropdownMenuItem(
-                                      value: m.id,
-                                      child: Text(m.nombre),
-                                    ),
-                                  ),
-                            ],
-
-                            onChanged: (value) async {
-                              if (value == '__new__') {
-                                final nueva = await showDialog<Moneda>(
-                                  context: context,
-                                  builder: (_) => const NewCurrencyDialog(),
-                                );
-
-                                if (nueva != null) {
-                                  setState(() {
-                                    _monedaSeleccionadaId = nueva.id;
-                                    _isBs = nueva.id == 'bs';
-                                  });
-                                }
-
-                                return;
-                              }
-
-                              final moneda = ref
-                                  .read(monedasProvider)
-                                  .firstWhere((m) => m.id == value);
-
-                              setState(() {
-                                _monedaSeleccionadaId = value;
-                                _isBs = moneda.id == 'bs';
-
-                                _precioOriginalController.clear();
-                                _tipoCambioController.clear();
-                                _precioManualController.clear();
-                              });
-                            },
-                          ),
-                          const SizedBox(height: 12),
-
-                          // ✅ SI ES BS
-                          if (_isBs)
-                            TextFormField(
-                              controller: _precioManualController,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                              decoration: const InputDecoration(
-                                labelText: "Precio Compra (BS)",
-                                border: OutlineInputBorder(),
-                              ),
-                            ),
-
-                          // ✅ MONEDA EXTRANJERA
-                          if (!_isBs) ...[
-                            Row(
-                              children: [
-                                Expanded(
-                                  flex: 2,
-                                  child: TextFormField(
-                                    controller: _precioOriginalController,
-                                    keyboardType:
-                                        const TextInputType.numberWithOptions(
-                                          decimal: true,
-                                        ),
-                                    decoration: InputDecoration(
-                                      labelText:
-                                          "Monto ${monedaSeleccionada?.nombre ?? ''}",
-                                      border: const OutlineInputBorder(),
-                                    ),
-                                  ),
-                                ),
-
-                                const SizedBox(width: 12),
-
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _tipoCambioController,
-                                    keyboardType:
-                                        const TextInputType.numberWithOptions(
-                                          decimal: true,
-                                        ),
-                                    decoration: const InputDecoration(
-                                      labelText: "T.C.",
-                                      border: OutlineInputBorder(),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 12),
-
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade100,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                "Total BS: ${_precioManualController.text}",
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ],
-
-                    const Divider(height: 32, thickness: 1),
-
-                    // Sección Opciones Adicionales
-                    const Text(
-                      "Opciones Adicionales",
-                      style: AppTextStyles.heading3,
-                    ),
-                    const SizedBox(height: 10),
-
-                    // 1. ANCHO (Lógica Inteligente)
-                    _buildCheckboxTile(
-                      title: "Ancho Especial",
-                      subtitle: "Se detecta automáticamente según empresa/tela",
-                      value: _habilitarAncho,
-                      onChanged: (v) {
-                        setState(() => _habilitarAncho = v ?? false);
-                        _autoFillData();
-                      },
-                    ),
-                    if (_habilitarAncho)
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          left: 16,
-                          bottom: 16,
-                          top: 4,
-                        ),
-                        child: _buildDropdownWithAdd<Ancho>(
-                          "Seleccionar Ancho",
-                          anchos,
-                          _anchoId,
-                          (id) {
-                            setState(() => _anchoId = id);
-                            _autoFillData();
-                          },
-                          (item) => item.id,
-                          (item) => item.nombre,
-                          () => _addAncho(anchos),
-                        ),
-                      ),
-
-                    // 2. LOTE
-                    _buildCheckboxTile(
-                      title: "Lote",
-                      subtitle: "Identificador de lote",
-                      value: _habilitarLote,
-                      onChanged: (v) =>
-                          setState(() => _habilitarLote = v ?? false),
-                    ),
-                    if (_habilitarLote)
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          left: 16,
-                          bottom: 16,
-                          top: 4,
-                        ),
-                        child: TextFormField(
-                          controller: _loteController,
-                          decoration: const InputDecoration(
-                            labelText: "Número de Lote",
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-
-                    // 3. NUMERO DE ROLLO
-                    _buildCheckboxTile(
-                      title: "Número de Rollo",
-                      subtitle: "Identificador único del rollo",
-                      value: _habilitarNumRollo,
-                      onChanged: (v) =>
-                          setState(() => _habilitarNumRollo = v ?? false),
-                    ),
-                    if (_habilitarNumRollo)
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          left: 16,
-                          bottom: 16,
-                          top: 4,
-                        ),
-                        child: TextFormField(
-                          controller: _numeroRolloController,
-                          decoration: const InputDecoration(
-                            labelText: "N° de Rollo",
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _observacionesController,
-                      maxLines: 3,
-                      decoration: const InputDecoration(
-                        labelText: "Observaciones",
-                        alignLabelWithHint: true,
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          _buildActions(),
-        ],
-      ),
-    );
+  // Retorna el objeto Lote seleccionado actualmente
+  Lote? get _currentLote {
+    if (_selectedLoteId == null) return null;
+    final lotes = ref
+        .read(lotesListProvider)
+        .maybeWhen(data: (d) => d, orElse: () => <Lote>[]);
+    try {
+      return lotes.firstWhere((l) => l.id == _selectedLoteId);
+    } catch (_) {
+      return null;
+    }
   }
 
-  // ✅ WIDGETS DE UI PARA LOTE
-  Widget _buildActiveLoteBanner(Lote lote) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.inventory, color: AppColors.primary),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              "Lote Activo: ${lote.nombre}",
-              style: AppTextStyles.heading3.copyWith(color: AppColors.primary),
-            ),
-          ),
-          Text("TC: ${lote.tipoCambio}", style: AppTextStyles.bodySmall),
-        ],
-      ),
-    );
+  // Filtra las empresas disponibles según el Lote
+  List<Empresa> _getAvailableEmpresas(List<Empresa> allEmpresas) {
+    final lote = _currentLote;
+    if (lote == null) return allEmpresas;
+
+    // Obtener IDs únicos de empresas dentro de los items del lote
+    final ids = lote.items.map((i) => i.empresaId).toSet();
+    return allEmpresas.where((e) => ids.contains(e.id)).toList();
   }
 
-  Widget _buildPriceDisplay() {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8.0),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.grey[100],
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text("Precio Compra:", style: AppTextStyles.body),
-            Text(
-              "${_precioCalculadoBS.toStringAsFixed(2)} BS",
-              style: AppTextStyles.heading3.copyWith(color: Colors.green[700]),
-            ),
-          ],
-        ),
-      ),
-    );
+  // Filtra los tipos de tela según Lote y Empresa seleccionada
+  List<TipoTela> _getAvailableTelas(List<TipoTela> allTelas) {
+    final lote = _currentLote;
+    if (lote == null) return allTelas;
+    if (_empresaId == null)
+      return []; // Si hay lote pero no empresa, no mostrar nada aún
+
+    final ids = lote.items
+        .where((i) => i.empresaId == _empresaId)
+        .map((i) => i.tipoTelaId)
+        .toSet();
+
+    return allTelas.where((t) => ids.contains(t.id)).toList();
   }
 
-  // --- WIDGETS AUXILIARES ---
+  /// Lógica combinada de Auto-llenado y Actualización de Estado
+  void _updateDataAndAutoFill() {
+    final lote = _currentLote;
 
-  Widget _buildCheckboxTile({
-    required String title,
-    required String subtitle,
-    required bool value,
-    required ValueChanged<bool?> onChanged,
-  }) {
-    return CheckboxListTile(
-      title: Text(title),
-      subtitle: Text(subtitle, style: AppTextStyles.caption),
-      value: value,
-      onChanged: onChanged,
-      contentPadding: EdgeInsets.zero,
-      controlAffinity: ListTileControlAffinity.leading,
-      activeColor: AppColors.primary,
-    );
-  }
+    // 1. Sincronizar Fecha si hay lote
+    if (lote != null) {
+      _fecha = lote.fechaIngreso;
+    } else {
+      // Si se desactiva el lote, volvemos a hoy por defecto si no estaba definida
+      if (_fecha == null) _fecha = DateTime.now();
+    }
 
-  /// LÓGICA DE AUTODETECCIÓN Y AUTOLLENADO
-  void _autoFillData() {
-    final loteActivo = null;
-    // ref.read(loteActivoProvider);
-
-    // 1. Lógica de Ancho (Igual que antes)
+    // 2. Auto-detectar Ancho basado en historial (Lógica antigua)
     if (_empresaId != null && _tipoTelaId != null) {
       final rollos = ref
           .read(rollosProvider)
           .maybeWhen(data: (d) => d, orElse: () => <Rollo>[]);
-
       final matches = rollos
           .where(
             (r) => r.empresaId == _empresaId && r.tipoTelaId == _tipoTelaId,
@@ -565,71 +162,21 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
           .toList();
 
       if (matches.isNotEmpty) {
-        final lastMatch = matches.first;
-
-        // 1. Autollenar Ancho si existe en el historial
-        // Verificamos si la mayoría tiene ancho o no
         final withAncho = matches.where((r) => r.anchoId != null).toList();
-
         setState(() {
-          if (withAncho.isNotEmpty) {
-            _habilitarAncho = true;
-            // Calcular ancho más frecuente
-            final freq = <String, int>{};
-            for (var r in withAncho) {
-              freq[r.anchoId!] = (freq[r.anchoId!] ?? 0) + 1;
-            }
-            _anchoId = freq.entries
-                .reduce((a, b) => a.value >= b.value ? a : b)
-                .key;
-          } else {
-            // Si el historial es nulo (ej. Piel de Sirena), deshabilitamos
-            _habilitarAncho = false;
-            _anchoId = null;
-          }
-
-          // Autollenar color y código solo si ya está seleccionado el color (para no sobrescribir)
-          // Opcional: Si se quiere autollenar el color basado en la tela/empresa genérica
-          // Pero usualmente el color se selecciona después.
+          _habilitarAncho = withAncho.isNotEmpty;
+          // Tomar el ancho más reciente o frecuente
+          _anchoId = withAncho.isNotEmpty ? withAncho.first.anchoId : null;
         });
       } else {
-        // Si es una combinación NUEVA sin historial
         setState(() {
-          _habilitarAncho = false; // Por defecto false, usuario puede marcar
+          _habilitarAncho = false;
           _anchoId = null;
         });
       }
     }
 
-    // 2. Lógica de Precio (Si hay Lote Activo)
-    if (loteActivo != null && _empresaId != null && _tipoTelaId != null) {
-      final item = null;
-      /*loteActivo.items.firstWhere(
-        (i) =>
-            i.tipoTelaId == _tipoTelaId &&
-            i.empresaId == _empresaId &&
-            (i.anchoId == _anchoId || (!_habilitarAncho && i.anchoId == null)),
-        orElse: () =>
-            LoteItem(id: '', tipoTelaId: '', empresaId: '', precioUSD: 0),
-      );*/
-
-      setState(() {
-        if (item.precioUSD > 0) {
-          _precioCalculadoUSD = item.precioUSD;
-          _precioCalculadoBS = item.precioUSD * loteActivo.tipoCambio;
-          _precioEncontradoEnLote = true;
-        } else {
-          _precioCalculadoBS = 0;
-          _precioEncontradoEnLote = false;
-        }
-      });
-    } else {
-      setState(() {
-        _precioEncontradoEnLote = false;
-      });
-    }
-
-    // 3. Lógica de autollenado de código/metraje
+    // 3. Autollenado de código/metraje basado en Empresa+Tela+Color
     if (_empresaId != null && _tipoTelaId != null && _colorId != null) {
       final rollos = ref
           .read(rollosProvider)
@@ -655,7 +202,502 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
         });
       }
     }
+
+    setState(() {}); // Forzar actualización visual
   }
+
+  // ==========================================================
+  // BUILD PRINCIPAL
+  // ==========================================================
+
+  @override
+  Widget build(BuildContext context) {
+    final tipos = ref.watch(tiposTelaProvider);
+    final sucursales = ref.watch(sucursalesProvider);
+    final empresas = ref.watch(empresasProvider);
+    final colores = ref.watch(coloresProvider);
+    final anchos = ref.watch(anchosProvider);
+    final drafts = ref.watch(draftsProvider);
+    final monedas = ref.watch(monedasProvider);
+    final lotesActivos = ref
+        .watch(lotesListProvider)
+        .maybeWhen(data: (d) => d, orElse: () => <Lote>[]);
+
+    // Listas filtradas según lote
+    final availableEmpresas = _getAvailableEmpresas(empresas);
+    final availableTelas = _getAvailableTelas(tipos);
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.92,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        children: [
+          _buildHeader(drafts.length),
+          Expanded(
+            child: AbsorbPointer(
+              absorbing: _isSaving,
+              child: Form(
+                key: _formKey,
+                child: ListView(
+                  padding: const EdgeInsets.all(20),
+                  children: [
+                    // --- 1. LOTE Y CANTIDAD (Fila Superior) ---
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: _buildLoteDropdown(lotesActivos),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(child: _buildCantidadSelectorCompact()),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // --- 2. EMPRESA (Arriba) ---
+                    _buildDropdownWithAdd<Empresa>(
+                      "Empresa",
+                      availableEmpresas,
+                      _empresaId,
+                      (id) {
+                        setState(() {
+                          _empresaId = id;
+                          _tipoTelaId = null; // Reset tela al cambiar empresa
+                          _updateDataAndAutoFill();
+                        });
+                      },
+                      (item) => item.id,
+                      (item) => item.nombre,
+                      () => _addEmpresa(empresas),
+                      enabled:
+                          _selectedLoteId == null ||
+                          availableEmpresas.isNotEmpty,
+                    ),
+
+                    // --- 3. TIPO DE TELA (Abajo de Empresa) ---
+                    _buildDropdownWithAdd<TipoTela>(
+                      "Tipo de Tela",
+                      availableTelas,
+                      _tipoTelaId,
+                      (id) {
+                        setState(() {
+                          _tipoTelaId = id;
+                          _updateDataAndAutoFill();
+                        });
+                      },
+                      (item) => item.id,
+                      (item) => item.nombre,
+                      () => _addTipoTela(tipos),
+                      enabled:
+                          _selectedLoteId == null ||
+                          (_empresaId != null && availableTelas.isNotEmpty),
+                    ),
+
+                    // --- 4. SUCURSAL (Solo si NO hay Lote) ---
+                    if (_selectedLoteId == null)
+                      _buildDropdownWithAdd<Sucursal>(
+                        "Sucursal",
+                        sucursales,
+                        _sucursalId,
+                        (id) => setState(() => _sucursalId = id),
+                        (item) => item.id,
+                        (item) => item.nombre,
+                        () => _addSucursal(sucursales),
+                      ),
+
+                    // --- 5. COLOR, CODIGO, METRAJE ---
+                    _buildColorDropdownWithAdd("Color", colores, _colorId, (
+                      id,
+                    ) {
+                      setState(() => _colorId = id);
+                      _updateDataAndAutoFill();
+                    }, () => _addColor(colores)),
+
+                    TextFormField(
+                      controller: _codigoController,
+                      decoration: const InputDecoration(
+                        labelText: "Código de Color *",
+                      ),
+                      validator: (v) =>
+                          v == null || v.trim().isEmpty ? 'Requerido' : null,
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    TextFormField(
+                      controller: _metrajeController,
+                      decoration: const InputDecoration(
+                        labelText: "Metraje por Rollo (m) *",
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      validator: (v) =>
+                          v == null || v.trim().isEmpty ? 'Requerido' : null,
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // --- 6. FECHA (Condicional) ---
+                    if (_selectedLoteId != null && _currentLote != null)
+                      _buildFechaLoteLabel(_currentLote!)
+                    else
+                      _buildDateSelector(),
+
+                    const Divider(height: 32, thickness: 1),
+
+                    // --- 7. MONEDA Y PRECIO (Condicional) ---
+                    if (_selectedLoteId != null && _currentLote != null)
+                      _buildLotePriceInfo(_currentLote!)
+                    else
+                      _buildManualCurrencySection(monedas),
+
+                    const Divider(height: 32, thickness: 1),
+
+                    // --- 8. OPCIONES ADICIONALES ---
+                    _buildAdditionalOptions(anchos),
+
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          _buildActions(),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================================
+  // WIDGETS DE UI ESPECÍFICOS
+  // ==========================================================
+
+  Widget _buildLoteDropdown(List<Lote> lotes) {
+    return DropdownButtonFormField<String>(
+      value: _selectedLoteId,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: "Lote",
+        fillColor: _selectedLoteId != null
+            ? AppColors.primary.withOpacity(0.05)
+            : null,
+        filled: _selectedLoteId != null,
+        border: const OutlineInputBorder(),
+      ),
+      hint: const Text("Seleccionar Lote"),
+      items: [
+        const DropdownMenuItem(
+          value: null,
+          child: Text(
+            "Sin Lote (Manual)",
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+        ...lotes.map(
+          (lote) => DropdownMenuItem(
+            value: lote.id,
+            child: Text(lote.nombre, overflow: TextOverflow.ellipsis),
+          ),
+        ),
+      ],
+      onChanged: (v) {
+        setState(() {
+          _selectedLoteId = v;
+          // Resetear dependencias al cambiar lote
+          _empresaId = null;
+          _tipoTelaId = null;
+          _sucursalId = null;
+          _updateDataAndAutoFill();
+        });
+      },
+    );
+  }
+
+  Widget _buildCantidadSelectorCompact() {
+    return TextFormField(
+      controller: _cantidadController,
+      textAlign: TextAlign.center,
+      keyboardType: TextInputType.number,
+      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+      decoration: const InputDecoration(
+        labelText: "Cantidad",
+        border: OutlineInputBorder(),
+      ),
+    );
+  }
+
+  Widget _buildFechaLoteLabel(Lote lote) {
+    return InputDecorator(
+      decoration: const InputDecoration(
+        labelText: "Fecha de Ingreso (Lote)",
+        border: OutlineInputBorder(),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            Helpers.formatearFecha(lote.fechaIngreso),
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+          ),
+          const Icon(Icons.lock, size: 18, color: Colors.grey),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLotePriceInfo(Lote lote) {
+    // Buscar precio en los items del lote
+    double precioUnit = 0;
+    String nombreMoneda = "Bs";
+    double tipoCambio = lote.tipoCambio;
+
+    if (_empresaId != null && _tipoTelaId != null) {
+      final item = lote.items.firstWhere(
+        (i) => i.empresaId == _empresaId && i.tipoTelaId == _tipoTelaId,
+        orElse: () =>
+            LoteItem(empresaId: '', tipoTelaId: '', precioUnitario: 0),
+      );
+      precioUnit = item.precioUnitario;
+      nombreMoneda = lote.esBoliviano ? "Bs" : "USD";
+    }
+
+    double totalBs = lote.esBoliviano ? precioUnit : precioUnit * tipoCambio;
+
+    if (precioUnit == 0) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.orange[50],
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Text(
+          "⚠️ Seleccione Empresa y Tela para ver precio.",
+          style: TextStyle(color: Colors.orange),
+        ),
+      );
+    }
+
+    return Card(
+      color: Colors.green[50],
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Información de Costo (Lote)", style: AppTextStyles.heading3),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text("Precio Unitario:"),
+                Text(
+                  "$precioUnit $nombreMoneda",
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            if (!lote.esBoliviano) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text("Tipo de Cambio:"),
+                  Text(
+                    "$tipoCambio Bs",
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
+              const Divider(),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text("Total BS:", style: AppTextStyles.heading3),
+                  Text(
+                    "${totalBs.toStringAsFixed(2)} Bs",
+                    style: AppTextStyles.heading3.copyWith(
+                      color: Colors.green[800],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildManualCurrencySection(List<Moneda> monedas) {
+    final monedaSeleccionada = monedas
+        .where((m) => m.id == _monedaSeleccionadaId)
+        .firstOrNull;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownButtonFormField<String>(
+          value: _monedaSeleccionadaId,
+          decoration: const InputDecoration(
+            labelText: "Moneda",
+            border: OutlineInputBorder(),
+          ),
+          items: [
+            const DropdownMenuItem(value: 'bs', child: Text("Boliviano (Bs)")),
+            ...monedas
+                .where((m) => m.id != 'bs')
+                .map(
+                  (m) => DropdownMenuItem(value: m.id, child: Text(m.nombre)),
+                ),
+          ],
+          onChanged: (v) {
+            setState(() {
+              _monedaSeleccionadaId = v;
+              _isBs = v == 'bs';
+              // Limpiar cálculos al cambiar moneda
+              _precioManualController.clear();
+              _precioOriginalController.clear();
+            });
+          },
+        ),
+        const SizedBox(height: 12),
+
+        if (_isBs)
+          TextFormField(
+            controller: _precioManualController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: "Precio Compra (BS)",
+              border: OutlineInputBorder(),
+            ),
+            validator: (v) =>
+                _selectedLoteId == null && (v == null || v.isEmpty)
+                ? 'Requerido'
+                : null,
+          )
+        else
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: TextFormField(
+                  controller: _precioOriginalController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: "Monto ${monedaSeleccionada?.nombre ?? 'Ext'}",
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextFormField(
+                  controller: _tipoCambioManualController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: "T.C.",
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        if (!_isBs) ...[
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              "Total Calculado: ${_precioManualController.text} Bs",
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildAdditionalOptions(List<Ancho> anchos) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("Opciones Adicionales", style: AppTextStyles.heading3),
+        const SizedBox(height: 10),
+
+        // Ancho Especial
+        CheckboxListTile(
+          title: const Text("Ancho Especial"),
+          subtitle: _habilitarAncho
+              ? const Text(
+                  "Detectado automáticamente",
+                  style: TextStyle(color: Colors.green, fontSize: 12),
+                )
+              : null,
+          value: _habilitarAncho,
+          onChanged: (v) => setState(() => _habilitarAncho = v ?? false),
+          contentPadding: EdgeInsets.zero,
+        ),
+        if (_habilitarAncho)
+          Padding(
+            padding: const EdgeInsets.only(left: 16, bottom: 16),
+            child: _buildDropdownWithAdd<Ancho>(
+              "Seleccionar Ancho",
+              anchos,
+              _anchoId,
+              (id) => setState(() => _anchoId = id),
+              (item) => item.id,
+              (item) => item.nombre,
+              () => _addAncho(anchos),
+            ),
+          ),
+
+        // Numero de Rollo
+        CheckboxListTile(
+          title: const Text("Número de Rollo"),
+          value: _habilitarNumRollo,
+          onChanged: (v) => setState(() => _habilitarNumRollo = v ?? false),
+          contentPadding: EdgeInsets.zero,
+        ),
+        if (_habilitarNumRollo)
+          Padding(
+            padding: const EdgeInsets.only(left: 16, bottom: 16),
+            child: TextFormField(
+              controller: _numeroRolloController,
+              decoration: const InputDecoration(
+                labelText: "N° de Rollo",
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+
+        TextFormField(
+          controller: _observacionesController,
+          maxLines: 2,
+          decoration: const InputDecoration(
+            labelText: "Observaciones",
+            border: OutlineInputBorder(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ==========================================================
+  // WIDGETS AUXILIARES HEREDADOS Y ADAPTADOS
+  // ==========================================================
 
   Widget _buildHeader(int pendingCount) {
     return Container(
@@ -712,53 +754,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     );
   }
 
-  Widget _buildCantidadSelector() {
-    return InputDecorator(
-      decoration: const InputDecoration(
-        labelText: "Cantidad de Rollos",
-        border: OutlineInputBorder(),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          IconButton(
-            onPressed: () {
-              int c = int.tryParse(_cantidadController.text) ?? 1;
-              if (c > 1) _cantidadController.text = (c - 1).toString();
-              setState(() {});
-            },
-            icon: const Icon(Icons.remove_circle_outline),
-          ),
-          SizedBox(
-            width: 60,
-            child: TextField(
-              controller: _cantidadController,
-              textAlign: TextAlign.center,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              style: AppTextStyles.heading2,
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.zero,
-              ),
-              onChanged: (val) {
-                if (val.isEmpty) _cantidadController.text = '1';
-              },
-            ),
-          ),
-          IconButton(
-            onPressed: () {
-              int c = int.tryParse(_cantidadController.text) ?? 0;
-              _cantidadController.text = (c + 1).toString();
-              setState(() {});
-            },
-            icon: const Icon(Icons.add_circle_outline),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildDateSelector() {
     return InputDecorator(
       decoration: const InputDecoration(labelText: "Fecha de Ingreso"),
@@ -773,6 +768,16 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
         ],
       ),
     );
+  }
+
+  Future<void> _pickDate() async {
+    final d = await showDatePicker(
+      context: context,
+      initialDate: _fecha ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+    if (d != null) setState(() => _fecha = d);
   }
 
   Widget _buildActions() {
@@ -809,19 +814,10 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                     backgroundColor: AppColors.success,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
                   ),
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "Campos opcionales y observaciones incluidos.",
-            style: AppTextStyles.caption.copyWith(fontSize: 10),
-            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -835,15 +831,16 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     ValueChanged<String?> onChanged,
     String Function(T) getId,
     String Function(T) getLabel,
-    VoidCallback onAdd,
-  ) {
+    VoidCallback onAdd, {
+    bool enabled = true,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         children: [
           Expanded(
             child: DropdownButtonFormField<String>(
-              initialValue: selectedId,
+              value: selectedId,
               items: items
                   .map(
                     (e) => DropdownMenuItem(
@@ -852,14 +849,21 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                     ),
                   )
                   .toList(),
-              onChanged: onChanged,
+              onChanged: enabled ? onChanged : null,
               decoration: InputDecoration(
                 labelText: label,
                 border: const OutlineInputBorder(),
+                filled: !enabled,
+                fillColor: enabled ? null : Colors.grey[200],
               ),
             ),
           ),
-          IconButton(onPressed: onAdd, icon: const Icon(Icons.add)),
+          if (_selectedLoteId ==
+              null) // Solo permitir agregar nuevo si no estamos en modo Lote
+            IconButton(
+              onPressed: enabled ? onAdd : null,
+              icon: const Icon(Icons.add),
+            ),
         ],
       ),
     );
@@ -888,7 +892,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
         children: [
           Expanded(
             child: DropdownButtonFormField<String>(
-              initialValue: selectedId,
+              value: selectedId,
               dropdownColor: Colors.white,
               style: TextStyle(color: txtColor, fontWeight: FontWeight.w600),
               items: colores
@@ -911,10 +915,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: bgColor ?? Colors.grey),
-                  borderRadius: BorderRadius.circular(12),
-                ),
               ),
             ),
           ),
@@ -924,45 +924,48 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     );
   }
 
-  // --- LÓGICA DE NEGOCIO ---
-
-  Future<void> _pickDate() async {
-    final d = await showDatePicker(
-      context: context,
-      initialDate: _fecha ?? DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-    );
-    if (d != null) setState(() => _fecha = d);
-  }
+  // ==========================================================
+  // LÓGICA DE NEGOCIO Y ENVÍO
+  // ==========================================================
 
   List<Rollo> _generarListaRollos() {
     final codigo = _codigoController.text.trim();
     final metraje = double.tryParse(_metrajeController.text) ?? 0;
     final cantidad = int.tryParse(_cantidadController.text) ?? 1;
-    final loteActivo = null;
-    //ref.read(loteActivoProvider);
+    final lote = _currentLote;
 
     // Variables de precio
     String? loteId;
     double? precioUsd;
     double? tipoCambio;
     double? precioFinal;
+    String? monedaId;
 
-    if (loteActivo != null && _precioEncontradoEnLote) {
-      // Si hay lote activo y encontramos precio
-      loteId = loteActivo.id;
-      precioUsd = _precioCalculadoUSD;
-      tipoCambio = loteActivo.tipoCambio;
-      precioFinal = _precioCalculadoBS;
+    if (lote != null && _empresaId != null && _tipoTelaId != null) {
+      // LÓGICA LOTE
+      loteId = lote.id;
+      final item = lote.items.firstWhere(
+        (i) => i.empresaId == _empresaId && i.tipoTelaId == _tipoTelaId,
+        orElse: () =>
+            LoteItem(empresaId: '', tipoTelaId: '', precioUnitario: 0),
+      );
+
+      precioFinal = item.precioUnitario;
+      tipoCambio = lote.tipoCambio;
+      monedaId = lote.esBoliviano ? 'bs' : lote.monedaExtranjeraId;
+
+      if (!lote.esBoliviano) {
+        precioUsd = item.precioUnitario; // El precio del item es USD
+        precioFinal = item.precioUnitario * lote.tipoCambio; // Convertir a BS
+      }
     } else {
-      // Si no hay lote, usar precio manual
+      // LÓGICA MANUAL
       precioFinal = double.tryParse(_precioManualController.text) ?? 0;
+      monedaId = _isBs ? 'bs' : _monedaSeleccionadaId;
 
       if (!_isBs) {
         precioUsd = double.tryParse(_precioOriginalController.text);
-
-        tipoCambio = double.tryParse(_tipoCambioController.text);
+        tipoCambio = double.tryParse(_tipoCambioManualController.text);
       }
     }
 
@@ -979,7 +982,9 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
         fecha: _fecha?.toIso8601String(),
         fechaCreacion: DateTime.now(),
         anchoId: _habilitarAncho ? _anchoId : null,
-        lote: _habilitarLote ? _loteController.text.trim() : null,
+        lote: _loteController.text.trim().isEmpty
+            ? null
+            : _loteController.text.trim(),
         numeroRollo: _habilitarNumRollo
             ? _numeroRolloController.text.trim()
             : null,
@@ -988,6 +993,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
         precioUsd: precioUsd,
         tipoCambio: tipoCambio,
         precioCompra: precioFinal,
+        monedaId: monedaId,
       ),
     );
   }
@@ -995,13 +1001,19 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   Future<void> _subirIndividual() async {
     if (_isSaving) return;
     if (!_formKey.currentState!.validate()) return;
-    // Validar precio
-    final loteActivo = null;
-    //ref.read(loteActivoProvider);
-    if (loteActivo == null &&
-        (double.tryParse(_precioManualController.text) ?? 0) <= 0) {
-      _mostrarError("Ingrese un precio válido.");
-      return;
+
+    // Validaciones específicas
+    if (_selectedLoteId != null) {
+      if (_empresaId == null || _tipoTelaId == null) {
+        _mostrarError("Debe seleccionar Empresa y Tipo de Tela para el Lote.");
+        return;
+      }
+    } else {
+      // Validar precio manual si no hay lote
+      if ((double.tryParse(_precioManualController.text) ?? 0) <= 0) {
+        _mostrarError("Ingrese un precio válido.");
+        return;
+      }
     }
 
     setState(() => _isSaving = true);
@@ -1009,13 +1021,19 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
       final rollos = _generarListaRollos();
       final ok = await ref.read(rollosProvider.notifier).crearRollos(rollos);
       if (ok && mounted) {
-        _mostrarExito("✅ ${rollos.length} rollos subidos a Firebase");
-        _resetFieldsForNextInput();
-      } else {
-        throw Exception("Error al guardar");
+        _mostrarExito("✅ ${rollos.length} rollos subidos");
+        // Reset simple
+        _codigoController.clear();
+        _metrajeController.clear();
+        _cantidadController.text = '1';
+        setState(() {
+          _colorId = null;
+          _habilitarAncho = false;
+          _anchoId = null;
+        });
       }
     } catch (e) {
-      _mostrarError("Error al subir: $e");
+      _mostrarError("Error: $e");
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -1024,14 +1042,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   Future<void> _agregarALote() async {
     if (_isSaving) return;
     if (!_formKey.currentState!.validate()) return;
-    // Validar precio
-    final loteActivo = null;
-    //ref.read(loteActivoProvider);
-    if (loteActivo == null &&
-        (double.tryParse(_precioManualController.text) ?? 0) <= 0) {
-      _mostrarError("Ingrese un precio válido.");
-      return;
-    }
 
     setState(() => _isSaving = true);
     try {
@@ -1041,37 +1051,27 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
       }
       if (mounted) {
         _mostrarExito("📦 ${rollos.length} rollos añadidos a pendientes");
-        _resetFieldsForNextInput();
+        // Reset simple
+        _codigoController.clear();
+        _metrajeController.clear();
+        _cantidadController.text = '1';
+        setState(() {
+          _colorId = null;
+        });
       }
     } catch (e) {
-      _mostrarError("Error al guardar local: $e");
+      _mostrarError("Error: $e");
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
   }
 
-  void _mostrarExito(String mensaje) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensaje),
-        backgroundColor: AppColors.success,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
-  void _mostrarError(String mensaje) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensaje),
-        backgroundColor: AppColors.error,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
+  void _mostrarExito(String msg) => ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.green));
+  void _mostrarError(String msg) => ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
 
   // --- QUICK ADDS ---
 
@@ -1144,6 +1144,8 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     ),
   );
 
+  String _normalize(String text) => text.trim().toLowerCase();
+
   Future<void> _quickAddGeneric<T>({
     required String title,
     required List<T> existingItems,
@@ -1184,7 +1186,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                     : () async {
                         final input = _normalize(ctrl.text);
                         if (input.isEmpty) return;
-
                         final exists = existingItems.any(
                           (e) => _normalize(getName(e)) == input,
                         );
@@ -1197,11 +1198,9 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                           );
                           return;
                         }
-
                         setStateDialog(() => _isSavingCatalog = true);
                         final newId = await onCreate(ctrl.text.trim());
                         setStateDialog(() => _isSavingCatalog = false);
-
                         onSelected(newId);
                         if (mounted) Navigator.pop(ctx);
                       },
@@ -1270,7 +1269,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
   late TabController _tabController;
   final _nameController = TextEditingController();
   Color _selectedColor = Colors.blue;
-
   final Map<int, double> _heightFactors = {0: 0.36, 1: 0.42, 2: 0.6};
 
   @override
@@ -1381,7 +1379,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                       onPressed: () async {
                         final name = _nameController.text.trim();
                         if (name.isEmpty) return;
-
                         if (widget.existingColors.any(
                           (c) => c.nombre.toLowerCase() == name.toLowerCase(),
                         )) {
@@ -1392,18 +1389,15 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                           );
                           return;
                         }
-
                         final hex =
                             '#${_selectedColor.value.toRadixString(16).substring(2)}';
                         final id = Helpers.generarId();
-
                         await widget.ref
                             .read(catalogServiceProvider)
                             .addColor(
                               ColorTela(id: id, nombre: name, hex: hex),
                             );
                         widget.ref.refresh(coloresProvider);
-
                         widget.onColorCreated(id);
                         if (mounted) Navigator.pop(context);
                       },

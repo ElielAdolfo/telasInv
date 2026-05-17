@@ -6,6 +6,7 @@ import 'package:inv_telas/providers/auth_provider.dart';
 import 'package:inv_telas/providers/lotes_providers.dart';
 import 'package:inv_telas/providers/providers.dart';
 import 'package:inv_telas/utils/utils.dart';
+import 'package:inv_telas/utils/helpers.dart'; // Asegúrate de tener este import para formatear fechas
 import 'package:uuid/uuid.dart';
 
 class LoteFormScreen extends ConsumerStatefulWidget {
@@ -28,6 +29,8 @@ class _LoteFormScreenState extends ConsumerState<LoteFormScreen> {
   String? _selectedMonedaId;
   String? _selectedResponsableId;
 
+  late DateTime _fechaIngreso;
+
   // ✅ Estado para la lista de items del lote
   List<LoteItem> _items = [];
 
@@ -39,6 +42,7 @@ class _LoteFormScreenState extends ConsumerState<LoteFormScreen> {
   @override
   void initState() {
     super.initState();
+    _fechaIngreso = DateTime.now();
     _loadData();
   }
 
@@ -61,6 +65,7 @@ class _LoteFormScreenState extends ConsumerState<LoteFormScreen> {
             _selectedMonedaId = lote.monedaExtranjeraId;
             _selectedResponsableId = lote.usuarioResponsableId;
             _items = lote.items;
+            _fechaIngreso = lote.fechaIngreso;
           });
         }
       });
@@ -97,6 +102,7 @@ class _LoteFormScreenState extends ConsumerState<LoteFormScreen> {
                       ),
                       validator: (v) => v!.isEmpty ? "Requerido" : null,
                     ),
+                    _buildFechaIngresoSelector(),
                     TextFormField(
                       controller: _vigenciaCtrl,
                       decoration: const InputDecoration(
@@ -332,6 +338,55 @@ class _LoteFormScreenState extends ConsumerState<LoteFormScreen> {
     );
   }
 
+  // ✅ WIDGET SELECTOR DE FECHA DE INGRESO
+  Widget _buildFechaIngresoSelector() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(4),
+
+        onTap: _pickFechaIngreso,
+
+        child: IgnorePointer(
+          child: InputDecorator(
+            decoration: const InputDecoration(
+              labelText: "Fecha de Ingreso",
+              border: UnderlineInputBorder(),
+
+              suffixIcon: Icon(Icons.calendar_today, color: AppColors.primary),
+            ),
+
+            child: Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 4),
+
+              child: Text(
+                Helpers.formatearFecha(_fechaIngreso),
+                style: const TextStyle(fontSize: 16),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ✅ MÉTODO PARA SELECCIONAR FECHA
+  Future<void> _pickFechaIngreso() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _fechaIngreso,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      locale: const Locale('es', 'ES'), // Para mostrar el calendario en español
+    );
+
+    if (picked != null && picked != _fechaIngreso) {
+      setState(() {
+        _fechaIngreso = picked;
+      });
+    }
+  }
+
   // Lógica para agregar item a la lista temporal
   void _addItemToList() {
     // Validación manual antes de agregar
@@ -409,7 +464,7 @@ class _LoteFormScreenState extends ConsumerState<LoteFormScreen> {
         fechaCreacion: widget.loteId != null
             ? ref.read(lotePorIdProvider(widget.loteId!))?.fechaCreacion ?? now
             : now,
-        fechaIngreso: now,
+        fechaIngreso: _fechaIngreso,
         vigenciaDias: int.tryParse(_vigenciaCtrl.text) ?? 5,
         activo: true,
         usuarioResponsableId: _selectedResponsableId ?? '',

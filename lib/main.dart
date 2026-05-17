@@ -5,7 +5,7 @@ import 'package:inv_telas/providers/auth_provider.dart';
 import 'package:inv_telas/screens/auth_screen.dart';
 import 'package:inv_telas/screens/homeScreen.dart';
 import 'firebase_options.dart';
-
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'package:intl/date_symbol_data_local.dart';
 
@@ -35,6 +35,14 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Inventario de Telas',
       debugShowCheckedModeBanner: false,
+
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+
+      supportedLocales: const [Locale('es'), Locale('en')],
       home: FutureBuilder<FirebaseApp>(
         future: _initializeFirebase(),
         builder: (context, snapshot) {
