@@ -198,39 +198,7 @@ class MyApp extends StatelessWidget {
 
 ===== D:\inv\inv_telas\lib\Untitled-1.dart =====
 
-class Rollo {
-  // ... campos existentes
-  final bool activo; // âœ… NUEVO
-  final String? usuarioCreadorId; // âœ… NUEVO
-  final String? usuarioEliminadorId; // âœ… NUEVO
-  final DateTime? fechaEliminacion; // âœ… NUEVO
 
-  Rollo({
-    // ... constructores existentes
-    this.activo = true, 
-    this.usuarioCreadorId,
-    this.usuarioEliminadorId,
-    this.fechaEliminacion,
-  });
-
-  factory Rollo.fromJson(Map<String, dynamic> json) => Rollo(
-    // ... mapeos existentes
-    activo: json['activo'] ?? true,
-    usuarioCreadorId: json['usuarioCreadorId'],
-    usuarioEliminadorId: json['usuarioEliminadorId'],
-    fechaEliminacion: json['fechaEliminacion'] != null 
-        ? DateTime.parse(json['fechaEliminacion']) 
-        : null,
-  );
-
-  Map<String, dynamic> toJson() => {
-    // ... mapeos existentes
-    'activo': activo,
-    'usuarioCreadorId': usuarioCreadorId,
-    'usuarioEliminadorId': usuarioEliminadorId,
-    'fechaEliminacion': fechaEliminacion?.toIso8601String(),
-  };
-}
 
 
 ===== D:\inv\inv_telas\lib\config\env.dart =====
@@ -450,6 +418,70 @@ class FiltrosModel {
 }
 
 
+===== D:\inv\inv_telas\lib\models\historico_precio.dart =====
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+class HistoricoPrecio {
+  final String id;
+  final String precioId;
+  final String accion; // CREATE, UPDATE, DELETE
+  final Map<String, dynamic>? datosAnteriores;
+  final Map<String, dynamic>? datosNuevos;
+  final String usuarioId;
+  final String usuarioNombre;
+  final DateTime fecha;
+  final String sucursalId;
+  final String telaId;
+  final String? empresaId;
+
+  HistoricoPrecio({
+    required this.id,
+    required this.precioId,
+    required this.accion,
+    this.datosAnteriores,
+    this.datosNuevos,
+    required this.usuarioId,
+    required this.usuarioNombre,
+    DateTime? fecha,
+    required this.sucursalId,
+    required this.telaId,
+    this.empresaId,
+  }) : fecha = fecha ?? DateTime.now();
+
+  factory HistoricoPrecio.fromJson(Map<String, dynamic> json) =>
+      HistoricoPrecio(
+        id: json['id'] ?? '',
+        precioId: json['precioId'] ?? '',
+        accion: json['accion'] ?? '',
+        datosAnteriores: json['datosAnteriores'],
+        datosNuevos: json['datosNuevos'],
+        usuarioId: json['usuarioId'] ?? '',
+        usuarioNombre: json['usuarioNombre'] ?? '',
+        fecha: json['fecha'] != null
+            ? (json['fecha'] as Timestamp).toDate()
+            : DateTime.now(),
+        sucursalId: json['sucursalId'] ?? '',
+        telaId: json['telaId'] ?? '',
+        empresaId: json['empresaId'],
+      );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'precioId': precioId,
+    'accion': accion,
+    'datosAnteriores': datosAnteriores,
+    'datosNuevos': datosNuevos,
+    'usuarioId': usuarioId,
+    'usuarioNombre': usuarioNombre,
+    'fecha': Timestamp.fromDate(fecha),
+    'sucursalId': sucursalId,
+    'telaId': telaId,
+    'empresaId': empresaId,
+  };
+}
+
+
 ===== D:\inv\inv_telas\lib\models\lote.dart =====
 
 class LoteItem {
@@ -605,6 +637,173 @@ class Lote {
 ===== D:\inv\inv_telas\lib\models\models.dart =====
 
 export 'rollo.dart'; export 'catalogos.dart';
+
+
+===== D:\inv\inv_telas\lib\models\precio_venta.dart =====
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+class PrecioVenta {
+  final String id;
+  final String sucursalId;
+
+  // Si es null, aplica para todas las empresas (General)
+  // Si tiene valor, aplica solo para esa empresa
+  final String? empresaId;
+
+  final String telaId;
+  final String telaNombre;
+
+  // PRECIO BASE
+  final double precioMetro;
+
+  // MAYOR
+  final bool tienePrecioMayor;
+  final double? cantidadMinimaMayor;
+  final double? precioMayor;
+
+  // ROLLO
+  final bool tienePrecioRollo;
+
+  // 'fijo' | 'dinamico'
+  final String tipoPrecioRollo;
+
+  // Caso fijo
+  final double? precioRolloFijo;
+
+  // Caso dinamico
+  final double? precioMetroRollo;
+  final double? rangoMinRollo;
+  final double? rangoMaxRollo;
+
+  // AUDITORIA
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final String createdBy;
+  final String updatedBy;
+  final bool activo;
+
+  PrecioVenta({
+    required this.id,
+    required this.sucursalId,
+    this.empresaId,
+    required this.telaId,
+    required this.telaNombre,
+    required this.precioMetro,
+    this.tienePrecioMayor = false,
+    this.cantidadMinimaMayor,
+    this.precioMayor,
+    this.tienePrecioRollo = false,
+    this.tipoPrecioRollo = 'fijo',
+    this.precioRolloFijo,
+    this.precioMetroRollo,
+    this.rangoMinRollo,
+    this.rangoMaxRollo,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    this.createdBy = '',
+    this.updatedBy = '',
+    this.activo = true,
+  }) : createdAt = createdAt ?? DateTime.now(),
+       updatedAt = updatedAt ?? DateTime.now();
+
+  factory PrecioVenta.fromJson(Map<String, dynamic> json) => PrecioVenta(
+    id: json['id'] ?? '',
+    sucursalId: json['sucursalId'] ?? '',
+    empresaId: json['empresaId'], // Puede ser null
+    telaId: json['telaId'] ?? '',
+    telaNombre: json['telaNombre'] ?? '',
+    precioMetro: (json['precioMetro'] ?? 0).toDouble(),
+    tienePrecioMayor: json['tienePrecioMayor'] ?? false,
+    cantidadMinimaMayor: (json['cantidadMinimaMayor'] as num?)?.toDouble(),
+    precioMayor: (json['precioMayor'] as num?)?.toDouble(),
+    tienePrecioRollo: json['tienePrecioRollo'] ?? false,
+    tipoPrecioRollo: json['tipoPrecioRollo'] ?? 'fijo',
+    precioRolloFijo: (json['precioRolloFijo'] as num?)?.toDouble(),
+    precioMetroRollo: (json['precioMetroRollo'] as num?)?.toDouble(),
+    rangoMinRollo: (json['rangoMinRollo'] as num?)?.toDouble(),
+    rangoMaxRollo: (json['rangoMaxRollo'] as num?)?.toDouble(),
+    createdAt: json['createdAt'] != null
+        ? (json['createdAt'] as Timestamp).toDate()
+        : DateTime.now(),
+    updatedAt: json['updatedAt'] != null
+        ? (json['updatedAt'] as Timestamp).toDate()
+        : DateTime.now(),
+    createdBy: json['createdBy'] ?? '',
+    updatedBy: json['updatedBy'] ?? '',
+    activo: json['activo'] ?? true,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'sucursalId': sucursalId,
+    'empresaId': empresaId, // Firestore guarda null si es null
+    'telaId': telaId,
+    'telaNombre': telaNombre,
+    'precioMetro': precioMetro,
+    'tienePrecioMayor': tienePrecioMayor,
+    'cantidadMinimaMayor': cantidadMinimaMayor,
+    'precioMayor': precioMayor,
+    'tienePrecioRollo': tienePrecioRollo,
+    'tipoPrecioRollo': tipoPrecioRollo,
+    'precioRolloFijo': precioRolloFijo,
+    'precioMetroRollo': precioMetroRollo,
+    'rangoMinRollo': rangoMinRollo,
+    'rangoMaxRollo': rangoMaxRollo,
+    'createdAt': Timestamp.fromDate(createdAt),
+    'updatedAt': Timestamp.fromDate(updatedAt),
+    'createdBy': createdBy,
+    'updatedBy': updatedBy,
+    'activo': activo,
+  };
+
+  PrecioVenta copyWith({
+    String? id,
+    String? sucursalId,
+    String? empresaId,
+    String? telaId,
+    String? telaNombre,
+    double? precioMetro,
+    bool? tienePrecioMayor,
+    double? cantidadMinimaMayor,
+    double? precioMayor,
+    bool? tienePrecioRollo,
+    String? tipoPrecioRollo,
+    double? precioRolloFijo,
+    double? precioMetroRollo,
+    double? rangoMinRollo,
+    double? rangoMaxRollo,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    String? createdBy,
+    String? updatedBy,
+    bool? activo,
+    bool? clearEmpresaId= false, // Helper para setear empresaId a null
+  }) {
+    return PrecioVenta(
+      id: id ?? this.id,
+      sucursalId: sucursalId ?? this.sucursalId,
+      empresaId: clearEmpresaId == true ? null : (empresaId ?? this.empresaId),
+      telaId: telaId ?? this.telaId,
+      telaNombre: telaNombre ?? this.telaNombre,
+      precioMetro: precioMetro ?? this.precioMetro,
+      tienePrecioMayor: tienePrecioMayor ?? this.tienePrecioMayor,
+      cantidadMinimaMayor: cantidadMinimaMayor ?? this.cantidadMinimaMayor,
+      precioMayor: precioMayor ?? this.precioMayor,
+      tienePrecioRollo: tienePrecioRollo ?? this.tienePrecioRollo,
+      tipoPrecioRollo: tipoPrecioRollo ?? this.tipoPrecioRollo,
+      precioRolloFijo: precioRolloFijo ?? this.precioRolloFijo,
+      precioMetroRollo: precioMetroRollo ?? this.precioMetroRollo,
+      rangoMinRollo: rangoMinRollo ?? this.rangoMinRollo,
+      rangoMaxRollo: rangoMaxRollo ?? this.rangoMaxRollo,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      createdBy: createdBy ?? this.createdBy,
+      updatedBy: updatedBy ?? this.updatedBy,
+      activo: activo ?? this.activo,
+    );
+  }
+}
 
 
 ===== D:\inv\inv_telas\lib\models\rollo.dart =====
@@ -1591,6 +1790,1200 @@ class PrecioTelaTile extends StatelessWidget {
 }
 
 
+===== D:\inv\inv_telas\lib\moduloPrecios\providers\precio_provider.dart =====
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
+import 'package:inv_telas/models/catalogos.dart';
+import 'package:inv_telas/models/precio_venta.dart';
+import 'package:inv_telas/models/usuario.dart';
+import '../services/precio_service.dart';
+
+// SERVICE
+final precioServiceProvider = Provider<PrecioService>((ref) {
+  return PrecioService();
+});
+
+// PRECIOS POR SUCURSAL
+final preciosPorSucursalProvider =
+    StateNotifierProvider.family<
+      PreciosNotifier,
+      AsyncValue<List<PrecioVenta>>,
+      String
+    >((ref, sucursalId) {
+      return PreciosNotifier(ref.read(precioServiceProvider), sucursalId);
+    });
+
+class PreciosNotifier extends StateNotifier<AsyncValue<List<PrecioVenta>>> {
+  final PrecioService _service;
+  final String _sucursalId;
+
+  PreciosNotifier(this._service, this._sucursalId)
+    : super(const AsyncLoading()) {
+    cargar();
+  }
+
+  Future<void> cargar() async {
+    try {
+      state = const AsyncLoading();
+
+      final lista = await _service.obtenerPreciosPorSucursal(_sucursalId);
+
+      state = AsyncData(lista);
+    } catch (e, st) {
+      state = AsyncError(e, st);
+    }
+  }
+
+  // GUARDAR
+  Future<void> guardar({
+    required List<String> sucursalIds,
+    required PrecioVenta precio,
+    required Usuario usuario,
+    String? telaNombre,
+  }) async {
+    try {
+      await _service.guardarPrecio(
+        sucursalIds: sucursalIds,
+        precioBase: precio,
+        usuarioId: usuario.id,
+        usuarioNombre: usuario.nombre,
+        telaNombre: telaNombre,
+      );
+
+      await cargar();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // ELIMINAR
+  Future<void> eliminar(String precioId, Usuario usuario) async {
+    try {
+      // AUN NO EXISTE EN TU SERVICE
+      // Debes crear eliminarPrecio() en PrecioService
+
+      // await _service.eliminarPrecio(precioId, usuario);
+
+      await cargar();
+    } catch (e) {
+      rethrow;
+    }
+  }
+}
+
+// TELAS EN STOCK
+final telasEnStockProvider = FutureProvider.family<List<TipoTela>, String>((
+  ref,
+  sucursalId,
+) async {
+  return ref
+      .read(precioServiceProvider)
+      .obtenerTelasEnStockSucursal(sucursalId);
+});
+
+
+===== D:\inv\inv_telas\lib\moduloPrecios\screens\precios_screen.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/models/catalogos.dart';
+import 'package:inv_telas/models/precio_venta.dart';
+import 'package:inv_telas/providers/auth_provider.dart';
+import 'package:inv_telas/providers/providers.dart';
+import 'package:inv_telas/utils/utils.dart';
+import 'package:inv_telas/widgets/confirm_dialog.dart';
+import '../providers/precio_provider.dart';
+import 'precio_form_screen.dart';
+
+class PreciosScreen extends ConsumerStatefulWidget {
+  const PreciosScreen({super.key});
+
+  @override
+  ConsumerState<PreciosScreen> createState() => _PreciosScreenState();
+}
+
+class _PreciosScreenState extends ConsumerState<PreciosScreen> {
+  String? _selectedSucursalId;
+  String? _selectedEmpresaId;
+
+  @override
+  Widget build(BuildContext context) {
+    final sucursales = ref.watch(sucursalesProvider);
+    final empresas = ref.watch(empresasProvider);
+
+    // Watch al provider familiar solo si hay sucursal seleccionada
+    final preciosAsync = _selectedSucursalId != null
+        ? ref.watch(preciosPorSucursalProvider(_selectedSucursalId!))
+        : null;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("MÃ³dulo de Precios"),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+      ),
+      body: Column(
+        children: [
+          // Filtros
+          Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: _selectedSucursalId,
+                    hint: const Text("Seleccione Sucursal"),
+                    items: sucursales
+                        .map(
+                          (s) => DropdownMenuItem(
+                            value: s.id,
+                            child: Text(s.nombre),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) => setState(() => _selectedSucursalId = v),
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: _selectedEmpresaId,
+                    hint: const Text("Filtrar por Empresa (Opcional)"),
+                    items: [
+                      const DropdownMenuItem(
+                        value: null,
+                        child: Text("Todas / General"),
+                      ),
+                      ...empresas.map(
+                        (e) => DropdownMenuItem(
+                          value: e.id,
+                          child: Text(e.nombre),
+                        ),
+                      ),
+                    ],
+                    onChanged: (v) => setState(() => _selectedEmpresaId = v),
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(),
+
+          // Lista
+          Expanded(
+            child: _selectedSucursalId == null
+                ? const Center(
+                    child: Text(
+                      "Seleccione una sucursal para ver los precios.",
+                    ),
+                  )
+                : preciosAsync == null
+                ? const SizedBox()
+                : preciosAsync.when(
+                    data: (lista) {
+                      // Filtro client-side por empresa (ejemplo simple)
+                      final listaFiltrada = lista.where((p) {
+                        if (_selectedEmpresaId == null) return true;
+                        // Mostrar si coincide la empresa O si es precio general (empresaId null)
+                        return p.empresaId == _selectedEmpresaId ||
+                            p.empresaId == null;
+                      }).toList();
+
+                      if (listaFiltrada.isEmpty)
+                        return const Center(
+                          child: Text("No hay precios configurados."),
+                        );
+
+                      return ListView.builder(
+                        itemCount: listaFiltrada.length,
+                        itemBuilder: (ctx, i) {
+                          final p = listaFiltrada[i];
+                          return ListTile(
+                            title: Text(p.telaNombre),
+                            subtitle: Text("Metro: ${p.precioMetro} Bs"),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  p.empresaId == null
+                                      ? "General"
+                                      : "Empresa Esp.",
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.edit),
+                                  onPressed: () => _goForm(p),
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.delete,
+                                    color: Colors.red,
+                                  ),
+                                  onPressed: () => _delete(p),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      );
+                    },
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (e, _) => Center(child: Text("Error: $e")),
+                  ),
+          ),
+        ],
+      ),
+      floatingActionButton: _selectedSucursalId == null
+          ? null
+          : FloatingActionButton(
+              onPressed: _goFormNew,
+              child: const Icon(Icons.add),
+            ),
+    );
+  }
+
+  void _goFormNew() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => PrecioFormScreen()),
+    );
+  }
+
+  void _goForm(PrecioVenta p) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => PrecioFormScreen()),
+    );
+  }
+
+  Future<void> _delete(PrecioVenta p) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => const ConfirmDialog(
+        titulo: "Eliminar Precio",
+        mensaje: "Â¿EstÃ¡ seguro?",
+        isDanger: true,
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      final user = ref.read(authProvider).value;
+      if (user != null) {
+        try {
+          await ref
+              .read(preciosPorSucursalProvider(_selectedSucursalId!).notifier)
+              .eliminar(p.id, user);
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text("Precio eliminado")));
+        } catch (e) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text("Error: $e")));
+        }
+      }
+    }
+  }
+}
+
+
+===== D:\inv\inv_telas\lib\moduloPrecios\screens\precio_form_screen.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/models/catalogos.dart';
+import 'package:inv_telas/models/precio_venta.dart';
+import 'package:inv_telas/moduloPrecios/providers/precio_provider.dart';
+import 'package:inv_telas/moduloPrecios/services/precio_service.dart';
+import 'package:inv_telas/providers/auth_provider.dart';
+import 'package:inv_telas/providers/providers.dart';
+import 'package:inv_telas/utils/utils.dart';
+import 'package:inv_telas/widgets/confirm_dialog.dart';
+import 'package:inv_telas/widgets/loading_overlay.dart';
+import 'package:uuid/uuid.dart';
+
+class PrecioFormScreen extends ConsumerStatefulWidget {
+  final String? sucursalIdInicial; // Cambio: puede venir una o null
+  final TipoTela? tela;
+  final PrecioVenta? precioExistente;
+
+  const PrecioFormScreen({
+    super.key,
+    this.sucursalIdInicial,
+    this.tela,
+    this.precioExistente,
+  });
+
+  @override
+  ConsumerState<PrecioFormScreen> createState() => _PrecioFormScreenState();
+}
+
+class _PrecioFormScreenState extends ConsumerState<PrecioFormScreen> {
+  final _formKey = GlobalKey<FormState>();
+  bool _isLoading = false;
+
+  // Controladores
+  final _precioMetroCtrl = TextEditingController();
+  final _precioMayorCtrl = TextEditingController();
+  final _cantMinMayorCtrl = TextEditingController();
+  final _precioRolloFijoCtrl = TextEditingController();
+  final _precioRolloMetroCtrl = TextEditingController();
+  final _rangoMinCtrl = TextEditingController();
+  final _rangoMaxCtrl = TextEditingController();
+
+  // Estado
+  List<String> _selectedSucursalIds = [];
+  bool _tieneMayor = false;
+  bool _tieneRollo = false;
+  String _tipoRollo = 'fijo'; // 'fijo' | 'dinamico'
+
+  // CASO EXCEPCIONAL
+  bool _separarPorEmpresa = false;
+  String? _empresaSeleccionada;
+  String? _selectedTelaId;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInitialData();
+  }
+
+  void _loadInitialData() {
+    final p = widget.precioExistente;
+
+    // Si estamos editando, cargamos datos existentes
+    if (p != null) {
+      _selectedSucursalIds = [
+        p.sucursalId,
+      ]; // En ediciÃ³n, trabajamos sobre una sucursal
+      _selectedTelaId = p.telaId;
+      _precioMetroCtrl.text = p.precioMetro.toString();
+
+      _tieneMayor = p.tienePrecioMayor;
+      if (_tieneMayor) {
+        _precioMayorCtrl.text = p.precioMayor?.toString() ?? '';
+        _cantMinMayorCtrl.text = p.cantidadMinimaMayor?.toString() ?? '';
+      }
+
+      _tieneRollo = p.tienePrecioRollo;
+      _tipoRollo = p.tipoPrecioRollo;
+
+      if (_tieneRollo) {
+        if (_tipoRollo == 'fijo') {
+          _precioRolloFijoCtrl.text = p.precioRolloFijo?.toString() ?? '';
+        } else {
+          _precioRolloMetroCtrl.text = p.precioMetroRollo?.toString() ?? '';
+          _rangoMinCtrl.text = p.rangoMinRollo?.toString() ?? '';
+          _rangoMaxCtrl.text = p.rangoMaxRollo?.toString() ?? '';
+        }
+      }
+
+      if (p.empresaId != null) {
+        _separarPorEmpresa = true;
+        _empresaSeleccionada = p.empresaId;
+      }
+    } else {
+      // Si es nuevo, y viene una sucursal inicial (desde lista de stock), la preseleccionamos
+      if (widget.sucursalIdInicial != null) {
+        _selectedSucursalIds = [widget.sucursalIdInicial!];
+      }
+      _selectedTelaId = widget.tela?.id;
+    }
+  }
+
+  @override
+  void dispose() {
+    _precioMetroCtrl.dispose();
+    _precioMayorCtrl.dispose();
+    _cantMinMayorCtrl.dispose();
+    _precioRolloFijoCtrl.dispose();
+    _precioRolloMetroCtrl.dispose();
+    _rangoMinCtrl.dispose();
+    _rangoMaxCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final empresas = ref.watch(empresasProvider);
+    final tiposTela = ref.watch(tiposTelaProvider);
+    final sucursales = ref.watch(sucursalesProvider);
+
+    return Stack(
+      children: [
+        Scaffold(
+          appBar: AppBar(
+            title: Text(
+              widget.precioExistente == null
+                  ? "Configurar Precios"
+                  : "Editar Precio",
+            ),
+            backgroundColor: AppColors.primary,
+            actions: [
+              IconButton(icon: const Icon(Icons.save), onPressed: _submit),
+            ],
+          ),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 1. SELECTOR MULTIPLE DE SUCURSALES
+                  _buildSucursalSelector(sucursales),
+                  const SizedBox(height: 15),
+
+                  // 2. SELECTOR DE TELA
+                  if (widget.tela != null)
+                    Card(
+                      color: Colors.blueGrey[50],
+                      child: ListTile(
+                        leading: const Icon(Icons.inventory_2),
+                        title: Text("Tela: ${widget.tela!.nombre}"),
+                        subtitle: Text("ID: ${widget.tela!.id}"),
+                      ),
+                    )
+                  else
+                    DropdownButtonFormField<String>(
+                      value: _selectedTelaId,
+                      hint: const Text("Seleccionar Tela"),
+                      items: tiposTela
+                          .map(
+                            (t) => DropdownMenuItem(
+                              value: t.id,
+                              child: Text(t.nombre),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) => setState(() => _selectedTelaId = v),
+                      validator: (v) => v == null ? "Requerido" : null,
+                    ),
+
+                  const SizedBox(height: 20),
+                  _buildSeccionEmpresa(empresas),
+                  const Divider(height: 40),
+
+                  // 3. PRECIO METRO
+                  TextFormField(
+                    controller: _precioMetroCtrl,
+                    decoration: const InputDecoration(
+                      labelText: "Precio por Metro (Base) *",
+                      prefixIcon: Icon(Icons.straighten),
+                      suffixText: "Bs",
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: (v) => v!.isEmpty ? "Requerido" : null,
+                    onChanged: (_) => setState(
+                      () {},
+                    ), // Para recalcular totales si es necesario
+                  ),
+                  const SizedBox(height: 15),
+
+                  // 4. PRECIO MAYOR
+                  _buildSeccionMayor(),
+                  const SizedBox(height: 15),
+
+                  // 5. PRECIO ROLLO (NUEVA LÃ“GICA)
+                  _buildSeccionRollo(),
+                  const SizedBox(height: 40),
+
+                  ElevatedButton.icon(
+                    onPressed: _submit,
+                    icon: const Icon(Icons.save),
+                    label: Text(
+                      _selectedSucursalIds.length > 1
+                          ? "GUARDAR EN ${_selectedSucursalIds.length} SUCURSALES"
+                          : "GUARDAR PRECIO",
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 50),
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (_isLoading) const LoadingOverlay(),
+      ],
+    );
+  }
+
+  // Selector MÃºltiple de Sucursales
+  Widget _buildSucursalSelector(List<Sucursal> sucursales) {
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: "Sucursales donde aplica *",
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8.0,
+            runSpacing: 4.0,
+            children: _selectedSucursalIds.map((id) {
+              final s = sucursales.firstWhere(
+                (e) => e.id == id,
+                orElse: () => Sucursal(id: id, nombre: "ID: $id"),
+              );
+              return Chip(
+                label: Text(s.nombre),
+                deleteIcon: const Icon(Icons.close, size: 18),
+                onDeleted: widget.precioExistente != null
+                    ? null // Si estÃ¡ editando un registro existente, no deberÃ­a cambiar la sucursal (crear nuevo mejor)
+                    : () => setState(() => _selectedSucursalIds.remove(id)),
+                backgroundColor: AppColors.primary.withOpacity(0.1),
+              );
+            }).toList(),
+          ),
+          TextButton.icon(
+            icon: const Icon(Icons.add_location_alt_outlined, size: 20),
+            label: const Text("Agregar Sucursal"),
+            onPressed: widget.precioExistente != null
+                ? null
+                : () => _showSucursalDialog(sucursales),
+          ),
+          if (widget.precioExistente == null && _selectedSucursalIds.length > 1)
+            Padding(
+              padding: const EdgeInsets.only(top: 4.0),
+              child: Text(
+                "El precio se replicarÃ¡ en todas las sucursales seleccionadas.",
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: Colors.blueGrey),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _showSucursalDialog(List<Sucursal> sucursales) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        List<String> tempSelection = List.from(_selectedSucursalIds);
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text("Seleccionar Sucursales"),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: sucursales.map((s) {
+                    final isSelected = tempSelection.contains(s.id);
+                    return CheckboxListTile(
+                      value: isSelected,
+                      title: Text(s.nombre),
+                      onChanged: (v) {
+                        setDialogState(() {
+                          if (v == true) {
+                            tempSelection.add(s.id);
+                          } else {
+                            tempSelection.remove(s.id);
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text("CANCELAR"),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() => _selectedSucursalIds = tempSelection);
+                    Navigator.pop(ctx);
+                  },
+                  child: const Text("CONFIRMAR"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSeccionEmpresa(List<Empresa> empresas) {
+    // Mismo cÃ³digo que antes...
+    return Card(
+      elevation: 0,
+      color: Colors.orange[50],
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SwitchListTile(
+              title: const Text(
+                "Caso Excepcional: Precio especÃ­fico por Empresa",
+              ),
+              subtitle: const Text(
+                "Active si esta tela tiene precios diferentes por empresa.",
+              ),
+              value: _separarPorEmpresa,
+              onChanged: (v) => setState(() => _separarPorEmpresa = v),
+              contentPadding: EdgeInsets.zero,
+            ),
+            if (_separarPorEmpresa) ...[
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                value: _empresaSeleccionada,
+                hint: const Text("Seleccione la Empresa"),
+                items: empresas
+                    .map(
+                      (e) =>
+                          DropdownMenuItem(value: e.id, child: Text(e.nombre)),
+                    )
+                    .toList(),
+                onChanged: (v) => setState(() => _empresaSeleccionada = v),
+                validator: (v) => _separarPorEmpresa && v == null
+                    ? "Seleccione empresa"
+                    : null,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSeccionMayor() {
+    return Card(
+      elevation: 1,
+      child: ExpansionTile(
+        initiallyExpanded: _tieneMayor,
+        title: Row(
+          children: [
+            if (_tieneMayor)
+              const Icon(Icons.check_circle, color: Colors.green, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              "Precio por Mayor",
+              style: TextStyle(
+                fontWeight: _tieneMayor ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              children: [
+                SwitchListTile(
+                  title: const Text("Habilitar Precio Mayor"),
+                  value: _tieneMayor,
+                  onChanged: (v) => setState(() => _tieneMayor = v),
+                ),
+                if (_tieneMayor) ...[
+                  TextFormField(
+                    controller: _cantMinMayorCtrl,
+                    decoration: const InputDecoration(
+                      labelText: "Cantidad MÃ­nima (Mts)",
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                  TextFormField(
+                    controller: _precioMayorCtrl,
+                    decoration: const InputDecoration(
+                      labelText: "Precio Mayor (Bs)",
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: (v) {
+                      if (_tieneMayor &&
+                          v!.isNotEmpty &&
+                          _precioMetroCtrl.text.isNotEmpty) {
+                        if (double.parse(v) >
+                            double.parse(_precioMetroCtrl.text)) {
+                          return "Debe ser <= Precio Metro";
+                        }
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSeccionRollo() {
+    return Card(
+      elevation: 1,
+      child: ExpansionTile(
+        initiallyExpanded: _tieneRollo,
+        title: Row(
+          children: [
+            if (_tieneRollo)
+              const Icon(Icons.check_circle, color: Colors.green, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              "Precio por Rollo",
+              style: TextStyle(
+                fontWeight: _tieneRollo ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SwitchListTile(
+                  title: const Text("Habilitar Venta por Rollo"),
+                  value: _tieneRollo,
+                  onChanged: (v) => setState(() => _tieneRollo = v),
+                ),
+                if (_tieneRollo) ...[
+                  const Text("Tipo de Precio Rollo:"),
+                  SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(
+                        value: 'fijo',
+                        label: Text("Precio Fijo"),
+                        icon: Icon(Icons.price_check),
+                      ),
+                      ButtonSegment(
+                        value: 'dinamico',
+                        label: Text("Por Metraje"),
+                        icon: Icon(Icons.straighten),
+                      ),
+                    ],
+                    selected: {_tipoRollo},
+                    onSelectionChanged: (Set<String> newSelection) {
+                      setState(() => _tipoRollo = newSelection.first);
+                    },
+                  ),
+                  const SizedBox(height: 15),
+
+                  // LÃ³gica Visual: FIJO
+                  if (_tipoRollo == 'fijo')
+                    TextFormField(
+                      controller: _precioRolloFijoCtrl,
+                      decoration: const InputDecoration(
+                        labelText: "Precio Total del Rollo (Bs)",
+                        prefixIcon: Icon(Icons.attach_money),
+                        helperText:
+                            "Monto fijo por rollo completo, sin importar metros.",
+                      ),
+                      keyboardType: TextInputType.number,
+                      validator: (v) {
+                        if (_tipoRollo == 'fijo' && (v == null || v.isEmpty))
+                          return "Requerido";
+                        return null;
+                      },
+                    )
+                  // LÃ³gica Visual: DINAMICO
+                  else ...[
+                    TextFormField(
+                      controller: _precioRolloMetroCtrl,
+                      decoration: const InputDecoration(
+                        labelText: "Precio por Metro (Rollo) (Bs)",
+                        helperText: "Debe ser menor al precio mayor o metro.",
+                      ),
+                      keyboardType: TextInputType.number,
+                      validator: (v) {
+                        if (_tipoRollo == 'dinamico' &&
+                            (v == null || v.isEmpty))
+                          return "Requerido";
+                        // ValidaciÃ³n negocio
+                        double precioBase = _tieneMayor
+                            ? (double.tryParse(_precioMayorCtrl.text) ??
+                                  double.infinity)
+                            : (double.tryParse(_precioMetroCtrl.text) ??
+                                  double.infinity);
+                        if (v != null &&
+                            v.isNotEmpty &&
+                            double.parse(v) > precioBase) {
+                          return "Debe ser <= ${_tieneMayor ? 'Precio Mayor' : 'Precio Metro'}";
+                        }
+                        return null;
+                      },
+                      onChanged: (_) =>
+                          setState(() {}), // Para recalcular total estimado
+                    ),
+                    const SizedBox(height: 10),
+                    const Text("Rango de Metros (Informativo):"),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _rangoMinCtrl,
+                            decoration: const InputDecoration(
+                              labelText: "Min Mts",
+                            ),
+                            keyboardType: TextInputType.number,
+                            onChanged: (_) => setState(() {}),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _rangoMaxCtrl,
+                            decoration: const InputDecoration(
+                              labelText: "Max Mts",
+                            ),
+                            keyboardType: TextInputType.number,
+                            onChanged: (_) => setState(() {}),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    // Calculadora de Total Estimado
+                    if (_precioRolloMetroCtrl.text.isNotEmpty &&
+                        _rangoMinCtrl.text.isNotEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(top: 15),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              "CÃ¡lculo Estimado (Referencial):",
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 5),
+                            Builder(
+                              builder: (context) {
+                                final precio =
+                                    double.tryParse(
+                                      _precioRolloMetroCtrl.text,
+                                    ) ??
+                                    0;
+                                final min =
+                                    double.tryParse(_rangoMinCtrl.text) ?? 0;
+                                final max = double.tryParse(_rangoMaxCtrl.text);
+
+                                String text;
+                                if (max != null && max > 0) {
+                                  text =
+                                      "Entre ${min * precio} Bs y ${max * precio} Bs";
+                                } else {
+                                  text = "MÃ­nimo estimado: ${min * precio} Bs";
+                                }
+                                return Text(
+                                  text,
+                                  style: const TextStyle(fontSize: 16),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_selectedSucursalIds.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Debe seleccionar al menos una sucursal."),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => ConfirmDialog(
+        titulo: "Â¿Guardar Precio?",
+        mensaje: _selectedSucursalIds.length > 1
+            ? "Se replicarÃ¡ el precio en ${_selectedSucursalIds.length} sucursales."
+            : "Se guardarÃ¡ la configuraciÃ³n de precios.",
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final user = ref.read(authProvider).value;
+      if (user == null) throw Exception("No autenticado");
+
+      // Crear modelo base (sin ID de documento ni sucursal especÃ­fica, el servicio lo maneja)
+      final precioModel = PrecioVenta(
+        id: '', // El servicio lo generarÃ¡
+        sucursalId: '', // El servicio lo asignarÃ¡
+        telaId: _selectedTelaId!,
+        telaNombre: widget.tela?.nombre ?? "N/A",
+        precioMetro: double.parse(_precioMetroCtrl.text),
+
+        tienePrecioMayor: _tieneMayor,
+        precioMayor: _tieneMayor
+            ? double.tryParse(_precioMayorCtrl.text)
+            : null,
+        cantidadMinimaMayor: _tieneMayor
+            ? double.tryParse(_cantMinMayorCtrl.text)
+            : null,
+
+        tienePrecioRollo: _tieneRollo,
+        tipoPrecioRollo: _tipoRollo,
+        precioRolloFijo: _tieneRollo && _tipoRollo == 'fijo'
+            ? double.tryParse(_precioRolloFijoCtrl.text)
+            : null,
+        precioMetroRollo: _tieneRollo && _tipoRollo == 'dinamico'
+            ? double.tryParse(_precioRolloMetroCtrl.text)
+            : null,
+        rangoMinRollo: _tieneRollo && _tipoRollo == 'dinamico'
+            ? double.tryParse(_rangoMinCtrl.text)
+            : null,
+        rangoMaxRollo: _tieneRollo && _tipoRollo == 'dinamico'
+            ? double.tryParse(_rangoMaxCtrl.text)
+            : null,
+
+        empresaId: _separarPorEmpresa ? _empresaSeleccionada : null,
+        activo: true,
+      );
+
+      // Llamada al servicio con lista de sucursales
+      await ref
+          .read(precioServiceProvider)
+          .guardarPrecio(
+            sucursalIds: _selectedSucursalIds,
+            precioBase: precioModel,
+            usuarioId: user.id,
+            usuarioNombre: user.nombre,
+            telaNombre: widget.tela?.nombre,
+          );
+
+      if (mounted) Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+}
+
+
+===== D:\inv\inv_telas\lib\moduloPrecios\services\precio_service.dart =====
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:inv_telas/config/env.dart';
+import 'package:inv_telas/models/historico_precio.dart';
+import 'package:inv_telas/models/precio_venta.dart';
+import 'package:inv_telas/models/catalogos.dart';
+
+class PrecioService {
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  late final CollectionReference<Map<String, dynamic>> _preciosRef;
+  late final CollectionReference<Map<String, dynamic>> _historicoRef;
+  late final CollectionReference<Map<String, dynamic>> _rollosRef;
+  late final CollectionReference<Map<String, dynamic>> _telasRef;
+
+  PrecioService() {
+    _preciosRef = _db.collection(Env.col('precios_venta'));
+    _historicoRef = _db.collection(Env.col('historico_precios'));
+    _rollosRef = _db.collection(Env.col('rollos'));
+    _telasRef = _db.collection(Env.col('tipos_tela'));
+  }
+
+  Future<List<TipoTela>> obtenerTelasEnStockSucursal(String sucursalId) async {
+    try {
+      final querySnapshot = await _rollosRef
+          .where('sucursalId', isEqualTo: sucursalId)
+          .where('activo', isEqualTo: true)
+          .get();
+
+      final Set<String> idsUnicos = querySnapshot.docs
+          .map((doc) => doc.data()['tipoTelaId'] as String?)
+          .whereType<String>()
+          .toSet();
+
+      if (idsUnicos.isEmpty) return [];
+
+      List<TipoTela> telas = [];
+
+      for (var id in idsUnicos) {
+        final docTela = await _telasRef.doc(id).get();
+
+        if (docTela.exists && docTela.data() != null) {
+          telas.add(TipoTela.fromJson(docTela.data()!));
+        } else {
+          telas.add(TipoTela(id: id, nombre: 'Tela ID: $id'));
+        }
+      }
+
+      return telas;
+    } catch (e) {
+      print('Error obteniendo stock de telas: $e');
+      return [];
+    }
+  }
+
+  Future<List<PrecioVenta>> obtenerPreciosPorSucursal(String sucursalId) async {
+    final snapshot = await _preciosRef
+        .where('sucursalId', isEqualTo: sucursalId)
+        .where('activo', isEqualTo: true)
+        .get();
+
+    return snapshot.docs
+        .map((doc) => PrecioVenta.fromJson(doc.data()))
+        .toList();
+  }
+
+  Future<void> guardarPrecio({
+    required List<String> sucursalIds,
+    required PrecioVenta precioBase,
+    required String usuarioId,
+    required String usuarioNombre,
+    String? telaNombre,
+  }) async {
+    final batch = _db.batch();
+    final now = DateTime.now();
+
+    for (String sucursalId in sucursalIds) {
+      Query<Map<String, dynamic>> query = _preciosRef
+          .where('sucursalId', isEqualTo: sucursalId)
+          .where('telaId', isEqualTo: precioBase.telaId)
+          .where('activo', isEqualTo: true);
+
+      if (precioBase.empresaId != null) {
+        query = query.where('empresaId', isEqualTo: precioBase.empresaId);
+      } else {
+        query = query.where('empresaId', isNull: true);
+      }
+
+      final existingSnap = await query.limit(1).get();
+
+      DocumentReference<Map<String, dynamic>> docRef;
+      bool esNuevo;
+
+      Map<String, dynamic>? existingData;
+
+      if (existingSnap.docs.isNotEmpty) {
+        docRef = existingSnap.docs.first.reference;
+        esNuevo = false;
+        existingData = existingSnap.docs.first.data();
+      } else {
+        docRef = _preciosRef.doc();
+        esNuevo = true;
+      }
+
+      final precioToSave = precioBase.copyWith(
+        id: docRef.id,
+        sucursalId: sucursalId,
+        telaNombre: telaNombre ?? precioBase.telaNombre,
+        updatedAt: now,
+        updatedBy: usuarioId,
+        createdAt: esNuevo
+            ? now
+            : (existingData?['createdAt'] as Timestamp?)?.toDate() ?? now,
+        createdBy: esNuevo
+            ? usuarioId
+            : (existingData?['createdBy'] as String?) ?? usuarioId,
+      );
+
+      _validarNegocio(precioToSave);
+
+      final dataToSave = precioToSave.toJson();
+
+      batch.set(docRef, dataToSave, SetOptions(merge: true));
+
+      final historicoRef = _historicoRef.doc();
+
+      final historico = HistoricoPrecio(
+        id: historicoRef.id,
+        precioId: docRef.id,
+        accion: esNuevo ? 'CREATE' : 'UPDATE',
+        datosAnteriores: esNuevo ? null : existingData,
+        datosNuevos: dataToSave,
+        usuarioId: usuarioId,
+        usuarioNombre: usuarioNombre,
+        fecha: now,
+        sucursalId: sucursalId,
+        telaId: precioToSave.telaId,
+        empresaId: precioToSave.empresaId,
+      );
+
+      batch.set(historicoRef, historico.toJson());
+    }
+
+    await batch.commit();
+  }
+
+  void _validarNegocio(PrecioVenta p) {
+    if (p.tienePrecioMayor && p.precioMayor != null) {
+      if (p.precioMayor! > p.precioMetro) {
+        throw Exception(
+          'El precio mayor (${p.precioMayor}) no puede ser mayor al precio metro (${p.precioMetro}).',
+        );
+      }
+    }
+
+    if (p.tienePrecioRollo) {
+      double limiteSuperior = p.tienePrecioMayor
+          ? (p.precioMayor ?? double.infinity)
+          : p.precioMetro;
+
+      if (p.tipoPrecioRollo == 'fijo') {
+        if (p.precioRolloFijo == null || p.precioRolloFijo! <= 0) {
+          throw Exception('El precio fijo del rollo es requerido.');
+        }
+      }
+
+      if (p.tipoPrecioRollo == 'dinamico' && p.precioMetroRollo != null) {
+        if (p.precioMetroRollo! > limiteSuperior) {
+          throw Exception(
+            'El precio por metro de rollo debe ser menor o igual al precio de mayor/metro.',
+          );
+        }
+
+        if (p.rangoMinRollo != null && p.rangoMaxRollo != null) {
+          if (p.rangoMinRollo! > p.rangoMaxRollo!) {
+            throw Exception(
+              'El rango mÃ­nimo del rollo no puede ser mayor al mÃ¡ximo.',
+            );
+          }
+        }
+      }
+    }
+  }
+}
+
+
 ===== D:\inv\inv_telas\lib\providers\auth_provider.dart =====
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -2259,6 +3652,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/models/models.dart';
 import 'package:inv_telas/moduloLotes/screens/lotes_screen.dart';
+import 'package:inv_telas/moduloPrecios/screens/precios_screen.dart';
 import 'package:inv_telas/providers/providers.dart';
 import 'package:inv_telas/screens/json_view_screen.dart';
 import 'package:inv_telas/screens/pending_screen.dart';
@@ -2417,7 +3811,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
 
           const Divider(),
-
+          ListTile(
+            leading: const Icon(Icons.price_change),
+            title: const Text("MÃ³dulo de Precios"),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PreciosScreen()),
+            ),
+          ),
+          const Divider(),
           // JSON
           ListTile(
             leading: const Icon(Icons.code),
@@ -2601,6 +4003,7 @@ class _JsonViewScreenState extends State<JsonViewScreen> {
       'catalog_monedas',
       'catalog_anchos',
       'users',
+      'precios_venta',
     ];
 
     for (final collectionName in collections) {
@@ -4484,6 +5887,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/models/models.dart';
 import 'package:inv_telas/models/lote.dart';
 import 'package:inv_telas/providers/providers.dart';
+import 'package:inv_telas/providers/lotes_providers.dart'; // AsegÃºrate que este provider exista
 import 'package:inv_telas/screens/pending_screen.dart';
 import 'package:inv_telas/utils/utils.dart';
 import 'package:inv_telas/widgets/widgets.dart';
@@ -4505,10 +5909,15 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   final _cantidadController = TextEditingController(text: '1');
   late TextEditingController _codigoController;
   late TextEditingController _metrajeController;
-  final _loteController = TextEditingController();
+  final _loteController =
+      TextEditingController(); // Texto libre si no es lote activo
   final _numeroRolloController = TextEditingController();
   final _observacionesController = TextEditingController();
-  final _precioManualController = TextEditingController(); // âœ… NUEVO
+
+  // Controladores manuales (para modo sin lote)
+  final _precioManualController = TextEditingController();
+  final _precioOriginalController = TextEditingController();
+  final _tipoCambioManualController = TextEditingController();
 
   // Estado de selecciÃ³n
   String? _tipoTelaId;
@@ -4517,22 +5926,17 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   String? _colorId;
   DateTime? _fecha;
 
+  // Estado Lote
+  String? _selectedLoteId;
+
   // Estado Checkboxes y Ancho
   bool _habilitarAncho = false;
-  bool _habilitarLote = false;
   bool _habilitarNumRollo = false;
   String? _anchoId;
 
-  // âœ… Estado para precio calculado
-  double _precioCalculadoBS = 0.0;
-  double _precioCalculadoUSD = 0.0;
-  bool _precioEncontradoEnLote = false;
-
+  // Moneda Manual (Modo sin Lote)
   String? _monedaSeleccionadaId;
   bool _isBs = true;
-
-  final _precioOriginalController = TextEditingController();
-  final _tipoCambioController = TextEditingController();
 
   bool _isSavingCatalog = false;
   bool _isSaving = false;
@@ -4543,8 +5947,10 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     _codigoController = TextEditingController();
     _metrajeController = TextEditingController();
     _fecha = DateTime.now();
-    _precioOriginalController.addListener(_calcularPrecioBs);
-    _tipoCambioController.addListener(_calcularPrecioBs);
+
+    // Listeners para cÃ¡lculo manual
+    _precioOriginalController.addListener(_calcularPrecioBsManual);
+    _tipoCambioManualController.addListener(_calcularPrecioBsManual);
   }
 
   @override
@@ -4557,487 +5963,81 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     _observacionesController.dispose();
     _precioManualController.dispose();
     _precioOriginalController.dispose();
-    _tipoCambioController.dispose();
+    _tipoCambioManualController.dispose();
     super.dispose();
   }
 
-  String _normalize(String text) => text.trim().toLowerCase();
+  // ==========================================================
+  // LÃ“GICA DE FILTRADO Y CÃLCULO
+  // ==========================================================
 
-  void _resetFieldsForNextInput() {
-    _codigoController.clear();
-    _metrajeController.clear();
-    _cantidadController.text = '1';
-    _loteController.clear();
-    _numeroRolloController.clear();
-    _observacionesController.clear();
-    _precioManualController.clear();
-    setState(() {
-      _colorId = null;
-      _anchoId = null;
-      _precioCalculadoBS = 0.0;
-      _precioCalculadoUSD = 0.0;
-      _precioEncontradoEnLote = false;
-      // No reseteamos _habilitarAncho aquÃ­, porque depende de la selecciÃ³n actual de Empresa/Tipo
-      // que se mantiene fija.
-    });
-  }
-
-  void _calcularPrecioBs() {
-    if (_isBs) return;
+  void _calcularPrecioBsManual() {
+    // Solo calcular si estamos en modo manual, moneda extranjera
+    if (_isBs || _selectedLoteId != null) return;
 
     final original = double.tryParse(_precioOriginalController.text) ?? 0;
-
-    final tc = double.tryParse(_tipoCambioController.text) ?? 0;
-
+    final tc = double.tryParse(_tipoCambioManualController.text) ?? 0;
     final total = original * tc;
 
     _precioManualController.text = total.toStringAsFixed(2);
-
     setState(() {});
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final tipos = ref.watch(tiposTelaProvider);
-    final sucursales = ref.watch(sucursalesProvider);
-    final empresas = ref.watch(empresasProvider);
-    final colores = ref.watch(coloresProvider);
-    final anchos = ref.watch(anchosProvider);
-    final drafts = ref.watch(draftsProvider);
-
-    // âœ… OBSERVAR LOTE ACTIVO
-    final loteActivo = null;
-    //ref.watch(loteActivoProvider);
-
-    final monedaSeleccionada = ref
-        .watch(monedasProvider)
-        .where((m) => m.id == _monedaSeleccionadaId)
-        .firstOrNull;
-
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.92,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        children: [
-          _buildHeader(drafts.length),
-          Expanded(
-            child: AbsorbPointer(
-              absorbing: _isSaving,
-              child: Form(
-                key: _formKey,
-                child: ListView(
-                  padding: const EdgeInsets.all(20),
-                  children: [
-                    _buildCantidadSelector(),
-                    const SizedBox(height: 12),
-
-                    _buildDropdownWithAdd<TipoTela>(
-                      "Tipo de Tela",
-                      tipos,
-                      _tipoTelaId,
-                      (id) {
-                        setState(() => _tipoTelaId = id);
-                        _autoFillData();
-                      },
-                      (item) => item.id,
-                      (item) => item.nombre,
-                      () => _addTipoTela(tipos),
-                    ),
-                    _buildDropdownWithAdd<Sucursal>(
-                      "Sucursal",
-                      sucursales,
-                      _sucursalId,
-                      (id) => setState(() => _sucursalId = id),
-                      (item) => item.id,
-                      (item) => item.nombre,
-                      () => _addSucursal(sucursales),
-                    ),
-                    _buildDropdownWithAdd<Empresa>(
-                      "Empresa",
-                      empresas,
-                      _empresaId,
-                      (id) {
-                        setState(() => _empresaId = id);
-                        _autoFillData();
-                      },
-                      (item) => item.id,
-                      (item) => item.nombre,
-                      () => _addEmpresa(empresas),
-                    ),
-                    _buildColorDropdownWithAdd("Color", colores, _colorId, (
-                      id,
-                    ) {
-                      setState(() => _colorId = id);
-                      _autoFillData();
-                    }, () => _addColor(colores)),
-
-                    TextFormField(
-                      controller: _codigoController,
-                      decoration: const InputDecoration(
-                        labelText: "CÃ³digo de Color *",
-                      ),
-                      validator: (v) =>
-                          v == null || v.trim().isEmpty ? 'Requerido' : null,
-                    ),
-
-                    TextFormField(
-                      controller: _metrajeController,
-                      decoration: const InputDecoration(
-                        labelText: "Metraje por Rollo (m) *",
-                      ),
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      validator: (v) =>
-                          v == null || v.trim().isEmpty ? 'Requerido' : null,
-                    ),
-
-                    _buildDateSelector(),
-
-                    const Divider(height: 32, thickness: 1),
-
-                    // âœ… SECCIÃ“N DE LOTE Y PRECIO
-                    if (loteActivo != null) ...[
-                      _buildActiveLoteBanner(loteActivo),
-                      const SizedBox(height: 12),
-                      if (_precioEncontradoEnLote)
-                        _buildPriceDisplay()
-                      else if (_tipoTelaId != null && _empresaId != null)
-                        const Text(
-                          "âš ï¸ Esta tela no estÃ¡ en el lote activo.",
-                          style: TextStyle(color: Colors.red),
-                        ),
-                    ] else ...[
-                      Column(
-                        children: [
-                          // âœ… SELECTOR MONEDA
-                          DropdownButtonFormField<String>(
-                            value: _monedaSeleccionadaId,
-                            decoration: const InputDecoration(
-                              labelText: "Moneda",
-                              border: OutlineInputBorder(),
-                            ),
-                            items: [
-                              const DropdownMenuItem(
-                                value: '__new__',
-                                child: Text(
-                                  "+ Nueva Moneda",
-                                  style: TextStyle(
-                                    color: Colors.blue,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-
-                              ...ref
-                                  .watch(monedasProvider)
-                                  .map(
-                                    (m) => DropdownMenuItem(
-                                      value: m.id,
-                                      child: Text(m.nombre),
-                                    ),
-                                  ),
-                            ],
-
-                            onChanged: (value) async {
-                              if (value == '__new__') {
-                                final nueva = await showDialog<Moneda>(
-                                  context: context,
-                                  builder: (_) => const NewCurrencyDialog(),
-                                );
-
-                                if (nueva != null) {
-                                  setState(() {
-                                    _monedaSeleccionadaId = nueva.id;
-                                    _isBs = nueva.id == 'bs';
-                                  });
-                                }
-
-                                return;
-                              }
-
-                              final moneda = ref
-                                  .read(monedasProvider)
-                                  .firstWhere((m) => m.id == value);
-
-                              setState(() {
-                                _monedaSeleccionadaId = value;
-                                _isBs = moneda.id == 'bs';
-
-                                _precioOriginalController.clear();
-                                _tipoCambioController.clear();
-                                _precioManualController.clear();
-                              });
-                            },
-                          ),
-                          const SizedBox(height: 12),
-
-                          // âœ… SI ES BS
-                          if (_isBs)
-                            TextFormField(
-                              controller: _precioManualController,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                              decoration: const InputDecoration(
-                                labelText: "Precio Compra (BS)",
-                                border: OutlineInputBorder(),
-                              ),
-                            ),
-
-                          // âœ… MONEDA EXTRANJERA
-                          if (!_isBs) ...[
-                            Row(
-                              children: [
-                                Expanded(
-                                  flex: 2,
-                                  child: TextFormField(
-                                    controller: _precioOriginalController,
-                                    keyboardType:
-                                        const TextInputType.numberWithOptions(
-                                          decimal: true,
-                                        ),
-                                    decoration: InputDecoration(
-                                      labelText:
-                                          "Monto ${monedaSeleccionada?.nombre ?? ''}",
-                                      border: const OutlineInputBorder(),
-                                    ),
-                                  ),
-                                ),
-
-                                const SizedBox(width: 12),
-
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _tipoCambioController,
-                                    keyboardType:
-                                        const TextInputType.numberWithOptions(
-                                          decimal: true,
-                                        ),
-                                    decoration: const InputDecoration(
-                                      labelText: "T.C.",
-                                      border: OutlineInputBorder(),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 12),
-
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade100,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                "Total BS: ${_precioManualController.text}",
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ],
-
-                    const Divider(height: 32, thickness: 1),
-
-                    // SecciÃ³n Opciones Adicionales
-                    const Text(
-                      "Opciones Adicionales",
-                      style: AppTextStyles.heading3,
-                    ),
-                    const SizedBox(height: 10),
-
-                    // 1. ANCHO (LÃ³gica Inteligente)
-                    _buildCheckboxTile(
-                      title: "Ancho Especial",
-                      subtitle: "Se detecta automÃ¡ticamente segÃºn empresa/tela",
-                      value: _habilitarAncho,
-                      onChanged: (v) {
-                        setState(() => _habilitarAncho = v ?? false);
-                        _autoFillData();
-                      },
-                    ),
-                    if (_habilitarAncho)
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          left: 16,
-                          bottom: 16,
-                          top: 4,
-                        ),
-                        child: _buildDropdownWithAdd<Ancho>(
-                          "Seleccionar Ancho",
-                          anchos,
-                          _anchoId,
-                          (id) {
-                            setState(() => _anchoId = id);
-                            _autoFillData();
-                          },
-                          (item) => item.id,
-                          (item) => item.nombre,
-                          () => _addAncho(anchos),
-                        ),
-                      ),
-
-                    // 2. LOTE
-                    _buildCheckboxTile(
-                      title: "Lote",
-                      subtitle: "Identificador de lote",
-                      value: _habilitarLote,
-                      onChanged: (v) =>
-                          setState(() => _habilitarLote = v ?? false),
-                    ),
-                    if (_habilitarLote)
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          left: 16,
-                          bottom: 16,
-                          top: 4,
-                        ),
-                        child: TextFormField(
-                          controller: _loteController,
-                          decoration: const InputDecoration(
-                            labelText: "NÃºmero de Lote",
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-
-                    // 3. NUMERO DE ROLLO
-                    _buildCheckboxTile(
-                      title: "NÃºmero de Rollo",
-                      subtitle: "Identificador Ãºnico del rollo",
-                      value: _habilitarNumRollo,
-                      onChanged: (v) =>
-                          setState(() => _habilitarNumRollo = v ?? false),
-                    ),
-                    if (_habilitarNumRollo)
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          left: 16,
-                          bottom: 16,
-                          top: 4,
-                        ),
-                        child: TextFormField(
-                          controller: _numeroRolloController,
-                          decoration: const InputDecoration(
-                            labelText: "NÂ° de Rollo",
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                      ),
-
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _observacionesController,
-                      maxLines: 3,
-                      decoration: const InputDecoration(
-                        labelText: "Observaciones",
-                        alignLabelWithHint: true,
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          _buildActions(),
-        ],
-      ),
-    );
+  // Retorna el objeto Lote seleccionado actualmente
+  Lote? get _currentLote {
+    if (_selectedLoteId == null) return null;
+    final lotes = ref
+        .read(lotesListProvider)
+        .maybeWhen(data: (d) => d, orElse: () => <Lote>[]);
+    try {
+      return lotes.firstWhere((l) => l.id == _selectedLoteId);
+    } catch (_) {
+      return null;
+    }
   }
 
-  // âœ… WIDGETS DE UI PARA LOTE
-  Widget _buildActiveLoteBanner(Lote lote) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.inventory, color: AppColors.primary),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              "Lote Activo: ${lote.nombre}",
-              style: AppTextStyles.heading3.copyWith(color: AppColors.primary),
-            ),
-          ),
-          Text("TC: ${lote.tipoCambio}", style: AppTextStyles.bodySmall),
-        ],
-      ),
-    );
+  // Filtra las empresas disponibles segÃºn el Lote
+  List<Empresa> _getAvailableEmpresas(List<Empresa> allEmpresas) {
+    final lote = _currentLote;
+    if (lote == null) return allEmpresas;
+
+    // Obtener IDs Ãºnicos de empresas dentro de los items del lote
+    final ids = lote.items.map((i) => i.empresaId).toSet();
+    return allEmpresas.where((e) => ids.contains(e.id)).toList();
   }
 
-  Widget _buildPriceDisplay() {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8.0),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.grey[100],
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text("Precio Compra:", style: AppTextStyles.body),
-            Text(
-              "${_precioCalculadoBS.toStringAsFixed(2)} BS",
-              style: AppTextStyles.heading3.copyWith(color: Colors.green[700]),
-            ),
-          ],
-        ),
-      ),
-    );
+  // Filtra los tipos de tela segÃºn Lote y Empresa seleccionada
+  List<TipoTela> _getAvailableTelas(List<TipoTela> allTelas) {
+    final lote = _currentLote;
+    if (lote == null) return allTelas;
+    if (_empresaId == null)
+      return []; // Si hay lote pero no empresa, no mostrar nada aÃºn
+
+    final ids = lote.items
+        .where((i) => i.empresaId == _empresaId)
+        .map((i) => i.tipoTelaId)
+        .toSet();
+
+    return allTelas.where((t) => ids.contains(t.id)).toList();
   }
 
-  // --- WIDGETS AUXILIARES ---
+  /// LÃ³gica combinada de Auto-llenado y ActualizaciÃ³n de Estado
+  void _updateDataAndAutoFill() {
+    final lote = _currentLote;
 
-  Widget _buildCheckboxTile({
-    required String title,
-    required String subtitle,
-    required bool value,
-    required ValueChanged<bool?> onChanged,
-  }) {
-    return CheckboxListTile(
-      title: Text(title),
-      subtitle: Text(subtitle, style: AppTextStyles.caption),
-      value: value,
-      onChanged: onChanged,
-      contentPadding: EdgeInsets.zero,
-      controlAffinity: ListTileControlAffinity.leading,
-      activeColor: AppColors.primary,
-    );
-  }
+    // 1. Sincronizar Fecha si hay lote
+    if (lote != null) {
+      _fecha = lote.fechaIngreso;
+    } else {
+      // Si se desactiva el lote, volvemos a hoy por defecto si no estaba definida
+      if (_fecha == null) _fecha = DateTime.now();
+    }
 
-  /// LÃ“GICA DE AUTODETECCIÃ“N Y AUTOLLENADO
-  void _autoFillData() {
-    final loteActivo = null;
-    // ref.read(loteActivoProvider);
-
-    // 1. LÃ³gica de Ancho (Igual que antes)
+    // 2. Auto-detectar Ancho basado en historial (LÃ³gica antigua)
     if (_empresaId != null && _tipoTelaId != null) {
       final rollos = ref
           .read(rollosProvider)
           .maybeWhen(data: (d) => d, orElse: () => <Rollo>[]);
-
       final matches = rollos
           .where(
             (r) => r.empresaId == _empresaId && r.tipoTelaId == _tipoTelaId,
@@ -5045,71 +6045,21 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
           .toList();
 
       if (matches.isNotEmpty) {
-        final lastMatch = matches.first;
-
-        // 1. Autollenar Ancho si existe en el historial
-        // Verificamos si la mayorÃ­a tiene ancho o no
         final withAncho = matches.where((r) => r.anchoId != null).toList();
-
         setState(() {
-          if (withAncho.isNotEmpty) {
-            _habilitarAncho = true;
-            // Calcular ancho mÃ¡s frecuente
-            final freq = <String, int>{};
-            for (var r in withAncho) {
-              freq[r.anchoId!] = (freq[r.anchoId!] ?? 0) + 1;
-            }
-            _anchoId = freq.entries
-                .reduce((a, b) => a.value >= b.value ? a : b)
-                .key;
-          } else {
-            // Si el historial es nulo (ej. Piel de Sirena), deshabilitamos
-            _habilitarAncho = false;
-            _anchoId = null;
-          }
-
-          // Autollenar color y cÃ³digo solo si ya estÃ¡ seleccionado el color (para no sobrescribir)
-          // Opcional: Si se quiere autollenar el color basado en la tela/empresa genÃ©rica
-          // Pero usualmente el color se selecciona despuÃ©s.
+          _habilitarAncho = withAncho.isNotEmpty;
+          // Tomar el ancho mÃ¡s reciente o frecuente
+          _anchoId = withAncho.isNotEmpty ? withAncho.first.anchoId : null;
         });
       } else {
-        // Si es una combinaciÃ³n NUEVA sin historial
         setState(() {
-          _habilitarAncho = false; // Por defecto false, usuario puede marcar
+          _habilitarAncho = false;
           _anchoId = null;
         });
       }
     }
 
-    // 2. LÃ³gica de Precio (Si hay Lote Activo)
-    if (loteActivo != null && _empresaId != null && _tipoTelaId != null) {
-      final item = null;
-      /*loteActivo.items.firstWhere(
-        (i) =>
-            i.tipoTelaId == _tipoTelaId &&
-            i.empresaId == _empresaId &&
-            (i.anchoId == _anchoId || (!_habilitarAncho && i.anchoId == null)),
-        orElse: () =>
-            LoteItem(id: '', tipoTelaId: '', empresaId: '', precioUSD: 0),
-      );*/
-
-      setState(() {
-        if (item.precioUSD > 0) {
-          _precioCalculadoUSD = item.precioUSD;
-          _precioCalculadoBS = item.precioUSD * loteActivo.tipoCambio;
-          _precioEncontradoEnLote = true;
-        } else {
-          _precioCalculadoBS = 0;
-          _precioEncontradoEnLote = false;
-        }
-      });
-    } else {
-      setState(() {
-        _precioEncontradoEnLote = false;
-      });
-    }
-
-    // 3. LÃ³gica de autollenado de cÃ³digo/metraje
+    // 3. Autollenado de cÃ³digo/metraje basado en Empresa+Tela+Color
     if (_empresaId != null && _tipoTelaId != null && _colorId != null) {
       final rollos = ref
           .read(rollosProvider)
@@ -5135,7 +6085,502 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
         });
       }
     }
+
+    setState(() {}); // Forzar actualizaciÃ³n visual
   }
+
+  // ==========================================================
+  // BUILD PRINCIPAL
+  // ==========================================================
+
+  @override
+  Widget build(BuildContext context) {
+    final tipos = ref.watch(tiposTelaProvider);
+    final sucursales = ref.watch(sucursalesProvider);
+    final empresas = ref.watch(empresasProvider);
+    final colores = ref.watch(coloresProvider);
+    final anchos = ref.watch(anchosProvider);
+    final drafts = ref.watch(draftsProvider);
+    final monedas = ref.watch(monedasProvider);
+    final lotesActivos = ref
+        .watch(lotesListProvider)
+        .maybeWhen(data: (d) => d, orElse: () => <Lote>[]);
+
+    // Listas filtradas segÃºn lote
+    final availableEmpresas = _getAvailableEmpresas(empresas);
+    final availableTelas = _getAvailableTelas(tipos);
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.92,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        children: [
+          _buildHeader(drafts.length),
+          Expanded(
+            child: AbsorbPointer(
+              absorbing: _isSaving,
+              child: Form(
+                key: _formKey,
+                child: ListView(
+                  padding: const EdgeInsets.all(20),
+                  children: [
+                    // --- 1. LOTE Y CANTIDAD (Fila Superior) ---
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: _buildLoteDropdown(lotesActivos),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(child: _buildCantidadSelectorCompact()),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // --- 2. EMPRESA (Arriba) ---
+                    _buildDropdownWithAdd<Empresa>(
+                      "Empresa",
+                      availableEmpresas,
+                      _empresaId,
+                      (id) {
+                        setState(() {
+                          _empresaId = id;
+                          _tipoTelaId = null; // Reset tela al cambiar empresa
+                          _updateDataAndAutoFill();
+                        });
+                      },
+                      (item) => item.id,
+                      (item) => item.nombre,
+                      () => _addEmpresa(empresas),
+                      enabled:
+                          _selectedLoteId == null ||
+                          availableEmpresas.isNotEmpty,
+                    ),
+
+                    // --- 3. TIPO DE TELA (Abajo de Empresa) ---
+                    _buildDropdownWithAdd<TipoTela>(
+                      "Tipo de Tela",
+                      availableTelas,
+                      _tipoTelaId,
+                      (id) {
+                        setState(() {
+                          _tipoTelaId = id;
+                          _updateDataAndAutoFill();
+                        });
+                      },
+                      (item) => item.id,
+                      (item) => item.nombre,
+                      () => _addTipoTela(tipos),
+                      enabled:
+                          _selectedLoteId == null ||
+                          (_empresaId != null && availableTelas.isNotEmpty),
+                    ),
+
+                    // --- 4. SUCURSAL (Solo si NO hay Lote) ---
+                    if (_selectedLoteId == null)
+                      _buildDropdownWithAdd<Sucursal>(
+                        "Sucursal",
+                        sucursales,
+                        _sucursalId,
+                        (id) => setState(() => _sucursalId = id),
+                        (item) => item.id,
+                        (item) => item.nombre,
+                        () => _addSucursal(sucursales),
+                      ),
+
+                    // --- 5. COLOR, CODIGO, METRAJE ---
+                    _buildColorDropdownWithAdd("Color", colores, _colorId, (
+                      id,
+                    ) {
+                      setState(() => _colorId = id);
+                      _updateDataAndAutoFill();
+                    }, () => _addColor(colores)),
+
+                    TextFormField(
+                      controller: _codigoController,
+                      decoration: const InputDecoration(
+                        labelText: "CÃ³digo de Color *",
+                      ),
+                      validator: (v) =>
+                          v == null || v.trim().isEmpty ? 'Requerido' : null,
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    TextFormField(
+                      controller: _metrajeController,
+                      decoration: const InputDecoration(
+                        labelText: "Metraje por Rollo (m) *",
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      validator: (v) =>
+                          v == null || v.trim().isEmpty ? 'Requerido' : null,
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // --- 6. FECHA (Condicional) ---
+                    if (_selectedLoteId != null && _currentLote != null)
+                      _buildFechaLoteLabel(_currentLote!)
+                    else
+                      _buildDateSelector(),
+
+                    const Divider(height: 32, thickness: 1),
+
+                    // --- 7. MONEDA Y PRECIO (Condicional) ---
+                    if (_selectedLoteId != null && _currentLote != null)
+                      _buildLotePriceInfo(_currentLote!)
+                    else
+                      _buildManualCurrencySection(monedas),
+
+                    const Divider(height: 32, thickness: 1),
+
+                    // --- 8. OPCIONES ADICIONALES ---
+                    _buildAdditionalOptions(anchos),
+
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          _buildActions(),
+        ],
+      ),
+    );
+  }
+
+  // ==========================================================
+  // WIDGETS DE UI ESPECÃFICOS
+  // ==========================================================
+
+  Widget _buildLoteDropdown(List<Lote> lotes) {
+    return DropdownButtonFormField<String>(
+      value: _selectedLoteId,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: "Lote",
+        fillColor: _selectedLoteId != null
+            ? AppColors.primary.withOpacity(0.05)
+            : null,
+        filled: _selectedLoteId != null,
+        border: const OutlineInputBorder(),
+      ),
+      hint: const Text("Seleccionar Lote"),
+      items: [
+        const DropdownMenuItem(
+          value: null,
+          child: Text(
+            "Sin Lote (Manual)",
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+        ...lotes.map(
+          (lote) => DropdownMenuItem(
+            value: lote.id,
+            child: Text(lote.nombre, overflow: TextOverflow.ellipsis),
+          ),
+        ),
+      ],
+      onChanged: (v) {
+        setState(() {
+          _selectedLoteId = v;
+          // Resetear dependencias al cambiar lote
+          _empresaId = null;
+          _tipoTelaId = null;
+          _sucursalId = null;
+          _updateDataAndAutoFill();
+        });
+      },
+    );
+  }
+
+  Widget _buildCantidadSelectorCompact() {
+    return TextFormField(
+      controller: _cantidadController,
+      textAlign: TextAlign.center,
+      keyboardType: TextInputType.number,
+      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+      decoration: const InputDecoration(
+        labelText: "Cantidad",
+        border: OutlineInputBorder(),
+      ),
+    );
+  }
+
+  Widget _buildFechaLoteLabel(Lote lote) {
+    return InputDecorator(
+      decoration: const InputDecoration(
+        labelText: "Fecha de Ingreso (Lote)",
+        border: OutlineInputBorder(),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            Helpers.formatearFecha(lote.fechaIngreso),
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+          ),
+          const Icon(Icons.lock, size: 18, color: Colors.grey),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLotePriceInfo(Lote lote) {
+    // Buscar precio en los items del lote
+    double precioUnit = 0;
+    String nombreMoneda = "Bs";
+    double tipoCambio = lote.tipoCambio;
+
+    if (_empresaId != null && _tipoTelaId != null) {
+      final item = lote.items.firstWhere(
+        (i) => i.empresaId == _empresaId && i.tipoTelaId == _tipoTelaId,
+        orElse: () =>
+            LoteItem(empresaId: '', tipoTelaId: '', precioUnitario: 0),
+      );
+      precioUnit = item.precioUnitario;
+      nombreMoneda = lote.esBoliviano ? "Bs" : "USD";
+    }
+
+    double totalBs = lote.esBoliviano ? precioUnit : precioUnit * tipoCambio;
+
+    if (precioUnit == 0) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.orange[50],
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Text(
+          "âš ï¸ Seleccione Empresa y Tela para ver precio.",
+          style: TextStyle(color: Colors.orange),
+        ),
+      );
+    }
+
+    return Card(
+      color: Colors.green[50],
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("InformaciÃ³n de Costo (Lote)", style: AppTextStyles.heading3),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text("Precio Unitario:"),
+                Text(
+                  "$precioUnit $nombreMoneda",
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            if (!lote.esBoliviano) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text("Tipo de Cambio:"),
+                  Text(
+                    "$tipoCambio Bs",
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
+              const Divider(),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text("Total BS:", style: AppTextStyles.heading3),
+                  Text(
+                    "${totalBs.toStringAsFixed(2)} Bs",
+                    style: AppTextStyles.heading3.copyWith(
+                      color: Colors.green[800],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildManualCurrencySection(List<Moneda> monedas) {
+    final monedaSeleccionada = monedas
+        .where((m) => m.id == _monedaSeleccionadaId)
+        .firstOrNull;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownButtonFormField<String>(
+          value: _monedaSeleccionadaId,
+          decoration: const InputDecoration(
+            labelText: "Moneda",
+            border: OutlineInputBorder(),
+          ),
+          items: [
+            const DropdownMenuItem(value: 'bs', child: Text("Boliviano (Bs)")),
+            ...monedas
+                .where((m) => m.id != 'bs')
+                .map(
+                  (m) => DropdownMenuItem(value: m.id, child: Text(m.nombre)),
+                ),
+          ],
+          onChanged: (v) {
+            setState(() {
+              _monedaSeleccionadaId = v;
+              _isBs = v == 'bs';
+              // Limpiar cÃ¡lculos al cambiar moneda
+              _precioManualController.clear();
+              _precioOriginalController.clear();
+            });
+          },
+        ),
+        const SizedBox(height: 12),
+
+        if (_isBs)
+          TextFormField(
+            controller: _precioManualController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: "Precio Compra (BS)",
+              border: OutlineInputBorder(),
+            ),
+            validator: (v) =>
+                _selectedLoteId == null && (v == null || v.isEmpty)
+                ? 'Requerido'
+                : null,
+          )
+        else
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: TextFormField(
+                  controller: _precioOriginalController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: "Monto ${monedaSeleccionada?.nombre ?? 'Ext'}",
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextFormField(
+                  controller: _tipoCambioManualController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: "T.C.",
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        if (!_isBs) ...[
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              "Total Calculado: ${_precioManualController.text} Bs",
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildAdditionalOptions(List<Ancho> anchos) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("Opciones Adicionales", style: AppTextStyles.heading3),
+        const SizedBox(height: 10),
+
+        // Ancho Especial
+        CheckboxListTile(
+          title: const Text("Ancho Especial"),
+          subtitle: _habilitarAncho
+              ? const Text(
+                  "Detectado automÃ¡ticamente",
+                  style: TextStyle(color: Colors.green, fontSize: 12),
+                )
+              : null,
+          value: _habilitarAncho,
+          onChanged: (v) => setState(() => _habilitarAncho = v ?? false),
+          contentPadding: EdgeInsets.zero,
+        ),
+        if (_habilitarAncho)
+          Padding(
+            padding: const EdgeInsets.only(left: 16, bottom: 16),
+            child: _buildDropdownWithAdd<Ancho>(
+              "Seleccionar Ancho",
+              anchos,
+              _anchoId,
+              (id) => setState(() => _anchoId = id),
+              (item) => item.id,
+              (item) => item.nombre,
+              () => _addAncho(anchos),
+            ),
+          ),
+
+        // Numero de Rollo
+        CheckboxListTile(
+          title: const Text("NÃºmero de Rollo"),
+          value: _habilitarNumRollo,
+          onChanged: (v) => setState(() => _habilitarNumRollo = v ?? false),
+          contentPadding: EdgeInsets.zero,
+        ),
+        if (_habilitarNumRollo)
+          Padding(
+            padding: const EdgeInsets.only(left: 16, bottom: 16),
+            child: TextFormField(
+              controller: _numeroRolloController,
+              decoration: const InputDecoration(
+                labelText: "NÂ° de Rollo",
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+
+        TextFormField(
+          controller: _observacionesController,
+          maxLines: 2,
+          decoration: const InputDecoration(
+            labelText: "Observaciones",
+            border: OutlineInputBorder(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ==========================================================
+  // WIDGETS AUXILIARES HEREDADOS Y ADAPTADOS
+  // ==========================================================
 
   Widget _buildHeader(int pendingCount) {
     return Container(
@@ -5192,53 +6637,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     );
   }
 
-  Widget _buildCantidadSelector() {
-    return InputDecorator(
-      decoration: const InputDecoration(
-        labelText: "Cantidad de Rollos",
-        border: OutlineInputBorder(),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          IconButton(
-            onPressed: () {
-              int c = int.tryParse(_cantidadController.text) ?? 1;
-              if (c > 1) _cantidadController.text = (c - 1).toString();
-              setState(() {});
-            },
-            icon: const Icon(Icons.remove_circle_outline),
-          ),
-          SizedBox(
-            width: 60,
-            child: TextField(
-              controller: _cantidadController,
-              textAlign: TextAlign.center,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              style: AppTextStyles.heading2,
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.zero,
-              ),
-              onChanged: (val) {
-                if (val.isEmpty) _cantidadController.text = '1';
-              },
-            ),
-          ),
-          IconButton(
-            onPressed: () {
-              int c = int.tryParse(_cantidadController.text) ?? 0;
-              _cantidadController.text = (c + 1).toString();
-              setState(() {});
-            },
-            icon: const Icon(Icons.add_circle_outline),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildDateSelector() {
     return InputDecorator(
       decoration: const InputDecoration(labelText: "Fecha de Ingreso"),
@@ -5253,6 +6651,16 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
         ],
       ),
     );
+  }
+
+  Future<void> _pickDate() async {
+    final d = await showDatePicker(
+      context: context,
+      initialDate: _fecha ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+    if (d != null) setState(() => _fecha = d);
   }
 
   Widget _buildActions() {
@@ -5289,19 +6697,10 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                     backgroundColor: AppColors.success,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
                   ),
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "Campos opcionales y observaciones incluidos.",
-            style: AppTextStyles.caption.copyWith(fontSize: 10),
-            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -5315,15 +6714,16 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     ValueChanged<String?> onChanged,
     String Function(T) getId,
     String Function(T) getLabel,
-    VoidCallback onAdd,
-  ) {
+    VoidCallback onAdd, {
+    bool enabled = true,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         children: [
           Expanded(
             child: DropdownButtonFormField<String>(
-              initialValue: selectedId,
+              value: selectedId,
               items: items
                   .map(
                     (e) => DropdownMenuItem(
@@ -5332,14 +6732,21 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                     ),
                   )
                   .toList(),
-              onChanged: onChanged,
+              onChanged: enabled ? onChanged : null,
               decoration: InputDecoration(
                 labelText: label,
                 border: const OutlineInputBorder(),
+                filled: !enabled,
+                fillColor: enabled ? null : Colors.grey[200],
               ),
             ),
           ),
-          IconButton(onPressed: onAdd, icon: const Icon(Icons.add)),
+          if (_selectedLoteId ==
+              null) // Solo permitir agregar nuevo si no estamos en modo Lote
+            IconButton(
+              onPressed: enabled ? onAdd : null,
+              icon: const Icon(Icons.add),
+            ),
         ],
       ),
     );
@@ -5368,7 +6775,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
         children: [
           Expanded(
             child: DropdownButtonFormField<String>(
-              initialValue: selectedId,
+              value: selectedId,
               dropdownColor: Colors.white,
               style: TextStyle(color: txtColor, fontWeight: FontWeight.w600),
               items: colores
@@ -5391,10 +6798,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: bgColor ?? Colors.grey),
-                  borderRadius: BorderRadius.circular(12),
-                ),
               ),
             ),
           ),
@@ -5404,45 +6807,48 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     );
   }
 
-  // --- LÃ“GICA DE NEGOCIO ---
-
-  Future<void> _pickDate() async {
-    final d = await showDatePicker(
-      context: context,
-      initialDate: _fecha ?? DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-    );
-    if (d != null) setState(() => _fecha = d);
-  }
+  // ==========================================================
+  // LÃ“GICA DE NEGOCIO Y ENVÃO
+  // ==========================================================
 
   List<Rollo> _generarListaRollos() {
     final codigo = _codigoController.text.trim();
     final metraje = double.tryParse(_metrajeController.text) ?? 0;
     final cantidad = int.tryParse(_cantidadController.text) ?? 1;
-    final loteActivo = null;
-    //ref.read(loteActivoProvider);
+    final lote = _currentLote;
 
     // Variables de precio
     String? loteId;
     double? precioUsd;
     double? tipoCambio;
     double? precioFinal;
+    String? monedaId;
 
-    if (loteActivo != null && _precioEncontradoEnLote) {
-      // Si hay lote activo y encontramos precio
-      loteId = loteActivo.id;
-      precioUsd = _precioCalculadoUSD;
-      tipoCambio = loteActivo.tipoCambio;
-      precioFinal = _precioCalculadoBS;
+    if (lote != null && _empresaId != null && _tipoTelaId != null) {
+      // LÃ“GICA LOTE
+      loteId = lote.id;
+      final item = lote.items.firstWhere(
+        (i) => i.empresaId == _empresaId && i.tipoTelaId == _tipoTelaId,
+        orElse: () =>
+            LoteItem(empresaId: '', tipoTelaId: '', precioUnitario: 0),
+      );
+
+      precioFinal = item.precioUnitario;
+      tipoCambio = lote.tipoCambio;
+      monedaId = lote.esBoliviano ? 'bs' : lote.monedaExtranjeraId;
+
+      if (!lote.esBoliviano) {
+        precioUsd = item.precioUnitario; // El precio del item es USD
+        precioFinal = item.precioUnitario * lote.tipoCambio; // Convertir a BS
+      }
     } else {
-      // Si no hay lote, usar precio manual
+      // LÃ“GICA MANUAL
       precioFinal = double.tryParse(_precioManualController.text) ?? 0;
+      monedaId = _isBs ? 'bs' : _monedaSeleccionadaId;
 
       if (!_isBs) {
         precioUsd = double.tryParse(_precioOriginalController.text);
-
-        tipoCambio = double.tryParse(_tipoCambioController.text);
+        tipoCambio = double.tryParse(_tipoCambioManualController.text);
       }
     }
 
@@ -5459,7 +6865,9 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
         fecha: _fecha?.toIso8601String(),
         fechaCreacion: DateTime.now(),
         anchoId: _habilitarAncho ? _anchoId : null,
-        lote: _habilitarLote ? _loteController.text.trim() : null,
+        lote: _loteController.text.trim().isEmpty
+            ? null
+            : _loteController.text.trim(),
         numeroRollo: _habilitarNumRollo
             ? _numeroRolloController.text.trim()
             : null,
@@ -5468,6 +6876,7 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
         precioUsd: precioUsd,
         tipoCambio: tipoCambio,
         precioCompra: precioFinal,
+        monedaId: monedaId,
       ),
     );
   }
@@ -5475,13 +6884,19 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   Future<void> _subirIndividual() async {
     if (_isSaving) return;
     if (!_formKey.currentState!.validate()) return;
-    // Validar precio
-    final loteActivo = null;
-    //ref.read(loteActivoProvider);
-    if (loteActivo == null &&
-        (double.tryParse(_precioManualController.text) ?? 0) <= 0) {
-      _mostrarError("Ingrese un precio vÃ¡lido.");
-      return;
+
+    // Validaciones especÃ­ficas
+    if (_selectedLoteId != null) {
+      if (_empresaId == null || _tipoTelaId == null) {
+        _mostrarError("Debe seleccionar Empresa y Tipo de Tela para el Lote.");
+        return;
+      }
+    } else {
+      // Validar precio manual si no hay lote
+      if ((double.tryParse(_precioManualController.text) ?? 0) <= 0) {
+        _mostrarError("Ingrese un precio vÃ¡lido.");
+        return;
+      }
     }
 
     setState(() => _isSaving = true);
@@ -5489,13 +6904,19 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
       final rollos = _generarListaRollos();
       final ok = await ref.read(rollosProvider.notifier).crearRollos(rollos);
       if (ok && mounted) {
-        _mostrarExito("âœ… ${rollos.length} rollos subidos a Firebase");
-        _resetFieldsForNextInput();
-      } else {
-        throw Exception("Error al guardar");
+        _mostrarExito("âœ… ${rollos.length} rollos subidos");
+        // Reset simple
+        _codigoController.clear();
+        _metrajeController.clear();
+        _cantidadController.text = '1';
+        setState(() {
+          _colorId = null;
+          _habilitarAncho = false;
+          _anchoId = null;
+        });
       }
     } catch (e) {
-      _mostrarError("Error al subir: $e");
+      _mostrarError("Error: $e");
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -5504,14 +6925,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
   Future<void> _agregarALote() async {
     if (_isSaving) return;
     if (!_formKey.currentState!.validate()) return;
-    // Validar precio
-    final loteActivo = null;
-    //ref.read(loteActivoProvider);
-    if (loteActivo == null &&
-        (double.tryParse(_precioManualController.text) ?? 0) <= 0) {
-      _mostrarError("Ingrese un precio vÃ¡lido.");
-      return;
-    }
 
     setState(() => _isSaving = true);
     try {
@@ -5521,37 +6934,27 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
       }
       if (mounted) {
         _mostrarExito("ðŸ“¦ ${rollos.length} rollos aÃ±adidos a pendientes");
-        _resetFieldsForNextInput();
+        // Reset simple
+        _codigoController.clear();
+        _metrajeController.clear();
+        _cantidadController.text = '1';
+        setState(() {
+          _colorId = null;
+        });
       }
     } catch (e) {
-      _mostrarError("Error al guardar local: $e");
+      _mostrarError("Error: $e");
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
   }
 
-  void _mostrarExito(String mensaje) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensaje),
-        backgroundColor: AppColors.success,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
-  void _mostrarError(String mensaje) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensaje),
-        backgroundColor: AppColors.error,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
+  void _mostrarExito(String msg) => ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.green));
+  void _mostrarError(String msg) => ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
 
   // --- QUICK ADDS ---
 
@@ -5624,6 +7027,8 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
     ),
   );
 
+  String _normalize(String text) => text.trim().toLowerCase();
+
   Future<void> _quickAddGeneric<T>({
     required String title,
     required List<T> existingItems,
@@ -5664,7 +7069,6 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                     : () async {
                         final input = _normalize(ctrl.text);
                         if (input.isEmpty) return;
-
                         final exists = existingItems.any(
                           (e) => _normalize(getName(e)) == input,
                         );
@@ -5677,11 +7081,9 @@ class _NewRolloDialogState extends ConsumerState<NewRolloDialog> {
                           );
                           return;
                         }
-
                         setStateDialog(() => _isSavingCatalog = true);
                         final newId = await onCreate(ctrl.text.trim());
                         setStateDialog(() => _isSavingCatalog = false);
-
                         onSelected(newId);
                         if (mounted) Navigator.pop(ctx);
                       },
@@ -5750,7 +7152,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
   late TabController _tabController;
   final _nameController = TextEditingController();
   Color _selectedColor = Colors.blue;
-
   final Map<int, double> _heightFactors = {0: 0.36, 1: 0.42, 2: 0.6};
 
   @override
@@ -5861,7 +7262,6 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                       onPressed: () async {
                         final name = _nameController.text.trim();
                         if (name.isEmpty) return;
-
                         if (widget.existingColors.any(
                           (c) => c.nombre.toLowerCase() == name.toLowerCase(),
                         )) {
@@ -5872,18 +7272,15 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog>
                           );
                           return;
                         }
-
                         final hex =
                             '#${_selectedColor.value.toRadixString(16).substring(2)}';
                         final id = Helpers.generarId();
-
                         await widget.ref
                             .read(catalogServiceProvider)
                             .addColor(
                               ColorTela(id: id, nombre: name, hex: hex),
                             );
                         widget.ref.refresh(coloresProvider);
-
                         widget.onColorCreated(id);
                         if (mounted) Navigator.pop(context);
                       },

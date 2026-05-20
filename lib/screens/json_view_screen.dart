@@ -28,6 +28,7 @@ class _JsonViewScreenState extends State<JsonViewScreen> {
       'catalog_monedas',
       'catalog_anchos',
       'users',
+      'precios_venta',
     ];
 
     for (final collectionName in collections) {

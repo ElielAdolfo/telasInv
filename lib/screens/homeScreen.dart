@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/models/models.dart';
 import 'package:inv_telas/moduloLotes/screens/lotes_screen.dart';
+import 'package:inv_telas/moduloPrecios/screens/precios_screen.dart';
 import 'package:inv_telas/providers/providers.dart';
 import 'package:inv_telas/screens/json_view_screen.dart';
 import 'package:inv_telas/screens/pending_screen.dart';
@@ -160,7 +161,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
 
           const Divider(),
-
+          ListTile(
+            leading: const Icon(Icons.price_change),
+            title: const Text("Módulo de Precios"),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PreciosScreen()),
+            ),
+          ),
+          const Divider(),
           // JSON
           ListTile(
             leading: const Icon(Icons.code),
