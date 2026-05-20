@@ -47,6 +47,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   }
 
   Future<void> _handleLogin() async {
+    // ✅ Previene múltiples clics
     if (_isLoading) return;
     if (_emailLoginCtrl.text.isEmpty || _passLoginCtrl.text.isEmpty) {
       _showError("Complete todos los campos");
@@ -59,16 +60,15 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
         .read(authProvider.notifier)
         .login(_emailLoginCtrl.text, _passLoginCtrl.text);
 
-    setState(() => _isLoading = false);
+    if (mounted) setState(() => _isLoading = false);
 
     if (errorMsg != null) {
       _showError(errorMsg);
     }
-    // Si es exitoso, el Provider automáticamente cambiará el estado
-    // y el main.dart redirigirá al HomeScreen.
   }
 
   Future<void> _handleRegister() async {
+    // ✅ Previene múltiples clics
     if (_isLoading) return;
     if (_emailRegCtrl.text.isEmpty ||
         _passRegCtrl.text.isEmpty ||
@@ -85,10 +85,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
           email: _emailRegCtrl.text,
           pass: _passRegCtrl.text,
           nombre: _nameRegCtrl.text,
-          rol: 'VENDEDOR', // Por defecto
+          rolId: 'VENDEDOR', // ✅ CAMBIO: de 'rol' a 'rolId'
         );
 
-    setState(() => _isLoading = false);
+    if (mounted) setState(() => _isLoading = false);
 
     if (errorMsg != null) {
       _showError(errorMsg);
@@ -141,39 +141,48 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Container(
-                width: 400,
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Logo / Título
-                    Icon(Icons.inventory_2, size: 50, color: AppColors.primary),
-                    const SizedBox(height: 10),
-                    Text("Inventario Telas", style: AppTextStyles.heading2),
-                    const SizedBox(height: 20),
-
-                    // Tabs
-                    TabBar(
-                      controller: _tabController,
-                      labelColor: AppColors.primary,
-                      indicatorColor: AppColors.primary,
-                      tabs: const [
-                        Tab(text: "Iniciar Sesión"),
-                        Tab(text: "Registrar"),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Contenido Tabs
-                    SizedBox(
-                      height: 300, // Altura fija para evitar saltos
-                      child: TabBarView(
-                        controller: _tabController,
-                        children: [_buildLoginForm(), _buildRegisterForm()],
+              // ✅ MEJORA RESPONSIVE: Se adapta a celulares y limita en web
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: Container(
+                  width:
+                      double.infinity, // Ocupa el espacio disponible hasta 400
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Logo / Título
+                      Icon(
+                        Icons.inventory_2,
+                        size: 50,
+                        color: AppColors.primary,
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 10),
+                      Text("Inventario Telas", style: AppTextStyles.heading2),
+                      const SizedBox(height: 20),
+
+                      // Tabs
+                      TabBar(
+                        controller: _tabController,
+                        labelColor: AppColors.primary,
+                        indicatorColor: AppColors.primary,
+                        tabs: const [
+                          Tab(text: "Iniciar Sesión"),
+                          Tab(text: "Registrar"),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Contenido Tabs
+                      SizedBox(
+                        height: 300, // Altura fija para evitar saltos
+                        child: TabBarView(
+                          controller: _tabController,
+                          children: [_buildLoginForm(), _buildRegisterForm()],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

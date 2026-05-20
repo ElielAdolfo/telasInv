@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/models/models.dart';
 import 'package:inv_telas/moduloLotes/screens/lotes_screen.dart';
 import 'package:inv_telas/moduloPrecios/screens/precios_screen.dart';
+import 'package:inv_telas/moduloRelaciones/screens/relaciones_screen.dart';
+import 'package:inv_telas/moduloRelaciones/screens/roles_screen.dart';
 import 'package:inv_telas/providers/providers.dart';
 import 'package:inv_telas/screens/json_view_screen.dart';
 import 'package:inv_telas/screens/pending_screen.dart';
@@ -170,6 +172,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
           const Divider(),
+
+          ListTile(
+            leading: const Icon(Icons.admin_panel_settings),
+            title: const Text('Gestión de Roles'),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const RolesScreen()),
+            ),
+          ),
+
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.people_alt),
+            title: const Text('Relaciones Usuarios'),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const RelacionesScreen()),
+            ),
+          ),
           // JSON
           ListTile(
             leading: const Icon(Icons.code),

@@ -39,18 +39,18 @@ class AuthNotifier extends StateNotifier<AsyncValue<Usuario?>> {
 
   // Login
   Future<String?> login(String email, String pass) async {
-    state = const AsyncValue.loading();
+    //state = const AsyncValue.loading();
     try {
       final user = await _authService.login(email, pass);
       if (user != null) {
         state = AsyncValue.data(user);
         return null; // Éxito
       } else {
-        state = const AsyncValue.data(null);
+        //state = const AsyncValue.data(null);
         return "Usuario o contraseña incorrectos";
       }
     } catch (e) {
-      state = const AsyncValue.data(null);
+      //state = const AsyncValue.data(null);
       return "Error de conexión";
     }
   }
@@ -60,13 +60,13 @@ class AuthNotifier extends StateNotifier<AsyncValue<Usuario?>> {
     required String email,
     required String pass,
     required String nombre,
-    String rol = 'VENDEDOR',
+    String rolId = 'VENDEDOR',
   }) async {
     return await _authService.register(
       email: email,
       password: pass,
       nombre: nombre,
-      rol: rol,
+      rolId: rolId,
     );
   }
 
