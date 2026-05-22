@@ -32,7 +32,21 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   @override
   void initState() {
     super.initState();
+
     _tabController = TabController(length: 2, vsync: this);
+
+    Future.microtask(() {
+      ref.listenManual<AsyncValue<Usuario?>>(authProvider, (prev, next) {
+        next.whenData((user) {
+          if (user != null && mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const HomeScreen()),
+            );
+          }
+        });
+      });
+    });
   }
 
   @override
@@ -112,18 +126,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
 
   @override
   Widget build(BuildContext context) {
-    // Escuchar cambios de autenticación para navegar
-    ref.listen<AsyncValue<Usuario?>>(authProvider, (prev, next) {
-      next.whenData((user) {
-        if (user != null) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const HomeScreen()),
-          );
-        }
-      });
-    });
-
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(

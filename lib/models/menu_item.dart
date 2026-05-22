@@ -5,6 +5,8 @@ class MenuApp {
   final String ruta;
   final bool activo;
   final int ordenBase;
+  final bool visible;
+  final bool eliminado;
 
   MenuApp({
     required this.id,
@@ -13,6 +15,8 @@ class MenuApp {
     required this.ruta,
     this.activo = true,
     this.ordenBase = 0,
+    this.visible = true,
+    this.eliminado = false,
   });
 
   factory MenuApp.fromJson(Map<String, dynamic> json) => MenuApp(
@@ -22,6 +26,8 @@ class MenuApp {
     ruta: json['ruta'] ?? '/',
     activo: json['activo'] ?? true,
     ordenBase: json['ordenBase'] ?? 0,
+    visible: json['visible'] ?? true,
+    eliminado: json['eliminado'] ?? false,
   );
 
   Map<String, dynamic> toJson() => {
@@ -31,5 +37,29 @@ class MenuApp {
     'ruta': ruta,
     'activo': activo,
     'ordenBase': ordenBase,
+    'visible': visible,
+    'eliminado': eliminado,
   };
+
+  MenuApp copyWith({
+    String? id,
+    String? nombre,
+    String? icono,
+    String? ruta,
+    bool? activo,
+    int? ordenBase,
+    bool? visible,
+    bool? eliminado,
+  }) {
+    return MenuApp(
+      id: id ?? this.id,
+      nombre: nombre ?? this.nombre,
+      icono: icono ?? this.icono,
+      ruta: ruta ?? this.ruta,
+      activo: activo ?? this.activo,
+      ordenBase: ordenBase ?? this.ordenBase,
+      visible: visible ?? this.visible,
+      eliminado: eliminado ?? this.eliminado,
+    );
+  }
 }

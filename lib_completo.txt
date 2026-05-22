@@ -98,31 +98,49 @@ class DefaultFirebaseOptions {
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:inv_telas/moduloLotes/screens/lotes_screen.dart';
+import 'package:inv_telas/moduloPrecios/screens/precios_screen.dart';
+import 'package:inv_telas/moduloRelaciones/screens/relaciones_screen.dart';
+import 'package:inv_telas/moduloRelaciones/screens/roles_screen.dart';
 import 'package:inv_telas/providers/auth_provider.dart';
 import 'package:inv_telas/screens/auth_screen.dart';
 import 'package:inv_telas/screens/homeScreen.dart';
+import 'package:inv_telas/screens/json_view_screen.dart';
+import 'package:inv_telas/services/menus_service.dart';
 import 'firebase_options.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-
 import 'package:intl/date_symbol_data_local.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('es', null);
+
   runApp(const ProviderScope(child: MyApp()));
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
-  // 🔥 Creamos el Future de inicialización
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  late final Future<FirebaseApp> _firebaseFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _firebaseFuture = _initializeFirebase();
+  }
+
   Future<FirebaseApp> _initializeFirebase() async {
     final app = await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
 
-    // 🔥 Ejecuta precarga eliminarEsto para que no precarge datos
-    //await SeedService().initialize();
+    // SOLO UNA VEZ
+    await MenusService().seedDefaultMenus();
 
     return app;
   }
@@ -133,64 +151,72 @@ class MyApp extends StatelessWidget {
       title: 'Inventario de Telas',
       debugShowCheckedModeBanner: false,
 
+      // ✅ RUTAS GLOBALES
+      routes: {
+        '/inventario': (_) => const HomeScreen(),
+
+        '/lotes': (_) => const LotesScreen(),
+
+        '/precios': (_) => const PreciosScreen(),
+
+        '/relaciones': (_) => const RelacionesScreen(),
+
+        '/roles': (_) => const RolesScreen(),
+
+        '/ver-json': (_) => const JsonViewScreen(),
+      },
+
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-
       supportedLocales: const [Locale('es'), Locale('en')],
       home: FutureBuilder<FirebaseApp>(
-        future: _initializeFirebase(),
+        future: _firebaseFuture,
         builder: (context, snapshot) {
-          // 🔄 CARGANDO
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Scaffold(
               body: Center(child: CircularProgressIndicator()),
             );
           }
 
-          // ❌ ERROR
           if (snapshot.hasError) {
             return Scaffold(
               body: Center(
                 child: Text(
-                  '❌ Error al conectar con Firebase\n\n${snapshot.error}',
+                  'Error Firebase:\n${snapshot.error}',
                   textAlign: TextAlign.center,
                 ),
               ),
             );
           }
 
-          return Consumer(
-            builder: (context, ref, child) {
-              final authState = ref.watch(authProvider);
-
-              return authState.when(
-                data: (user) {
-                  if (user != null) {
-                    // Usuario logueado -> Ir a Home
-                    return const HomeScreen();
-                  } else {
-                    // No hay usuario -> Ir a Login
-                    return const AuthScreen();
-                  }
-                },
-                loading: () => const Scaffold(
-                  body: Center(child: CircularProgressIndicator()),
-                ),
-                error: (e, st) => const AuthScreen(), // En error, mostrar login
-              );
-            },
-          );
+          return const AuthGate();
         },
       ),
-      // ✅ CONECTADO
-      /*if (snapshot.hasData) {
-            return SafeArea(child: Scaffold(body: HomeScreen()));
-          }
+    );
+  }
+}
 
-          return const SizedBox();*/
+class AuthGate extends ConsumerWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authProvider);
+
+    return authState.when(
+      data: (user) {
+        if (user != null) {
+          return const HomeScreen();
+        }
+
+        return const AuthScreen();
+      },
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (_, __) => const AuthScreen(),
     );
   }
 }
@@ -198,212 +224,108 @@ class MyApp extends StatelessWidget {
 
 ===== D:\inv\inv_telas\lib\Untitled-1.dart =====
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:inv_telas/models/usuario.dart';
-import 'package:inv_telas/models/rol.dart'; // Importamos el modelo Rol
-import 'package:inv_telas/config/env.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:inv_telas/providers/auth_provider.dart';
+import 'package:inv_telas/screens/auth_screen.dart';
+import 'package:inv_telas/screens/homeScreen.dart';
+import 'package:inv_telas/services/menus_service.dart';
+import 'firebase_options.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
-class AuthService {
-  final _auth = FirebaseAuth.instance;
-  final _firestore = FirebaseFirestore.instance;
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('es', null);
 
-  // Obtener usuario actual
-  Future<Usuario?> getUsuarioActual() async {
-    final user = _auth.currentUser;
-    if (user == null) return null;
-    return await _fetchUserData(user.uid);
+  runApp(const ProviderScope(child: MyApp()));
+}
+
+class MyApp extends StatefulWidget {
+  const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  late final Future<FirebaseApp> _firebaseFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _firebaseFuture = _initializeFirebase();
   }
 
-  // Login
-  Future<Usuario?> login(String email, String password) async {
-    try {
-      final cred = await _auth.signInWithEmailAndPassword(
-        email: email.trim(),
-        password: password.trim(),
-      );
+  Future<FirebaseApp> _initializeFirebase() async {
+    final app = await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
 
-      if (cred.user == null) return null;
-      return await _fetchUserData(cred.user!.uid);
-    } catch (e) {
-      print("Error login: $e");
-      return null;
-    }
+    // SOLO UNA VEZ
+    await MenusService().seedDefaultMenus();
+
+    return app;
   }
 
-  // Registro
-  Future<String?> register({
-    required String email,
-    required String password,
-    required String nombre,
-    String rolId = 'vendedor',
-  }) async {
-    try {
-      final cred = await _auth.createUserWithEmailAndPassword(
-        email: email.trim(),
-        password: password.trim(),
-      );
-
-      if (cred.user == null) return "Error al crear usuario";
-
-      final usuario = Usuario(
-        id: cred.user!.uid,
-        email: email.trim(),
-        nombre: nombre.trim(),
-        rolesIds: [rolId],
-        sucursalesIds: [],
-      );
-
-      await _firestore
-          .collection(Env.col('usuarios'))
-          .doc(usuario.id)
-          .set(usuario.toJson());
-
-      return null;
-    } on FirebaseAuthException catch (e) {
-      return e.message;
-    } catch (e) {
-      return e.toString();
-    }
-  }
-
-  // Logout
-  Future<void> logout() => _auth.signOut();
-
-  // ==================================================
-  // LÃ“GICA DE SEMILLA (ROLES Y ADMIN)
-  // ==================================================
-
-  Future<void> seedAdminUser() async {
-    // 1. Primero nos aseguramos de que los roles existan
-    await _seedRoles();
-
-    const adminEmail = "admin@admin.com";
-    const adminPass = "123456Aa";
-
-    try {
-      // Verificar si el admin ya existe en Firestore
-      final query = await _firestore
-          .collection(Env.col('usuarios'))
-          .where('email', isEqualTo: adminEmail)
-          .limit(1)
-          .get();
-
-      if (query.docs.isEmpty) {
-        print("ðŸŒ± Creando usuario Admin inicial...");
-
-        try {
-          final cred = await _auth.createUserWithEmailAndPassword(
-            email: adminEmail,
-            password: adminPass,
-          );
-
-          // âœ… CREAR USUARIO CON ROL ADMIN
-          final admin = Usuario(
-            id: cred.user!.uid,
-            email: adminEmail,
-            nombre: "Administrador",
-            rolesIds: ['admin'], // Asignamos el ID del rol admin
-            sucursalesIds: [],
-          );
-
-          await _firestore
-              .collection(Env.col('usuarios'))
-              .doc(admin.id)
-              .set(admin.toJson());
-
-          print("âœ… Admin creado con rol de administrador");
-        } on FirebaseAuthException catch (e) {
-          if (e.code == 'email-already-in-use') {
-            print("âš ï¸ Admin ya existÃ­a en Auth. Sincronizando DB...");
-            // Si ya existe en Auth pero no en DB (caso raro), intentar recuperar UID es complejo sin login.
-            // Lo ignoramos por seguridad o podrÃ­as implementar un flujo de recuperaciÃ³n.
-          } else {
-            print("Error semilla Admin: $e");
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Inventario de Telas',
+      debugShowCheckedModeBanner: false,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [Locale('es'), Locale('en')],
+      home: FutureBuilder<FirebaseApp>(
+        future: _firebaseFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
           }
+
+          if (snapshot.hasError) {
+            return Scaffold(
+              body: Center(
+                child: Text(
+                  'Error Firebase:\n${snapshot.error}',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            );
+          }
+
+          return const AuthGate();
+        },
+      ),
+    );
+  }
+}
+
+class AuthGate extends ConsumerWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authProvider);
+
+    return authState.when(
+      data: (user) {
+        if (user != null) {
+          return const HomeScreen();
         }
-      } else {
-        print("âœ… Usuario Admin ya existe en la base de datos.");
-      }
-    } catch (e) {
-      print("Error verificando Admin: $e");
-    }
-  }
 
-  // âœ… NUEVO MÃ‰TODO: Crear roles por defecto
-  Future<void> _seedRoles() async {
-    final rolesRef = _firestore.collection(Env.col('roles'));
-
-    // Definimos los roles iniciales segÃºn tu requerimiento
-    final List<Rol> defaultRoles = [
-      Rol(
-        id: 'admin',
-        nombre: 'Administrador',
-        activo: true,
-        menusPermitidos: [
-          'inventario',
-          'lotes',
-          'precios',
-          'relaciones',
-          'ventas',
-          'consultas',
-          'configuracion',
-          'usuarios',
-          'roles',
-          'sucursales',
-        ],
-      ),
-      Rol(
-        id: 'responsable_sucursal',
-        nombre: 'Responsable de Sucursal',
-        activo: true,
-        menusPermitidos: [
-          'inventario',
-          'lotes',
-          'precios',
-          'relaciones',
-          'ventas',
-        ],
-      ),
-      Rol(
-        id: 'vendedor',
-        nombre: 'Vendedor',
-        activo: true,
-        menusPermitidos: ['ventas'],
-      ),
-      Rol(
-        id: 'consultas',
-        nombre: 'Consultas',
-        activo: true,
-        menusPermitidos: ['consultas', 'reportes'],
-      ),
-    ];
-
-    for (var rol in defaultRoles) {
-      final doc = rolesRef.doc(rol.id);
-      final snap = await doc.get();
-
-      // Solo creamos si no existe
-      if (!snap.exists) {
-        await doc.set(rol.toJson());
-        print("ðŸŒ± Rol creado: ${rol.nombre}");
-      }
-    }
-  }
-
-  Future<Usuario?> _fetchUserData(String uid) async {
-    try {
-      final doc = await _firestore
-          .collection(Env.col('usuarios'))
-          .doc(uid)
-          .get();
-      if (doc.exists && doc.data() != null) {
-        return Usuario.fromJson(doc.data()!);
-      }
-      return null;
-    } catch (e) {
-      return null;
-    }
+        return const AuthScreen();
+      },
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (_, __) => const AuthScreen(),
+    );
   }
 }
 
@@ -850,6 +772,7 @@ class MenuApp {
   final String ruta;
   final bool activo;
   final int ordenBase;
+  final bool visible; // Nuevo
 
   MenuApp({
     required this.id,
@@ -858,6 +781,7 @@ class MenuApp {
     required this.ruta,
     this.activo = true,
     this.ordenBase = 0,
+    this.visible = true,
   });
 
   factory MenuApp.fromJson(Map<String, dynamic> json) => MenuApp(
@@ -867,6 +791,7 @@ class MenuApp {
     ruta: json['ruta'] ?? '/',
     activo: json['activo'] ?? true,
     ordenBase: json['ordenBase'] ?? 0,
+    visible: json['visible'] ?? true,
   );
 
   Map<String, dynamic> toJson() => {
@@ -876,6 +801,7 @@ class MenuApp {
     'ruta': ruta,
     'activo': activo,
     'ordenBase': ordenBase,
+    'visible': visible,
   };
 }
 
@@ -3741,6 +3667,67 @@ class _RolesScreenState extends ConsumerState<RolesScreen> {
 }
 
 
+===== D:\inv\inv_telas\lib\providers\active_role_provider.dart =====
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
+import 'package:inv_telas/models/rol.dart';
+import 'package:inv_telas/models/usuario.dart';
+import 'package:inv_telas/providers/auth_provider.dart';
+import 'package:inv_telas/services/relaciones_service.dart';
+import 'package:inv_telas/services/roles_service.dart'; // O donde tengas el servicio de roles
+
+// Estado: El ID del rol activo
+final activeRoleIdProvider = StateProvider<String?>((ref) {
+  // Por defecto, tomamos el primer rol del usuario logueado
+  final user = ref.watch(authProvider).value;
+  return (user != null && user.rolesIds.isNotEmpty)
+      ? user.rolesIds.first
+      : null;
+});
+
+// LÃ³gica: Lista de objetos Rol completos que el usuario tiene asignados
+final userRolesProvider = FutureProvider<List<Rol>>((ref) async {
+  ref.keepAlive();
+
+  final user = ref.watch(authProvider).value;
+
+  if (user == null || user.rolesIds.isEmpty) {
+    return [];
+  }
+
+  final rolesService = RolesService();
+
+  return await rolesService.getRolesByIds(user.rolesIds);
+});
+// LÃ³gica: El objeto Rol activo completo
+final activeRoleProvider = Provider<Rol?>((ref) {
+  final activeId = ref.watch(activeRoleIdProvider);
+
+  final rolesAsync = ref.watch(userRolesProvider);
+
+  final roles = rolesAsync.maybeWhen(
+    data: (data) => data,
+    orElse: () => <Rol>[],
+  );
+
+  if (activeId == null) return null;
+
+  try {
+    return roles.firstWhere((r) => r.id == activeId);
+  } catch (e) {
+    return null;
+  }
+});
+
+// LÃ³gica: Lista de IDs de menÃºs permitidos segÃºn el rol activo
+final allowedMenuIdsProvider = Provider<List<String>>((ref) {
+  final activeRole = ref.watch(activeRoleProvider);
+  if (activeRole == null) return [];
+  return activeRole.menusPermitidos;
+});
+
+
 ===== D:\inv\inv_telas\lib\providers\auth_provider.dart =====
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -3784,18 +3771,18 @@ class AuthNotifier extends StateNotifier<AsyncValue<Usuario?>> {
 
   // Login
   Future<String?> login(String email, String pass) async {
-    state = const AsyncValue.loading();
+    //state = const AsyncValue.loading();
     try {
       final user = await _authService.login(email, pass);
       if (user != null) {
         state = AsyncValue.data(user);
         return null; // Ã‰xito
       } else {
-        state = const AsyncValue.data(null);
+        //state = const AsyncValue.data(null);
         return "Usuario o contraseÃ±a incorrectos";
       }
     } catch (e) {
-      state = const AsyncValue.data(null);
+      //state = const AsyncValue.data(null);
       return "Error de conexiÃ³n";
     }
   }
@@ -3805,7 +3792,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<Usuario?>> {
     required String email,
     required String pass,
     required String nombre,
-    String rolId = 'vendedor',
+    String rolId = 'VENDEDOR',
   }) async {
     return await _authService.register(
       email: email,
@@ -4167,7 +4154,21 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   @override
   void initState() {
     super.initState();
+
     _tabController = TabController(length: 2, vsync: this);
+
+    Future.microtask(() {
+      ref.listenManual<AsyncValue<Usuario?>>(authProvider, (prev, next) {
+        next.whenData((user) {
+          if (user != null && mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const HomeScreen()),
+            );
+          }
+        });
+      });
+    });
   }
 
   @override
@@ -4247,18 +4248,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
 
   @override
   Widget build(BuildContext context) {
-    // Escuchar cambios de autenticaciÃ³n para navegar
-    ref.listen<AsyncValue<Usuario?>>(authProvider, (prev, next) {
-      next.whenData((user) {
-        if (user != null) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const HomeScreen()),
-          );
-        }
-      });
-    });
-
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
@@ -4437,6 +4426,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/models/menu_item.dart';
 import 'package:inv_telas/models/models.dart';
 import 'package:inv_telas/moduloLotes/screens/lotes_screen.dart';
 import 'package:inv_telas/moduloPrecios/screens/precios_screen.dart';
@@ -4444,10 +4434,12 @@ import 'package:inv_telas/moduloRelaciones/screens/relaciones_screen.dart';
 import 'package:inv_telas/moduloRelaciones/screens/roles_screen.dart';
 import 'package:inv_telas/providers/providers.dart';
 import 'package:inv_telas/screens/json_view_screen.dart';
-import 'package:inv_telas/screens/pending_screen.dart';
 import 'package:inv_telas/utils/utils.dart';
 import 'package:inv_telas/widgets/widgets.dart';
+import 'package:inv_telas/widgets/dynamic_drawer.dart'; // âœ… 1. IMPORTAR
+import 'package:inv_telas/screens/pending_screen.dart';
 import 'package:collection/collection.dart';
+import 'package:inv_telas/services/menus_service.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -4464,6 +4456,51 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   String _filtroColorId = '';
   String _filtroTipoTelaId = '';
 
+  List<MenuApp> _menus = [];
+
+  bool _loadingMenus = true;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _loadMenus();
+  }
+
+  Future<void> _loadMenus() async {
+    print("ðŸ”¥ CARGANDO MENUS");
+
+    try {
+      final menus = await MenusService().getMenus();
+
+      print("ðŸ“¦ MENUS OBTENIDOS:");
+      print(menus.length);
+
+      for (final m in menus) {
+        print("${m.id} | ${m.nombre}");
+      }
+
+      if (mounted) {
+        setState(() {
+          _menus = menus;
+
+          _loadingMenus = false;
+        });
+
+        print("âœ… MENUS GUARDADOS EN STATE");
+      }
+    } catch (e) {
+      print("âŒ ERROR MENUS");
+      print(e);
+
+      if (mounted) {
+        setState(() {
+          _loadingMenus = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final rollosState = ref.watch(rollosProvider);
@@ -4472,7 +4509,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: _buildAppBar(),
+
+      // âœ… 2. USAR EL NUEVO DRAWER AQUÃ
       drawer: _buildDrawer(),
+      /*drawer: _loadingMenus
+          ? const Drawer(child: Center(child: CircularProgressIndicator()))
+          : DynamicDrawer(menus: _menus),*/
       body: rollosState.when(
         data: (rollos) {
           final rollosFiltrados = _filtrarRollos(rollos);
@@ -4650,6 +4692,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  // âœ… 3. ELIMINAR EL MÃ‰TODO _buildDrawer() COMPLETO
+  // (Borra todo el mÃ©todo _buildDrawer que tenÃ­as abajo)
+
   Widget _buildListaGrupos(List<Map<String, dynamic>> grupos) {
     if (grupos.isEmpty) {
       return Container(
@@ -4689,21 +4734,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  // --- LOGICA DE NEGOCIO ---
+  // --- LOGICA DE NEGOCIO (Sin cambios) ---
 
   List<Rollo> _filtrarRollos(List<Rollo> rollos) {
-    // Necesitamos acceso a los catÃ¡logos para buscar por nombre en la bÃºsqueda general
-    final catalog = ref.read(catalogServiceProvider);
-    // Nota: Para optimizar, esto deberÃ­a hacerse con los providers de estado de catÃ¡logo
-    // pero para mantenerlo simple usamos el servicio o buscamos en los providers.
-    // Usaremos los providers que ya tenemos cargados:
-
     final colores = ref.read(coloresProvider);
     final tipos = ref.read(tiposTelaProvider);
     final empresas = ref.read(empresasProvider);
 
     return rollos.where((r) {
-      // BÃºsqueda general (textual): necesita resolver IDs a Nombres
       final colorNombre = colores
           .firstWhere(
             (c) => c.id == r.colorId,
@@ -4730,7 +4768,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           empresaNombre.toLowerCase().contains(_busqueda.toLowerCase()) ||
           tipoNombre.toLowerCase().contains(_busqueda.toLowerCase());
 
-      // Filtros especÃ­ficos por ID
       final matchSucursal =
           _filtroSucursalId.isEmpty || r.sucursalId == _filtroSucursalId;
       final matchEmpresa =
@@ -4803,15 +4840,18 @@ class _JsonViewScreenState extends State<JsonViewScreen> {
 
     // Lista automÃ¡tica de colecciones
     final collections = [
-      'rollos',
-      'catalog_empresas',
       'catalog_colores',
-      'catalog_tipos_tela',
-      'catalog_sucursales',
+      'catalog_empresas',
       'catalog_monedas',
-      'catalog_anchos',
-      'users',
+      'catalog_sucursales',
+      'catalog_tipos_tela',
+      'lotes',
+      'menus',
       'precios_venta',
+      'roles',
+      'rollos',
+      'users',
+      'usuarios',
     ];
 
     for (final collectionName in collections) {
@@ -5074,6 +5114,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:inv_telas/models/usuario.dart';
 import 'package:inv_telas/models/rol.dart';
 import 'package:inv_telas/config/env.dart';
+import 'package:inv_telas/services/menus_service.dart';
 
 class AuthService {
   final _auth = FirebaseAuth.instance;
@@ -5543,6 +5584,125 @@ class LoteService extends FirebaseService {
 }
 
 
+===== D:\inv\inv_telas\lib\services\menus_service.dart =====
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:inv_telas/config/env.dart';
+import 'package:inv_telas/models/menu_item.dart';
+
+class MenusService {
+  final _db = FirebaseFirestore.instance;
+
+  // âœ… CACHE EN MEMORIA
+  static List<MenuApp>? _cacheMenus;
+
+  // âœ… SOLO UNA CONSULTA
+  Future<List<MenuApp>> getMenus() async {
+    final snap = await _db
+        .collection(Env.col('menus'))
+        .where('activo', isEqualTo: true)
+        .where('visible', isEqualTo: true)
+        .orderBy('ordenBase')
+        .get();
+
+    return snap.docs.map((doc) {
+      final data = doc.data();
+
+      data['id'] = doc.id;
+
+      return MenuApp.fromJson(data);
+    }).toList();
+  }
+
+  // âœ… LIMPIAR CACHE SI NECESITAS RECARGAR
+  static void clearCache() {
+    _cacheMenus = null;
+  }
+
+  Future<void> seedDefaultMenus() async {
+    final ref = _db.collection(Env.col('menus'));
+
+    final snap = await ref.limit(1).get();
+
+    if (snap.docs.isEmpty) {
+      final batch = _db.batch();
+
+      final defaults = [
+        MenuApp(
+          id: 'inventario',
+          nombre: 'Inventario',
+          icono: 'inventory',
+          ruta: '/inventario',
+          ordenBase: 1,
+        ),
+
+        MenuApp(
+          id: 'ventas',
+          nombre: 'Ventas',
+          icono: 'point_of_sale',
+          ruta: '/ventas',
+          ordenBase: 2,
+        ),
+
+        MenuApp(
+          id: 'lotes',
+          nombre: 'Lotes',
+          icono: 'inventory_2',
+          ruta: '/lotes',
+          ordenBase: 3,
+        ),
+
+        MenuApp(
+          id: 'precios',
+          nombre: 'Precios',
+          icono: 'price_change',
+          ruta: '/precios',
+          ordenBase: 4,
+        ),
+
+        MenuApp(
+          id: 'relaciones',
+          nombre: 'Relaciones',
+          icono: 'settings',
+          ruta: '/relaciones',
+          ordenBase: 5,
+        ),
+
+        MenuApp(
+          id: 'roles', // ID importante para coincidir con el permiso del rol
+          nombre: 'GestiÃ³n de Roles',
+          icono: 'admin_panel_settings', // Icono sugerido
+          ruta: '/roles',
+          ordenBase: 10,
+        ),
+        MenuApp(
+          id: 'usuarios', // ID importante
+          nombre: 'Relaciones Usuarios',
+          icono: 'people_alt', // Icono sugerido
+          ruta: '/usuarios',
+          ordenBase: 11,
+        ),
+        MenuApp(
+          id: 'ver_json', // ID nuevo
+          nombre: 'Ver JSON',
+          icono: 'data_object', // Icono sugerido
+          ruta: '/ver-json',
+          ordenBase: 12,
+        ),
+      ];
+
+      for (var menu in defaults) {
+        batch.set(ref.doc(menu.id), menu.toJson());
+      }
+
+      await batch.commit();
+
+      print("ðŸŒ± MenÃºs por defecto creados");
+    }
+  }
+}
+
+
 ===== D:\inv\inv_telas\lib\services\relaciones_service.dart =====
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -5593,6 +5753,87 @@ class RelacionesService {
   Future<List<Usuario>> obtenerUsuarios() async {
     final snap = await _db.collection(Env.col('usuarios')).get();
     return snap.docs.map((d) => Usuario.fromJson(d.data())).toList();
+  }
+}
+
+
+===== D:\inv\inv_telas\lib\services\roles_service.dart =====
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:inv_telas/config/env.dart';
+import 'package:inv_telas/models/rol.dart';
+
+class RolesService {
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  /// Referencia a la colecciÃ³n de roles
+  CollectionReference<Map<String, dynamic>> get _rolesRef =>
+      _db.collection(Env.col('roles'));
+
+  /// Obtener una lista de roles especÃ­ficos por sus IDs
+  /// Ideal para cargar solo los roles que tiene un usuario asignado.
+  Future<List<Rol>> getRolesByIds(List<String> ids) async {
+    if (ids.isEmpty) return [];
+
+    try {
+      // Firestore permite consultar hasta 10 documentos con 'whereIn'
+      // Si un usuario tuviera mÃ¡s de 10 roles (muy raro), habrÃ­a que hacer batches.
+      // Para este sistema, 10 es mÃ¡s que suficiente.
+      final snapshot = await _rolesRef
+          .where(FieldPath.documentId, whereIn: ids)
+          .get();
+
+      return snapshot.docs.map((doc) => Rol.fromJson(doc.data())).toList();
+    } catch (e) {
+      print('Error en getRolesByIds: $e');
+      return [];
+    }
+  }
+
+  /// Obtener un solo rol por su ID
+  Future<Rol?> getRolById(String id) async {
+    try {
+      final doc = await _rolesRef.doc(id).get();
+      if (doc.exists && doc.data() != null) {
+        return Rol.fromJson(doc.data()!);
+      }
+      return null;
+    } catch (e) {
+      print('Error en getRolById: $e');
+      return null;
+    }
+  }
+
+  /// Escuchar todos los roles en tiempo real
+  /// Ãštil para pantallas de administraciÃ³n de roles.
+  Stream<List<Rol>> streamAllRoles() {
+    return _rolesRef.snapshots().map((snapshot) {
+      return snapshot.docs.map((doc) {
+        // Aseguramos que el ID del documento coincida con el del modelo
+        final data = doc.data();
+        return Rol.fromJson(data);
+      }).toList();
+    });
+  }
+
+  /// Crear o Actualizar un rol
+  Future<void> saveRol(Rol rol) async {
+    try {
+      await _rolesRef.doc(rol.id).set(rol.toJson(), SetOptions(merge: true));
+    } catch (e) {
+      print('Error guardando rol: $e');
+      rethrow;
+    }
+  }
+
+  /// Eliminar un rol (Solo si no estÃ¡ asignado a usuarios, se recomienda validaciÃ³n previa)
+  Future<void> deleteRol(String id) async {
+    try {
+      await _rolesRef.doc(id).delete();
+    } catch (e) {
+      print('Error eliminando rol: $e');
+      rethrow;
+    }
   }
 }
 
@@ -6080,6 +6321,105 @@ class DeleteConfirmDialog extends StatelessWidget {
 }
 
 
+===== D:\inv\inv_telas\lib\widgets\dynamic_drawer.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/models/menu_item.dart';
+import 'package:inv_telas/providers/active_role_provider.dart';
+import 'package:inv_telas/providers/auth_provider.dart';
+import 'package:inv_telas/utils/icon_mapper.dart';
+import 'package:inv_telas/widgets/role_selector.dart';
+
+class DynamicDrawer extends ConsumerWidget {
+  final List<MenuApp> menus;
+
+  const DynamicDrawer({super.key, required this.menus});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final allowedIds = ref.watch(allowedMenuIdsProvider);
+
+    final user = ref.watch(authProvider).value;
+
+    // âœ… FILTRAR MENÃšS SEGÃšN ROL
+    final filteredMenus = menus
+        .where((m) => allowedIds.contains(m.id))
+        .toList();
+
+    // âœ… ORDENAR
+    filteredMenus.sort((a, b) => a.ordenBase.compareTo(b.ordenBase));
+
+    // =========================
+    // DEBUG
+    // =========================
+
+    print("=================================");
+    print("ðŸ‘¤ ${user?.nombre}");
+    print("ðŸªª Roles: ${user?.rolesIds}");
+
+    print("âœ… Menus permitidos:");
+    print(allowedIds);
+
+    print("ðŸŽ¯ Menus renderizados:");
+
+    for (final m in filteredMenus) {
+      print("${m.nombre} -> ${m.ruta}");
+    }
+
+    print("=================================");
+
+    return Drawer(
+      child: Column(
+        children: [
+          UserAccountsDrawerHeader(
+            accountName: Text(user?.nombre ?? "Usuario"),
+            accountEmail: Text(user?.email ?? ""),
+            currentAccountPicture: CircleAvatar(
+              child: Text(user?.nombre.substring(0, 1).toUpperCase() ?? "U"),
+            ),
+          ),
+
+          const RoleSelector(),
+
+          const Divider(),
+
+          Expanded(
+            child: filteredMenus.isEmpty
+                ? const Center(child: Text("Sin accesos para este rol"))
+                : ListView.separated(
+                    itemCount: filteredMenus.length,
+
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+
+                    itemBuilder: (context, index) {
+                      final menu = filteredMenus[index];
+
+                      return ListTile(
+                        leading: Icon(IconMapper.getIcon(menu.icono)),
+
+                        title: Text(menu.nombre),
+
+                        onTap: () {
+                          Navigator.pop(context);
+
+                          print("ðŸš€ Navegando -> ${menu.ruta}");
+
+                          if (menu.ruta.isNotEmpty) {
+                            Navigator.pushNamed(context, menu.ruta);
+                          }
+                        },
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
 ===== D:\inv\inv_telas\lib\widgets\group_list_tile.dart =====
 
 import 'package:flutter/material.dart';
@@ -6482,6 +6822,67 @@ class ButtonLoading extends StatelessWidget {
     height: 20,
     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
   );
+}
+
+
+===== D:\inv\inv_telas\lib\widgets\role_selector.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/providers/active_role_provider.dart';
+
+class RoleSelector extends ConsumerWidget {
+  const RoleSelector({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rolesAsync = ref.watch(userRolesProvider);
+    final activeId = ref.watch(activeRoleIdProvider);
+
+    return rolesAsync.when(
+      data: (roles) {
+        if (roles.length <= 1)
+          return const SizedBox(); // Si solo tiene 1 rol, no mostramos selector
+
+        return Card(
+          elevation: 2,
+          margin: const EdgeInsets.all(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12.0),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                isExpanded: true,
+                value: activeId,
+                hint: const Text("Seleccionar Rol"),
+                items: roles.map((rol) {
+                  return DropdownMenuItem(
+                    value: rol.id,
+                    child: Row(
+                      children: [
+                        const Icon(Icons.badge, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          rol.nombre,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                onChanged: (newId) {
+                  if (newId != null) {
+                    ref.read(activeRoleIdProvider.notifier).state = newId;
+                  }
+                },
+              ),
+            ),
+          ),
+        );
+      },
+      loading: () => const LinearProgressIndicator(),
+      error: (_, __) => const Text("Error roles"),
+    );
+  }
 }
 
 

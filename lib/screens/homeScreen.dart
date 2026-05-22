@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/models/menu_item.dart';
 import 'package:inv_telas/models/models.dart';
 import 'package:inv_telas/moduloLotes/screens/lotes_screen.dart';
 import 'package:inv_telas/moduloPrecios/screens/precios_screen.dart';
@@ -7,10 +8,12 @@ import 'package:inv_telas/moduloRelaciones/screens/relaciones_screen.dart';
 import 'package:inv_telas/moduloRelaciones/screens/roles_screen.dart';
 import 'package:inv_telas/providers/providers.dart';
 import 'package:inv_telas/screens/json_view_screen.dart';
-import 'package:inv_telas/screens/pending_screen.dart';
 import 'package:inv_telas/utils/utils.dart';
 import 'package:inv_telas/widgets/widgets.dart';
+import 'package:inv_telas/widgets/dynamic_drawer.dart'; // ✅ 1. IMPORTAR
+import 'package:inv_telas/screens/pending_screen.dart';
 import 'package:collection/collection.dart';
+import 'package:inv_telas/services/menus_service.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -27,6 +30,51 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   String _filtroColorId = '';
   String _filtroTipoTelaId = '';
 
+  List<MenuApp> _menus = [];
+
+  bool _loadingMenus = true;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _loadMenus();
+  }
+
+  Future<void> _loadMenus() async {
+    print("🔥 CARGANDO MENUS");
+
+    try {
+      final menus = await MenusService().getMenus();
+
+      print("📦 MENUS OBTENIDOS:");
+      print(menus.length);
+
+      for (final m in menus) {
+        print("${m.id} | ${m.nombre}");
+      }
+
+      if (mounted) {
+        setState(() {
+          _menus = menus;
+
+          _loadingMenus = false;
+        });
+
+        print("✅ MENUS GUARDADOS EN STATE");
+      }
+    } catch (e) {
+      print("❌ ERROR MENUS");
+      print(e);
+
+      if (mounted) {
+        setState(() {
+          _loadingMenus = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final rollosState = ref.watch(rollosProvider);
@@ -35,7 +83,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: _buildAppBar(),
-      drawer: _buildDrawer(),
+
+      // ✅ 2. USAR EL NUEVO DRAWER AQUÍ
+      //drawer: _buildDrawer(),
+      drawer: _loadingMenus
+          ? const Drawer(child: Center(child: CircularProgressIndicator()))
+          : DynamicDrawer(menus: _menus),
       body: rollosState.when(
         data: (rollos) {
           final rollosFiltrados = _filtrarRollos(rollos);
@@ -213,6 +266,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
+  // ✅ 3. ELIMINAR EL MÉTODO _buildDrawer() COMPLETO
+  // (Borra todo el método _buildDrawer que tenías abajo)
+
   Widget _buildListaGrupos(List<Map<String, dynamic>> grupos) {
     if (grupos.isEmpty) {
       return Container(
@@ -252,21 +308,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  // --- LOGICA DE NEGOCIO ---
+  // --- LOGICA DE NEGOCIO (Sin cambios) ---
 
   List<Rollo> _filtrarRollos(List<Rollo> rollos) {
-    // Necesitamos acceso a los catálogos para buscar por nombre en la búsqueda general
-    final catalog = ref.read(catalogServiceProvider);
-    // Nota: Para optimizar, esto debería hacerse con los providers de estado de catálogo
-    // pero para mantenerlo simple usamos el servicio o buscamos en los providers.
-    // Usaremos los providers que ya tenemos cargados:
-
     final colores = ref.read(coloresProvider);
     final tipos = ref.read(tiposTelaProvider);
     final empresas = ref.read(empresasProvider);
 
     return rollos.where((r) {
-      // Búsqueda general (textual): necesita resolver IDs a Nombres
       final colorNombre = colores
           .firstWhere(
             (c) => c.id == r.colorId,
@@ -293,7 +342,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           empresaNombre.toLowerCase().contains(_busqueda.toLowerCase()) ||
           tipoNombre.toLowerCase().contains(_busqueda.toLowerCase());
 
-      // Filtros específicos por ID
       final matchSucursal =
           _filtroSucursalId.isEmpty || r.sucursalId == _filtroSucursalId;
       final matchEmpresa =

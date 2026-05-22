@@ -20,15 +20,18 @@ class _JsonViewScreenState extends State<JsonViewScreen> {
 
     // Lista automática de colecciones
     final collections = [
-      'rollos',
-      'catalog_empresas',
       'catalog_colores',
-      'catalog_tipos_tela',
-      'catalog_sucursales',
+      'catalog_empresas',
       'catalog_monedas',
-      'catalog_anchos',
-      'users',
+      'catalog_sucursales',
+      'catalog_tipos_tela',
+      'lotes',
+      'menus',
       'precios_venta',
+      'roles',
+      'rollos',
+      'users',
+      'usuarios',
     ];
 
     for (final collectionName in collections) {

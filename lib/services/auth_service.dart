@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:inv_telas/models/usuario.dart';
 import 'package:inv_telas/models/rol.dart';
 import 'package:inv_telas/config/env.dart';
+import 'package:inv_telas/services/menus_service.dart';
 
 class AuthService {
   final _auth = FirebaseAuth.instance;
