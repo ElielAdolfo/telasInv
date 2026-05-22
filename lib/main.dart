@@ -1,16 +1,11 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:inv_telas/moduloConfiguracion/screens/configuracion_screen.dart';
-import 'package:inv_telas/moduloLotes/screens/lotes_screen.dart';
-import 'package:inv_telas/moduloPrecios/screens/precios_screen.dart';
-import 'package:inv_telas/moduloRelaciones/screens/relaciones_screen.dart';
-import 'package:inv_telas/moduloRelaciones/screens/roles_screen.dart';
 import 'package:inv_telas/providers/auth_provider.dart';
 import 'package:inv_telas/screens/auth_screen.dart';
 import 'package:inv_telas/screens/homeScreen.dart';
-import 'package:inv_telas/screens/json_view_screen.dart';
 import 'package:inv_telas/services/menus_service.dart';
+import 'package:inv_telas/services/system_initializer.dart';
 import 'firebase_options.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -43,8 +38,7 @@ class _MyAppState extends State<MyApp> {
       options: DefaultFirebaseOptions.currentPlatform,
     );
 
-    // SOLO UNA VEZ
-    await MenusService().seedDefaultMenus();
+    await SystemInitializer().initialize();
 
     return app;
   }
@@ -54,25 +48,6 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       title: 'Inventario de Telas',
       debugShowCheckedModeBanner: false,
-
-      // ✅ RUTAS GLOBALES
-      routes: {
-        '/inventario': (_) => const HomeScreen(),
-
-        '/lotes': (_) => const LotesScreen(),
-
-        '/precios': (_) => const PreciosScreen(),
-
-        '/relaciones': (_) => const RelacionesScreen(),
-
-        '/roles': (_) => const RolesScreen(),
-
-        '/ver-json': (_) => const JsonViewScreen(),
-
-        '/configuracion': (_) => const ConfiguracionScreen(),
-
-        '/roles1': (_) => const ConfiguracionScreen(),
-      },
 
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,

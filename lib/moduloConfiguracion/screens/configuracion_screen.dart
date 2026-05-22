@@ -4,9 +4,10 @@ import 'package:inv_telas/models/menu_item.dart';
 import 'package:inv_telas/models/rol.dart';
 import 'package:inv_telas/moduloConfiguracion/widgets/menu_form_dialog.dart';
 import 'package:inv_telas/moduloConfiguracion/widgets/rol_form_dialog.dart';
+import 'package:inv_telas/utils/icon_mapper.dart';
 import 'package:inv_telas/utils/utils.dart';
 import 'package:inv_telas/widgets/confirm_dialog.dart';
-import 'package:inv_telas/widgets/loading_overlay.dart';
+
 import '../providers/configuracion_provider.dart';
 
 class ConfiguracionScreen extends ConsumerStatefulWidget {
@@ -25,6 +26,9 @@ class _ConfiguracionScreenState extends ConsumerState<ConfiguracionScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+
+    // ELIMINAMOS EL LISTENER QUE CAUSABA LA RECARGA CONSTANTE
+    // Ahora los tabs solo cambian la vista, no disparan peticiones HTTP.
   }
 
   @override
@@ -65,21 +69,24 @@ class _MenusTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final menusAsync = ref.watch(menusAdminProvider);
-
+    print("reconstruyendo" + " " + menusAsync.toString());
     return Scaffold(
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          showDialog(
+        onPressed: () async {
+          await showDialog(
             context: context,
             builder: (_) => const MenuFormDialog(menu: null),
           );
+          // Al crear uno nuevo, sí forzamos la recarga
+          ref.invalidate(menusAdminProvider);
         },
         child: const Icon(Icons.add),
       ),
       body: menusAsync.when(
         data: (menus) {
-          if (menus.isEmpty)
+          if (menus.isEmpty) {
             return const Center(child: Text("No hay menús creados."));
+          }
           return ListView.builder(
             itemCount: menus.length,
             itemBuilder: (_, i) => _MenuTile(menu: menus[i]),
@@ -99,9 +106,7 @@ class _MenuTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return ListTile(
-      leading: Icon(
-        IconMapper.getIcon(menu.icono),
-      ), // Asumiendo que tienes IconMapper
+      leading: Icon(IconMapper.getIcon(menu.icono)),
       title: Text(menu.nombre),
       subtitle: Text("Ruta: ${menu.ruta}"),
       trailing: Row(
@@ -112,15 +117,17 @@ class _MenuTile extends ConsumerWidget {
             onChanged: (v) async {
               final newMenu = menu.copyWith(activo: v);
               await ref.read(menuAdminServiceProvider).saveMenu(newMenu);
+              ref.invalidate(menusAdminProvider);
             },
           ),
           IconButton(
             icon: const Icon(Icons.edit, color: Colors.blue),
-            onPressed: () {
-              showDialog(
+            onPressed: () async {
+              await showDialog(
                 context: context,
                 builder: (_) => MenuFormDialog(menu: menu),
               );
+              ref.invalidate(menusAdminProvider);
             },
           ),
           IconButton(
@@ -138,6 +145,7 @@ class _MenuTile extends ConsumerWidget {
                 await ref
                     .read(menuAdminServiceProvider)
                     .deleteMenuLogic(menu.id);
+                ref.invalidate(menusAdminProvider);
               }
             },
           ),
@@ -156,6 +164,7 @@ class _RolesTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final rolesAsync = ref.watch(rolesAdminProvider);
 
+    print("reconstruyendo" + " " + rolesAsync.toString());
     return Scaffold(
       floatingActionButton: FloatingActionButton(
         onPressed: () {
@@ -168,8 +177,9 @@ class _RolesTab extends ConsumerWidget {
       ),
       body: rolesAsync.when(
         data: (roles) {
-          if (roles.isEmpty)
+          if (roles.isEmpty) {
             return const Center(child: Text("No hay roles creados."));
+          }
           return ListView.builder(
             itemCount: roles.length,
             itemBuilder: (_, i) => _RolTile(rol: roles[i]),
@@ -236,13 +246,5 @@ class _RolTile extends ConsumerWidget {
         ],
       ),
     );
-  }
-}
-
-// Helper para no romper si falta IconMapper (asumiendo que existe en tu proyecto)
-class IconMapper {
-  static IconData getIcon(String name) {
-    // Implementación simple para no fallar, usa tu utils/icon_mapper.dart real
-    return Icons.widgets;
   }
 }

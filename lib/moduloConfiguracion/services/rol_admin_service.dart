@@ -8,13 +8,6 @@ class RolAdminService {
   CollectionReference<Map<String, dynamic>> get _ref =>
       _db.collection(Env.col('roles'));
 
-  Stream<List<Rol>> streamRoles() {
-    return _ref
-        .where('eliminado', isEqualTo: false)
-        .snapshots()
-        .map((snap) => snap.docs.map((d) => Rol.fromJson(d.data())).toList());
-  }
-
   Future<void> saveRol(Rol rol) async {
     if (rol.id.isEmpty) {
       final newDoc = _ref.doc();
@@ -23,6 +16,7 @@ class RolAdminService {
         nombre: rol.nombre,
         activo: rol.activo,
         menusPermitidos: rol.menusPermitidos,
+        eliminado: false,
       );
       await newDoc.set(newRol.toJson());
     } else {
@@ -32,5 +26,14 @@ class RolAdminService {
 
   Future<void> deleteRolLogic(String id) async {
     await _ref.doc(id).update({'eliminado': true});
+  }
+
+  Future<List<Rol>> getRoles() async {
+    final snap = await _ref
+        .where('eliminado', isEqualTo: false)
+        .orderBy('nombre')
+        .get();
+
+    return snap.docs.map((d) => Rol.fromJson(d.data())).toList();
   }
 }

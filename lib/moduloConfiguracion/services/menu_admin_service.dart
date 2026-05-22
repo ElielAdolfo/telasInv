@@ -8,15 +8,13 @@ class MenuAdminService {
   CollectionReference<Map<String, dynamic>> get _ref =>
       _db.collection(Env.col('menus'));
 
-  // Escuchar cambios en tiempo real (excluyendo eliminados)
-  Stream<List<MenuApp>> streamMenus() {
-    return _ref
+  Future<List<MenuApp>> getMenus() async {
+    final snap = await _ref
         .where('eliminado', isEqualTo: false)
         .orderBy('ordenBase')
-        .snapshots()
-        .map(
-          (snap) => snap.docs.map((d) => MenuApp.fromJson(d.data())).toList(),
-        );
+        .get();
+
+    return snap.docs.map((d) => MenuApp.fromJson(d.data())).toList();
   }
 
   // Crear o Actualizar

@@ -5,7 +5,6 @@ import 'package:inv_telas/models/models.dart';
 import 'package:inv_telas/moduloLotes/screens/lotes_screen.dart';
 import 'package:inv_telas/moduloPrecios/screens/precios_screen.dart';
 import 'package:inv_telas/moduloRelaciones/screens/relaciones_screen.dart';
-import 'package:inv_telas/moduloRelaciones/screens/roles_screen.dart';
 import 'package:inv_telas/providers/providers.dart';
 import 'package:inv_telas/screens/json_view_screen.dart';
 import 'package:inv_telas/utils/utils.dart';
@@ -222,16 +221,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const PreciosScreen()),
-            ),
-          ),
-          const Divider(),
-
-          ListTile(
-            leading: const Icon(Icons.admin_panel_settings),
-            title: const Text('Gestión de Roles'),
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const RolesScreen()),
             ),
           ),
 

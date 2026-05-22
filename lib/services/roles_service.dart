@@ -43,18 +43,6 @@ class RolesService {
     }
   }
 
-  /// Escuchar todos los roles en tiempo real
-  /// Útil para pantallas de administración de roles.
-  Stream<List<Rol>> streamAllRoles() {
-    return _rolesRef.snapshots().map((snapshot) {
-      return snapshot.docs.map((doc) {
-        // Aseguramos que el ID del documento coincida con el del modelo
-        final data = doc.data();
-        return Rol.fromJson(data);
-      }).toList();
-    });
-  }
-
   /// Crear o Actualizar un rol
   Future<void> saveRol(Rol rol) async {
     try {

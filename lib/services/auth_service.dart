@@ -82,7 +82,6 @@ class AuthService {
 
   Future<void> seedAdminUser() async {
     // 1. Primero nos aseguramos de que los roles existan
-    await _seedRoles();
     const adminEmail = "admin@admin.com";
     const adminPass = "123456Aa";
 
@@ -133,68 +132,6 @@ class AuthService {
   }
 
   // Helper para leer datos de Firestore
-
-  // ✅ NUEVO MÉTODO: Crear roles por defecto
-  Future<void> _seedRoles() async {
-    final rolesRef = _firestore.collection(Env.col('roles'));
-
-    // Definimos los roles iniciales según tu requerimiento
-    final List<Rol> defaultRoles = [
-      Rol(
-        id: 'admin',
-        nombre: 'Administrador',
-        activo: true,
-        menusPermitidos: [
-          'inventario',
-          'lotes',
-          'precios',
-          'relaciones',
-          'ventas',
-          'consultas',
-          'configuracion',
-          'usuarios',
-          'roles',
-          'sucursales',
-        ],
-      ),
-      Rol(
-        id: 'responsable_sucursal',
-        nombre: 'Responsable de Sucursal',
-        activo: true,
-        menusPermitidos: [
-          'inventario',
-          'lotes',
-          'precios',
-          'relaciones',
-          'ventas',
-        ],
-      ),
-      Rol(
-        id: 'vendedor',
-        nombre: 'Vendedor',
-        activo: true,
-        menusPermitidos: ['ventas'],
-      ),
-      Rol(
-        id: 'consultas',
-        nombre: 'Consultas',
-        activo: true,
-        menusPermitidos: ['consultas', 'reportes'],
-      ),
-    ];
-
-    for (var rol in defaultRoles) {
-      final doc = rolesRef.doc(rol.id);
-      final snap = await doc.get();
-
-      // Solo creamos si no existe
-      if (!snap.exists) {
-        await doc.set(rol.toJson());
-        print("🌱 Rol creado: ${rol.nombre}");
-      }
-    }
-  }
-
   Future<Usuario?> _fetchUserData(String uid) async {
     try {
       // Asegúrate que apunte a la misma colección que usas para guardar
