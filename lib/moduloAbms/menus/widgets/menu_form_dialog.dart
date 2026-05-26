@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/core/providers/session_provider.dart';
 import 'package:inv_telas/models/menu_item.dart';
 import 'package:inv_telas/moduloAbms/menus/icon_picker_dialog.dart';
 import 'package:inv_telas/moduloAbms/menus/providers/menu_abm_provider.dart';
@@ -301,8 +302,10 @@ class _MenuFormDialogState extends ConsumerState<MenuFormDialog> {
                 visible: true,
                 eliminado: false,
               );
-
-              await ref.read(menuAbmServiceProvider).guardarMenu(nuevoMenu);
+              final userId = ref.read(currentUserProvider).id;
+              await ref
+                  .read(menuAbmServiceProvider)
+                  .guardarMenu(nuevoMenu, userId);
 
               if (context.mounted) {
                 Navigator.pop(context); // loading

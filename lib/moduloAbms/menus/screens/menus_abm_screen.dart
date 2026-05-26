@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/core/providers/session_provider.dart';
 import 'package:inv_telas/core/widgets/action_dialog.dart';
 import 'package:inv_telas/models/menu_item.dart';
 import 'package:inv_telas/moduloAbms/menus/providers/menu_abm_provider.dart';
@@ -143,7 +144,10 @@ void _confirmDelete(BuildContext context, MenuApp menu) {
       onConfirm: () async {
         // Aquí necesitarías inyectar el ref o pasar el service, simplificamos usando ProviderScope
         final container = ProviderScope.containerOf(context);
-        await container.read(menuAbmServiceProvider).eliminarMenu(menu.id);
+        final userId = container.read(currentUserProvider).id;
+        await container
+            .read(menuAbmServiceProvider)
+            .eliminarMenu(menu.id, userId);
       },
     ),
   );
