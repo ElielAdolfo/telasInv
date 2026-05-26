@@ -187,3 +187,13 @@ final allowedMenusProvider = FutureProvider<List<MenuApp>>((ref) async {
 
   return menus;
 });
+
+final currentUserProvider = Provider<Usuario>((ref) {
+  final usuario = ref.watch(sessionProvider).usuario;
+
+  if (usuario == null) {
+    throw Exception('No hay sesión activa');
+  }
+
+  return usuario;
+});
