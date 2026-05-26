@@ -1,81 +1,81 @@
+import 'package:inv_telas/models/usuario_empresa_rol.dart';
+
 class Usuario {
   final String id;
   final String email;
   final String nombre;
 
-  // CAMBIO: De String a List<String> para multi-rol
-  final List<String> rolesIds;
-
-  // CAMBIO: De String? a List<String> para multi-sucursal
-  final List<String> sucursalesIds;
+  // NUEVA ESTRUCTURA: Lista de relaciones Usuario-Empresa-Rol
+  final List<UsuarioEmpresaRol> empresas;
 
   final bool activo;
+  final bool eliminado;
 
-  // Nuevo: Orden personalizado del menú
-  final List<MenuItemPersonalizado> menuPersonalizado;
+  final DateTime? fechaCreacion;
+  final String? usuarioCreadorId;
+  final DateTime? fechaActualizacion;
+  final String? usuarioModificadorId;
 
   Usuario({
     required this.id,
     required this.email,
     required this.nombre,
-    this.rolesIds = const [],
-    this.sucursalesIds = const [],
+    this.empresas = const [],
     this.activo = true,
-    this.menuPersonalizado = const [],
+    this.eliminado = false,
+    this.fechaCreacion,
+    this.usuarioCreadorId,
+    this.fechaActualizacion,
+    this.usuarioModificadorId,
   });
 
-  factory Usuario.fromJson(Map<String, dynamic> json) => Usuario(
-    id: json['id'] ?? '',
-    email: json['email'] ?? '',
-    nombre: json['nombre'] ?? '',
-    // Compatibilidad hacia atrás: si existe 'rol' antiguo, lo migra, si no, lee la lista
-    rolesIds: json['rolesIds'] != null
-        ? List<String>.from(json['rolesIds'])
-        : (json['rol'] != null ? [json['rol']] : []),
-    sucursalesIds: json['sucursalesIds'] != null
-        ? List<String>.from(json['sucursalesIds'])
-        : (json['sucursalId'] != null ? [json['sucursalId']] : []),
-    activo: json['activo'] ?? true,
-    menuPersonalizado: json['menuPersonalizado'] != null
-        ? (json['menuPersonalizado'] as List)
-              .map((e) => MenuItemPersonalizado.fromJson(e))
-              .toList()
-        : [],
-  );
+  factory Usuario.fromJson(Map<String, dynamic> json) {
+    // Mapeo de la nueva estructura
+    List<UsuarioEmpresaRol> empresasList = [];
+    if (json['empresas'] != null) {
+      empresasList = (json['empresas'] as List)
+          .map((e) => UsuarioEmpresaRol.fromJson(e))
+          .toList();
+    }
 
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'email': email,
-    'nombre': nombre,
-    'rolesIds': rolesIds,
-    'sucursalesIds': sucursalesIds,
-    'activo': activo,
-    'menuPersonalizado': menuPersonalizado.map((e) => e.toJson()).toList(),
-  };
-}
+    return Usuario(
+      id: json['id'] ?? json['uid'] ?? '',
+      email: json['email'] ?? json['correo'] ?? '',
+      nombre: json['nombre'] ?? '',
+      empresas: empresasList,
+      activo: json['activo'] ?? true,
+      eliminado: json['eliminado'] ?? false,
+      fechaCreacion: _parseDate(json['fechaCreacion'] ?? json['createdAt']),
+      usuarioCreadorId: json['usuarioCreadorId'],
+      fechaActualizacion: _parseDate(
+        json['fechaActualizacion'] ?? json['updatedAt'],
+      ),
+      usuarioModificadorId: json['usuarioModificadorId'],
+    );
+  }
 
-// Modelo auxiliar para el orden del menú
-class MenuItemPersonalizado {
-  final String menuId;
-  final int orden;
-  final bool favorito;
+  static DateTime? _parseDate(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+    try {
+      return DateTime.parse(value.toString());
+    } catch (_) {
+      return null;
+    }
+  }
 
-  MenuItemPersonalizado({
-    required this.menuId,
-    required this.orden,
-    this.favorito = false,
-  });
-
-  factory MenuItemPersonalizado.fromJson(Map<String, dynamic> json) =>
-      MenuItemPersonalizado(
-        menuId: json['menuId'] ?? '',
-        orden: json['orden'] ?? 0,
-        favorito: json['favorito'] ?? false,
-      );
-
-  Map<String, dynamic> toJson() => {
-    'menuId': menuId,
-    'orden': orden,
-    'favorito': favorito,
-  };
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'email': email,
+      'nombre': nombre,
+      'empresas': empresas.map((e) => e.toJson()).toList(),
+      'activo': activo,
+      'eliminado': eliminado,
+      'fechaCreacion': fechaCreacion?.toIso8601String(),
+      'usuarioCreadorId': usuarioCreadorId,
+      'fechaActualizacion': fechaActualizacion?.toIso8601String(),
+      'usuarioModificadorId': usuarioModificadorId,
+    };
+  }
 }

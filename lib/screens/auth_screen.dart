@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:inv_telas/models/usuario.dart';
-import 'package:inv_telas/providers/auth_provider.dart';
-import 'package:inv_telas/utils/utils.dart';
-import 'package:inv_telas/screens/homeScreen.dart';
+import 'package:inv_telas/core/providers/session_provider.dart';
+import 'package:inv_telas/core/screens/principal_shell.dart';
+import '../../../models/usuario.dart';
+import '../../../utils/styles.dart';
+import '../providers/auth_provider.dart';
+
+// Importa tu pantalla de inicio cuando la tengas
+// import 'package:inventario_telas/screens/homeScreen.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
@@ -25,23 +29,27 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   final _passRegCtrl = TextEditingController();
   final _nameRegCtrl = TextEditingController();
 
-  // Estado UI
+  // Estado UI local
   bool _isLoading = false;
   bool _obscurePass = true;
 
   @override
   void initState() {
     super.initState();
-
     _tabController = TabController(length: 2, vsync: this);
 
+    // Listener para redirigir automáticamente si ya está logueado
     Future.microtask(() {
-      ref.listenManual<AsyncValue<Usuario?>>(authProvider, (prev, next) {
-        next.whenData((user) {
+      ref.listenManual<AsyncValue<Usuario?>>(authProvider, (prev, next) async {
+        next.whenData((user) async {
           if (user != null && mounted) {
+            // Inicializar sesión
+            await ref.read(sessionProvider.notifier).initSession(user);
+
+            // Navegar al shell principal
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (_) => const HomeScreen()),
+              MaterialPageRoute(builder: (_) => const PrincipalShell()),
             );
           }
         });
@@ -61,7 +69,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   }
 
   Future<void> _handleLogin() async {
-    // ✅ Previene múltiples clics
     if (_isLoading) return;
     if (_emailLoginCtrl.text.isEmpty || _passLoginCtrl.text.isEmpty) {
       _showError("Complete todos los campos");
@@ -82,8 +89,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
   }
 
   Future<void> _handleRegister() async {
-    // ✅ Previene múltiples clics
     if (_isLoading) return;
+
     if (_emailRegCtrl.text.isEmpty ||
         _passRegCtrl.text.isEmpty ||
         _nameRegCtrl.text.isEmpty) {
@@ -96,19 +103,33 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     final errorMsg = await ref
         .read(authProvider.notifier)
         .register(
-          email: _emailRegCtrl.text,
-          pass: _passRegCtrl.text,
-          nombre: _nameRegCtrl.text,
-          rolId: 'VENDEDOR', // ✅ CAMBIO: de 'rol' a 'rolId'
+          email: _emailRegCtrl.text.trim(),
+          pass: _passRegCtrl.text.trim(),
+          nombre: _nameRegCtrl.text.trim(),
+
+          /// NUEVO
+          empresaId: 'empAdmin',
+
+          /// OJO: minúsculas
+          rolId: 'vendedor',
         );
 
-    if (mounted) setState(() => _isLoading = false);
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
 
     if (errorMsg != null) {
       _showError(errorMsg);
     } else {
       _showSuccess("Cuenta creada. Ahora inicie sesión.");
-      _tabController.animateTo(0); // Ir al tab de login
+
+      /// limpiar form
+      _emailRegCtrl.clear();
+      _passRegCtrl.clear();
+      _nameRegCtrl.clear();
+
+      /// volver al login
+      _tabController.animateTo(0);
     }
   }
 
@@ -143,17 +164,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
-              // ✅ MEJORA RESPONSIVE: Se adapta a celulares y limita en web
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 400),
                 child: Container(
-                  width:
-                      double.infinity, // Ocupa el espacio disponible hasta 400
+                  width: double.infinity,
                   padding: const EdgeInsets.all(24),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Logo / Título
                       Icon(
                         Icons.inventory_2,
                         size: 50,
@@ -162,8 +180,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                       const SizedBox(height: 10),
                       Text("Inventario Telas", style: AppTextStyles.heading2),
                       const SizedBox(height: 20),
-
-                      // Tabs
                       TabBar(
                         controller: _tabController,
                         labelColor: AppColors.primary,
@@ -174,10 +190,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                         ],
                       ),
                       const SizedBox(height: 20),
-
-                      // Contenido Tabs
                       SizedBox(
-                        height: 300, // Altura fija para evitar saltos
+                        height: 300,
                         child: TabBarView(
                           controller: _tabController,
                           children: [_buildLoginForm(), _buildRegisterForm()],
@@ -193,8 +207,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
       ),
     );
   }
-
-  // --- FORMULARIOS ---
 
   Widget _buildLoginForm() {
     return Column(
@@ -238,7 +250,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                 ? const CircularProgressIndicator(color: Colors.white)
                 : const Text(
                     "ENTRAR",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
           ),
         ),
@@ -290,7 +306,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                 ? const CircularProgressIndicator(color: Colors.white)
                 : const Text(
                     "CREAR CUENTA",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
           ),
         ),

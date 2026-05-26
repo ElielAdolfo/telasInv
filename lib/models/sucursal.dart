@@ -1,10 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class Rol {
+class Sucursal {
   final String id;
   final String nombre;
+  final String empresaId; // Relación: A qué empresa pertenece
+  final String? direccion;
+  final String? telefono;
   final bool activo;
-  final List<String> menusPermitidos;
 
   // Eliminación lógica
   final bool eliminado;
@@ -17,11 +19,13 @@ class Rol {
   final DateTime? fechaActualizacion;
   final String? usuarioModificadorId;
 
-  Rol({
+  Sucursal({
     required this.id,
     required this.nombre,
+    required this.empresaId,
+    this.direccion,
+    this.telefono,
     this.activo = true,
-    this.menusPermitidos = const [],
     this.eliminado = false,
     this.fechaEliminacion,
     this.usuarioEliminadorId,
@@ -31,13 +35,13 @@ class Rol {
     this.usuarioModificadorId,
   });
 
-  factory Rol.fromJson(Map<String, dynamic> json) => Rol(
+  factory Sucursal.fromJson(Map<String, dynamic> json) => Sucursal(
     id: json['id'] ?? '',
     nombre: json['nombre'] ?? '',
+    empresaId: json['empresaId'] ?? '',
+    direccion: json['direccion'],
+    telefono: json['telefono'],
     activo: json['activo'] ?? true,
-    menusPermitidos: json['menusPermitidos'] != null
-        ? List<String>.from(json['menusPermitidos'])
-        : [],
     eliminado: json['eliminado'] ?? false,
     fechaEliminacion: json['fechaEliminacion'] != null
         ? (json['fechaEliminacion'] as Timestamp).toDate()
@@ -56,8 +60,10 @@ class Rol {
   Map<String, dynamic> toJson() => {
     'id': id,
     'nombre': nombre,
+    'empresaId': empresaId,
+    'direccion': direccion,
+    'telefono': telefono,
     'activo': activo,
-    'menusPermitidos': menusPermitidos,
     'eliminado': eliminado,
     'fechaEliminacion': fechaEliminacion != null
         ? Timestamp.fromDate(fechaEliminacion!)
@@ -72,32 +78,4 @@ class Rol {
         : null,
     'usuarioModificadorId': usuarioModificadorId,
   };
-
-  Rol copyWith({
-    String? id,
-    String? nombre,
-    bool? activo,
-    List<String>? menusPermitidos,
-    bool? eliminado,
-    DateTime? fechaEliminacion,
-    String? usuarioEliminadorId,
-    DateTime? fechaCreacion,
-    String? usuarioCreadorId,
-    DateTime? fechaActualizacion,
-    String? usuarioModificadorId,
-  }) {
-    return Rol(
-      id: id ?? this.id,
-      nombre: nombre ?? this.nombre,
-      activo: activo ?? this.activo,
-      menusPermitidos: menusPermitidos ?? this.menusPermitidos,
-      eliminado: eliminado ?? this.eliminado,
-      fechaEliminacion: fechaEliminacion ?? this.fechaEliminacion,
-      usuarioEliminadorId: usuarioEliminadorId ?? this.usuarioEliminadorId,
-      fechaCreacion: fechaCreacion ?? this.fechaCreacion,
-      usuarioCreadorId: usuarioCreadorId ?? this.usuarioCreadorId,
-      fechaActualizacion: fechaActualizacion ?? this.fechaActualizacion,
-      usuarioModificadorId: usuarioModificadorId ?? this.usuarioModificadorId,
-    );
-  }
 }

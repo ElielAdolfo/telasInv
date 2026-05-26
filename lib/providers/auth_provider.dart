@@ -3,76 +3,68 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:inv_telas/models/usuario.dart';
 import 'package:inv_telas/services/auth_service.dart';
 
-// Provider del servicio
-final authServiceProvider = Provider<AuthService>((ref) => AuthService());
+final authServiceProvider = Provider<AuthService>((ref) {
+  return AuthService();
+});
 
-// Provider del estado del usuario
 final authProvider = StateNotifierProvider<AuthNotifier, AsyncValue<Usuario?>>((
   ref,
 ) {
-  return AuthNotifier(ref.watch(authServiceProvider));
+  return AuthNotifier(ref.read(authServiceProvider));
 });
 
 class AuthNotifier extends StateNotifier<AsyncValue<Usuario?>> {
   final AuthService _authService;
 
   AuthNotifier(this._authService) : super(const AsyncValue.loading()) {
-    _checkSession();
-    _initAdmin();
+    _init();
   }
 
-  // Verificar si ya hay sesión activa al arrancar
-  Future<void> _checkSession() async {
-    state = const AsyncValue.loading();
-    try {
-      final user = await _authService.getUsuarioActual();
-      state = AsyncValue.data(user);
-    } catch (e, st) {
-      state = AsyncValue.error(e, st);
-    }
-  }
+  void _init() {
+    _authService.authStateChanges.listen((firebaseUser) async {
+      try {
+        if (firebaseUser == null) {
+          state = const AsyncValue.data(null);
+          return;
+        }
 
-  // Crear el Admin automático al arrancar
-  Future<void> _initAdmin() async {
-    await _authService.seedAdminUser();
-  }
+        final usuario = await _authService.getUsuarioActual();
 
-  // Login
-  Future<String?> login(String email, String pass) async {
-    //state = const AsyncValue.loading();
-    try {
-      final user = await _authService.login(email, pass);
-      if (user != null) {
-        state = AsyncValue.data(user);
-        return null; // Éxito
-      } else {
-        //state = const AsyncValue.data(null);
-        return "Usuario o contraseña incorrectos";
+        state = AsyncValue.data(usuario);
+      } catch (e, st) {
+        state = AsyncValue.error(e, st);
       }
-    } catch (e) {
-      //state = const AsyncValue.data(null);
-      return "Error de conexión";
-    }
+    });
   }
 
-  // Register
+  /// LOGIN
+  Future<String?> login(String email, String pass) async {
+    return await _authService.login(email, pass);
+  }
+
+  /// REGISTER
   Future<String?> register({
     required String email,
     required String pass,
     required String nombre,
-    String rolId = 'VENDEDOR',
+
+    /// NUEVOS PARAMETROS
+    required String empresaId,
+    required String rolId,
   }) async {
     return await _authService.register(
       email: email,
       password: pass,
       nombre: nombre,
+      empresaId: empresaId,
       rolId: rolId,
     );
   }
 
-  // Logout
+  /// LOGOUT
   Future<void> logout() async {
     await _authService.logout();
+
     state = const AsyncValue.data(null);
   }
 }
