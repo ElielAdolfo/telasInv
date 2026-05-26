@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:inv_telas/core/providers/session_provider.dart';
 import 'package:inv_telas/models/rol.dart';
 import 'package:inv_telas/models/menu_item.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -123,8 +124,10 @@ class _RolFormDialogState extends ConsumerState<RolFormDialog> {
                       eliminado: false,
                     );
 
-                    await ref.read(rolAbmServiceProvider).guardarRol(nuevoRol);
-
+                    final userId = ref.read(currentUserProvider).id;
+                    await ref
+                        .read(rolAbmServiceProvider)
+                        .guardarRol(nuevoRol, userId);
                     if (mounted) {
                       Navigator.pop(context); // Cierra el dialog
                     }

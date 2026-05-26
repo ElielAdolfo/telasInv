@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/core/providers/session_provider.dart';
 import 'package:inv_telas/core/widgets/action_dialog.dart';
 import 'package:inv_telas/moduloAbms/roles/providers/rol_abm_provider.dart';
 import 'package:inv_telas/moduloAbms/roles/widgets/rol_form_dialog.dart';
@@ -74,7 +75,8 @@ class RolesAbmScreen extends ConsumerWidget {
             '¿Está seguro de eliminar el rol "${rol.nombre}"? Esto afectará a los usuarios asignados.',
         type: ActionDialogType.delete,
         onConfirm: () async {
-          await ref.read(rolAbmServiceProvider).eliminarRol(rol.id);
+          final userId = ref.read(currentUserProvider).id;
+          await ref.read(rolAbmServiceProvider).eliminarRol(rol.id, userId);
         },
       ),
     );
