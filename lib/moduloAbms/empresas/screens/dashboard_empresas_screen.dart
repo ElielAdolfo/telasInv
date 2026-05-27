@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:inv_telas/core/providers/session_provider.dart';
 import 'package:inv_telas/core/screens/principal_shell.dart';
+import 'package:inv_telas/moduloAbms/empresas/widgets/crear_empresa_dialog.dart';
 
 import 'package:inv_telas/moduloAbms/empresas/widgets/empresa_card.dart';
 import 'package:inv_telas/moduloAbms/empresas/widgets/empresa_empty_state.dart';
@@ -26,10 +27,19 @@ class DashboardEmpresasScreen extends ConsumerWidget {
 
       body: empresas.isEmpty
           ? EmpresaEmptyState(
-              onCrearEmpresa: () {
-                print('Crear empresa');
-              },
+              onCrearEmpresa: () async {
+                final creada = await showDialog<bool>(
+                  context: context,
+                  builder: (_) => const CrearEmpresaDialog(),
+                );
 
+                if (creada == true && context.mounted) {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PrincipalShell()),
+                  );
+                }
+              },
               onUnirseEmpresa: () {
                 print('Unirse empresa');
               },
@@ -101,8 +111,20 @@ class DashboardEmpresasScreen extends ConsumerWidget {
                         ElevatedButton.icon(
                           icon: const Icon(Icons.add_business),
                           label: const Text('Crear Empresa'),
-                          onPressed: () {
-                            print('crear empresa');
+                          onPressed: () async {
+                            final creada = await showDialog<bool>(
+                              context: context,
+                              builder: (_) => const CrearEmpresaDialog(),
+                            );
+
+                            if (creada == true && context.mounted) {
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const PrincipalShell(),
+                                ),
+                              );
+                            }
                           },
                         ),
 

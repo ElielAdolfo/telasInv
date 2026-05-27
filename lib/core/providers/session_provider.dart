@@ -65,7 +65,7 @@ class SessionNotifier extends StateNotifier<SessionState> {
 
       final empresasIds = user.empresas.map((e) => e.empresaId).toList();
 
-      /// USUARIO SIN EMPRESAS
+      /// SIN EMPRESAS
       if (empresasIds.isEmpty) {
         state = state.copyWith(usuario: user);
         return;
@@ -79,23 +79,32 @@ class SessionNotifier extends StateNotifier<SessionState> {
         return;
       }
 
-      /// EMPRESA POR DEFECTO
+      /// EMPRESA DEFAULT
       final empresaSeleccionada = empresas.first;
 
-      /// RELACIÓN USER-EMPRESA
+      /// RELACIÓN EMPRESA-USUARIO
       final relacionEmpresa = user.empresas.firstWhere(
         (e) => e.empresaId == empresaSeleccionada.id,
         orElse: () => UsuarioEmpresaRol(empresaId: ''),
       );
 
-      /// ROLES
+      /// CARGAR ROLES
       List<Rol> roles = [];
 
       if (relacionEmpresa.rolesIds.isNotEmpty) {
         roles = await rolService.getRolesByIds(relacionEmpresa.rolesIds);
       }
 
-      final rolInicial = roles.isNotEmpty ? roles.first : null;
+      /// SI EXISTE SUPERADMIN LO PRIORIZAMOS
+      Rol? rolInicial;
+
+      try {
+        rolInicial = roles.firstWhere((r) => r.id == 'superAdmin');
+      } catch (_) {
+        if (roles.isNotEmpty) {
+          rolInicial = roles.first;
+        }
+      }
 
       state = state.copyWith(
         usuario: user,
@@ -106,6 +115,8 @@ class SessionNotifier extends StateNotifier<SessionState> {
       );
 
       print('✅ Empresa actual: ${empresaSeleccionada.nombre}');
+
+      print('✅ Rol actual: ${rolInicial?.nombre}');
     } catch (e) {
       print('❌ initSession: $e');
     }
@@ -133,13 +144,26 @@ class SessionNotifier extends StateNotifier<SessionState> {
         roles = await rolService.getRolesByIds(relacionEmpresa.rolesIds);
       }
 
+      /// SUPERADMIN PRIORIDAD
+      Rol? rolInicial;
+
+      try {
+        rolInicial = roles.firstWhere((r) => r.id == 'superAdmin');
+      } catch (_) {
+        if (roles.isNotEmpty) {
+          rolInicial = roles.first;
+        }
+      }
+
       state = state.copyWith(
         empresaActual: nuevaEmpresa,
         rolesDisponibles: roles,
-        rolActual: roles.isNotEmpty ? roles.first : null,
+        rolActual: rolInicial,
       );
 
       print('🔄 Empresa cambiada: ${nuevaEmpresa.nombre}');
+
+      print('🔄 Rol actual: ${rolInicial?.nombre}');
     } catch (e) {
       print('❌ cambiarEmpresa: $e');
     }

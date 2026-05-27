@@ -38,25 +38,22 @@ class EmpresaService {
   // ==========================================
   // CREAR EMPRESA
   // ==========================================
-  Future<void> crearEmpresa({
+  Future<Empresa> crearEmpresa({
     required Empresa empresa,
     required String usuarioId,
     required String rolAdministradorId,
   }) async {
     try {
-      final now = Timestamp.now();
-
       final doc = _empresaRef.doc();
 
       final nuevaEmpresa = empresa.copyWith(
         id: doc.id,
-        fechaCreacion: now.toDate(),
+        fechaCreacion: DateTime.now(),
         usuarioCreadorId: usuarioId,
-        fechaActualizacion: now.toDate(),
+        fechaActualizacion: DateTime.now(),
         usuarioModificadorId: usuarioId,
         eliminado: false,
         activo: true,
-
         usuariosPermitidos: [
           UsuarioEmpresaPermiso(
             usuarioId: usuarioId,
@@ -68,11 +65,11 @@ class EmpresaService {
         ],
       );
 
-      // Crear empresa
-      await doc.set(nuevaEmpresa.toFirestore());
+      final batch = _db.batch();
 
-      // Actualizar usuario
-      await _usuariosRef.doc(usuarioId).update({
+      batch.set(doc, nuevaEmpresa.toFirestore());
+
+      batch.update(_usuariosRef.doc(usuarioId), {
         'empresas': FieldValue.arrayUnion([
           UsuarioEmpresaRol(
             empresaId: doc.id,
@@ -82,7 +79,12 @@ class EmpresaService {
         ]),
       });
 
-      print('✅ Empresa creada');
+      await batch.commit();
+
+      print('✅ Empresa creada correctamente');
+
+      /// DEVOLVER EMPRESA
+      return nuevaEmpresa;
     } catch (e) {
       print('❌ crearEmpresa: $e');
       rethrow;
