@@ -1,13 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:inv_telas/core/providers/session_provider.dart';
-import 'package:inv_telas/core/screens/principal_shell.dart';
-import '../../../models/usuario.dart';
+
 import '../../../utils/styles.dart';
 import '../providers/auth_provider.dart';
-
-// Importa tu pantalla de inicio cuando la tengas
-// import 'package:inventario_telas/screens/homeScreen.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
@@ -20,57 +15,48 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  // Controladores Login
+  /// LOGIN
   final _emailLoginCtrl = TextEditingController();
   final _passLoginCtrl = TextEditingController();
 
-  // Controladores Registro
+  /// REGISTER
   final _emailRegCtrl = TextEditingController();
   final _passRegCtrl = TextEditingController();
   final _nameRegCtrl = TextEditingController();
 
-  // Estado UI local
   bool _isLoading = false;
   bool _obscurePass = true;
+  bool _obscureRegisterPass = true;
 
   @override
   void initState() {
     super.initState();
+
     _tabController = TabController(length: 2, vsync: this);
-
-    // Listener para redirigir automáticamente si ya está logueado
-    Future.microtask(() {
-      ref.listenManual<AsyncValue<Usuario?>>(authProvider, (prev, next) async {
-        next.whenData((user) async {
-          if (user != null && mounted) {
-            // Inicializar sesión
-            await ref.read(sessionProvider.notifier).initSession(user);
-
-            // Navegar al shell principal
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const PrincipalShell()),
-            );
-          }
-        });
-      });
-    });
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+
     _emailLoginCtrl.dispose();
     _passLoginCtrl.dispose();
+
     _emailRegCtrl.dispose();
     _passRegCtrl.dispose();
     _nameRegCtrl.dispose();
+
     super.dispose();
   }
 
+  /// =====================================
+  /// LOGIN
+  /// =====================================
   Future<void> _handleLogin() async {
     if (_isLoading) return;
-    if (_emailLoginCtrl.text.isEmpty || _passLoginCtrl.text.isEmpty) {
+
+    if (_emailLoginCtrl.text.trim().isEmpty ||
+        _passLoginCtrl.text.trim().isEmpty) {
       _showError("Complete todos los campos");
       return;
     }
@@ -79,22 +65,35 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
 
     final errorMsg = await ref
         .read(authProvider.notifier)
-        .login(_emailLoginCtrl.text, _passLoginCtrl.text);
+        .login(_emailLoginCtrl.text.trim(), _passLoginCtrl.text.trim());
 
-    if (mounted) setState(() => _isLoading = false);
+    if (!mounted) return;
+
+    setState(() => _isLoading = false);
 
     if (errorMsg != null) {
       _showError(errorMsg);
     }
+
+    /// No navegar aquí
+    /// SessionGateScreen se encargará automáticamente
   }
 
+  /// =====================================
+  /// REGISTER
+  /// =====================================
   Future<void> _handleRegister() async {
     if (_isLoading) return;
 
-    if (_emailRegCtrl.text.isEmpty ||
-        _passRegCtrl.text.isEmpty ||
-        _nameRegCtrl.text.isEmpty) {
+    if (_emailRegCtrl.text.trim().isEmpty ||
+        _passRegCtrl.text.trim().isEmpty ||
+        _nameRegCtrl.text.trim().isEmpty) {
       _showError("Complete todos los campos");
+      return;
+    }
+
+    if (_passRegCtrl.text.length < 6) {
+      _showError("La contraseña debe tener mínimo 6 caracteres");
       return;
     }
 
@@ -106,33 +105,30 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
           email: _emailRegCtrl.text.trim(),
           pass: _passRegCtrl.text.trim(),
           nombre: _nameRegCtrl.text.trim(),
-
-          /// NUEVO
-          empresaId: 'empAdmin',
-
-          /// OJO: minúsculas
-          rolId: 'vendedor',
         );
 
-    if (mounted) {
-      setState(() => _isLoading = false);
-    }
+    if (!mounted) return;
+
+    setState(() => _isLoading = false);
 
     if (errorMsg != null) {
       _showError(errorMsg);
-    } else {
-      _showSuccess("Cuenta creada. Ahora inicie sesión.");
-
-      /// limpiar form
-      _emailRegCtrl.clear();
-      _passRegCtrl.clear();
-      _nameRegCtrl.clear();
-
-      /// volver al login
-      _tabController.animateTo(0);
+      return;
     }
+
+    _showSuccess("Cuenta creada correctamente");
+
+    _emailRegCtrl.clear();
+    _passRegCtrl.clear();
+    _nameRegCtrl.clear();
+
+    /// Volver a login
+    _tabController.animateTo(0);
   }
 
+  /// =====================================
+  /// SNACKS
+  /// =====================================
   void _showError(String msg) {
     ScaffoldMessenger.of(
       context,
@@ -165,9 +161,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                 borderRadius: BorderRadius.circular(20),
               ),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 400),
-                child: Container(
-                  width: double.infinity,
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Padding(
                   padding: const EdgeInsets.all(24),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -177,9 +172,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                         size: 50,
                         color: AppColors.primary,
                       ),
+
                       const SizedBox(height: 10),
+
                       Text("Inventario Telas", style: AppTextStyles.heading2),
+
                       const SizedBox(height: 20),
+
                       TabBar(
                         controller: _tabController,
                         labelColor: AppColors.primary,
@@ -189,9 +188,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                           Tab(text: "Registrar"),
                         ],
                       ),
+
                       const SizedBox(height: 20),
+
                       SizedBox(
-                        height: 300,
+                        height: 320,
                         child: TabBarView(
                           controller: _tabController,
                           children: [_buildLoginForm(), _buildRegisterForm()],
@@ -208,20 +209,26 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     );
   }
 
+  /// =====================================
+  /// LOGIN FORM
+  /// =====================================
   Widget _buildLoginForm() {
     return Column(
       children: [
         TextField(
           controller: _emailLoginCtrl,
+          keyboardType: TextInputType.emailAddress,
           decoration: const InputDecoration(
             labelText: "Correo electrónico",
             prefixIcon: Icon(Icons.email_outlined),
           ),
-          keyboardType: TextInputType.emailAddress,
         ),
+
         const SizedBox(height: 16),
+
         TextField(
           controller: _passLoginCtrl,
+          obscureText: _obscurePass,
           decoration: InputDecoration(
             labelText: "Contraseña",
             prefixIcon: const Icon(Icons.lock_outline),
@@ -229,39 +236,38 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
               icon: Icon(
                 _obscurePass ? Icons.visibility : Icons.visibility_off,
               ),
-              onPressed: () => setState(() => _obscurePass = !_obscurePass),
+              onPressed: () {
+                setState(() {
+                  _obscurePass = !_obscurePass;
+                });
+              },
             ),
           ),
-          obscureText: _obscurePass,
         ),
+
         const SizedBox(height: 24),
+
         SizedBox(
           width: double.infinity,
           height: 50,
           child: ElevatedButton(
             onPressed: _isLoading ? null : _handleLogin,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
             child: _isLoading
-                ? const CircularProgressIndicator(color: Colors.white)
-                : const Text(
-                    "ENTRAR",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(),
+                  )
+                : const Text('ENTRAR'),
           ),
         ),
       ],
     );
   }
 
+  /// =====================================
+  /// REGISTER FORM
+  /// =====================================
   Widget _buildRegisterForm() {
     return Column(
       children: [
@@ -272,46 +278,53 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
             prefixIcon: Icon(Icons.person_outline),
           ),
         ),
+
         const SizedBox(height: 16),
+
         TextField(
           controller: _emailRegCtrl,
+          keyboardType: TextInputType.emailAddress,
           decoration: const InputDecoration(
-            labelText: "Correo electrónico",
+            labelText: "Correo",
             prefixIcon: Icon(Icons.email_outlined),
           ),
-          keyboardType: TextInputType.emailAddress,
         ),
+
         const SizedBox(height: 16),
+
         TextField(
           controller: _passRegCtrl,
-          decoration: const InputDecoration(
+          obscureText: _obscureRegisterPass,
+          decoration: InputDecoration(
             labelText: "Contraseña",
-            prefixIcon: Icon(Icons.lock_outline),
+            prefixIcon: const Icon(Icons.lock_outline),
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscureRegisterPass ? Icons.visibility : Icons.visibility_off,
+              ),
+              onPressed: () {
+                setState(() {
+                  _obscureRegisterPass = !_obscureRegisterPass;
+                });
+              },
+            ),
           ),
-          obscureText: true,
         ),
+
         const SizedBox(height: 24),
+
         SizedBox(
           width: double.infinity,
           height: 50,
           child: ElevatedButton(
             onPressed: _isLoading ? null : _handleRegister,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.success,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
             child: _isLoading
-                ? const CircularProgressIndicator(color: Colors.white)
-                : const Text(
-                    "CREAR CUENTA",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(),
+                  )
+                : const Text('CREAR CUENTA'),
           ),
         ),
       ],

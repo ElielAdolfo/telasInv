@@ -28,7 +28,6 @@ class UsuarioEmpresaRol {
   Map<String, dynamic> toJson() {
     return {
       'empresaId': empresaId,
-      'empresaId': empresaId,
       'rolesIds': rolesIds,
       'sucursalesIds': sucursalesIds,
     };

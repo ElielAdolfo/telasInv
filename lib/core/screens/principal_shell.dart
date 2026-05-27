@@ -7,6 +7,7 @@ import 'package:inv_telas/moduloAbms/menus/screens/menus_abm_screen.dart';
 import 'package:inv_telas/moduloAbms/roles/screens/roles_abm_screen.dart';
 import 'package:inv_telas/modulo_json/screens/json_view_screen.dart';
 import 'package:inv_telas/providers/auth_provider.dart';
+import 'package:inv_telas/screens/auth_screen.dart';
 
 import 'package:inv_telas/screens/homeScreen.dart';
 import 'package:inv_telas/utils/icon_mapper.dart';
@@ -86,9 +87,13 @@ class _PrincipalShellState extends ConsumerState<PrincipalShell> {
                         .read(sessionProvider.notifier)
                         .cambiarEmpresa(empresa);
 
-                    if (mounted) {
-                      Navigator.pop(context);
-                    }
+                    if (!mounted) return;
+
+                    setState(() {
+                      _currentRoute = '/home';
+                    });
+
+                    Navigator.pop(context);
                   },
                 );
               },
@@ -251,7 +256,47 @@ class _PrincipalShellState extends ConsumerState<PrincipalShell> {
             icon: const Icon(Icons.logout),
             tooltip: "Cerrar Sesión",
             onPressed: () async {
-              // ... código de logout existente
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (_) {
+                  return AlertDialog(
+                    title: const Text('Cerrar sesión'),
+                    content: const Text('¿Seguro que desea cerrar sesión?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(context, false);
+                        },
+                        child: const Text('Cancelar'),
+                      ),
+
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context, true);
+                        },
+                        child: const Text('Cerrar sesión'),
+                      ),
+                    ],
+                  );
+                },
+              );
+
+              if (confirm != true) return;
+
+              /// logout firebase
+              await ref.read(authProvider.notifier).logout();
+
+              /// limpiar session state
+              ref.read(sessionProvider.notifier).logout();
+
+              if (!mounted) return;
+
+              /// limpiar stack completo
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const AuthScreen()),
+                (_) => false,
+              );
             },
           ),
         ],

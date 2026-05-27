@@ -1,7 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:inv_telas/screens/auth_screen.dart';
+import 'package:inv_telas/core/screens/session_gate_screen.dart';
 
 import 'firebase_options.dart';
 import 'config/system_initializer.dart'; // Importamos el inicializador
@@ -47,7 +47,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       home: conectado
-          ? const AuthScreen()
+          ? const SessionGateScreen()
           : Scaffold(
               backgroundColor: Colors.red.shade50,
               body: Center(

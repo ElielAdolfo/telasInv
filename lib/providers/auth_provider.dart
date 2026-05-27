@@ -47,17 +47,11 @@ class AuthNotifier extends StateNotifier<AsyncValue<Usuario?>> {
     required String email,
     required String pass,
     required String nombre,
-
-    /// NUEVOS PARAMETROS
-    required String empresaId,
-    required String rolId,
   }) async {
     return await _authService.register(
       email: email,
       password: pass,
       nombre: nombre,
-      empresaId: empresaId,
-      rolId: rolId,
     );
   }
 

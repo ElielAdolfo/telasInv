@@ -5,23 +5,18 @@ import 'package:inv_telas/models/menu_item.dart';
 import 'package:inv_telas/models/rol.dart';
 import 'package:inv_telas/models/usuario.dart';
 import 'package:inv_telas/models/usuario_empresa_rol.dart';
-import 'package:inv_telas/services/empresa_service.dart';
+import 'package:inv_telas/providers/empresa_provider.dart';
 import 'package:inv_telas/services/menu_service.dart';
 import 'package:inv_telas/services/rol_service.dart';
 
-/// -----------------------------
-/// ESTADO DE SESIÓN
-/// -----------------------------
+/// =====================================
+/// SESSION STATE
+/// =====================================
 class SessionState {
   final Usuario? usuario;
-
-  // Nuevo: Empresa actualmente seleccionada
   final Empresa? empresaActual;
-
-  // Nuevo: Rol correspondiente a la empresa actual
   final Rol? rolActual;
 
-  // Nuevo: Lista de empresas disponibles para el usuario
   final List<Rol> rolesDisponibles;
   final List<Empresa> empresasDisponibles;
 
@@ -50,110 +45,135 @@ class SessionState {
   }
 }
 
-/// -----------------------------
+/// =====================================
 /// SESSION NOTIFIER
-/// -----------------------------
+/// =====================================
 class SessionNotifier extends StateNotifier<SessionState> {
   final Ref ref;
 
   SessionNotifier(this.ref) : super(const SessionState());
 
-  /// Inicializar sesión
+  /// -----------------------------------
+  /// INIT SESSION
+  /// -----------------------------------
   Future<void> initSession(Usuario user) async {
     try {
-      final empresaService = ref.read(empresaServiceProvider);
       final rolService = ref.read(rolServiceProvider);
+      final empresaService = ref.read(empresaServiceProvider);
 
-      print('🔍 Iniciando sesión para: ${user.nombre}');
+      print('🔍 Iniciando sesión ${user.nombre}');
 
-      // 1. Obtener IDs de empresas del usuario
       final empresasIds = user.empresas.map((e) => e.empresaId).toList();
 
+      /// USUARIO SIN EMPRESAS
       if (empresasIds.isEmpty) {
-        print('⚠️ Usuario sin empresas asignadas');
         state = state.copyWith(usuario: user);
         return;
       }
 
-      // 2. Cargar objetos Empresa completos
+      /// CARGAR EMPRESAS
       final empresas = await empresaService.getEmpresasByIds(empresasIds);
 
-      // 3. Lógica de selección de empresa
-      // Por ahora seleccionamos la PRIMERA automáticamente.
-      // TODO: Si hay más de una, mostrar un diálogo de selección en la UI.
-      final empresaSeleccionada = empresas.isNotEmpty ? empresas.first : null;
-
-      if (empresaSeleccionada == null) {
-        print('❌ No se encontraron datos de las empresas asignadas');
-        state = state.copyWith(usuario: user, empresasDisponibles: empresas);
+      if (empresas.isEmpty) {
+        state = state.copyWith(usuario: user);
         return;
       }
 
-      // 4. Buscar el Rol correspondiente a esta empresa
-      final userEmpresaRol = user.empresas.firstWhere(
+      /// EMPRESA POR DEFECTO
+      final empresaSeleccionada = empresas.first;
+
+      /// RELACIÓN USER-EMPRESA
+      final relacionEmpresa = user.empresas.firstWhere(
         (e) => e.empresaId == empresaSeleccionada.id,
-        orElse: () => UsuarioEmpresaRol(empresaId: '', rolesIds: []),
+        orElse: () => UsuarioEmpresaRol(empresaId: ''),
       );
 
+      /// ROLES
       List<Rol> roles = [];
-      if (userEmpresaRol.rolesIds.isNotEmpty) {
-        roles = await rolService.getRolesByIds(userEmpresaRol.rolesIds);
-      }
-      Rol? rolInicial = roles.isNotEmpty ? roles.first : null;
 
-      print('✅ Empresa seleccionada: ${empresaSeleccionada.nombre}');
-      print('✅ Roles disponibles: ${roles.map((r) => r.nombre).join(", ")}');
-      print('✅ Rol activo: ${rolInicial?.nombre}');
+      if (relacionEmpresa.rolesIds.isNotEmpty) {
+        roles = await rolService.getRolesByIds(relacionEmpresa.rolesIds);
+      }
+
+      final rolInicial = roles.isNotEmpty ? roles.first : null;
 
       state = state.copyWith(
         usuario: user,
         empresaActual: empresaSeleccionada,
+        empresasDisponibles: empresas,
         rolesDisponibles: roles,
         rolActual: rolInicial,
-        empresasDisponibles: empresas,
       );
+
+      print('✅ Empresa actual: ${empresaSeleccionada.nombre}');
     } catch (e) {
-      print('❌ Error initSession: $e');
+      print('❌ initSession: $e');
     }
   }
 
-  void cambiarRol(Rol nuevoRol) {
-    state = state.copyWith(rolActual: nuevoRol);
-    print('🔄 Rol cambiado a: ${nuevoRol.nombre}');
+  /// -----------------------------------
+  /// CAMBIAR EMPRESA
+  /// -----------------------------------
+  Future<void> cambiarEmpresa(Empresa nuevaEmpresa) async {
+    try {
+      final user = state.usuario;
+
+      if (user == null) return;
+
+      final rolService = ref.read(rolServiceProvider);
+
+      final relacionEmpresa = user.empresas.firstWhere(
+        (e) => e.empresaId == nuevaEmpresa.id,
+        orElse: () => UsuarioEmpresaRol(empresaId: ''),
+      );
+
+      List<Rol> roles = [];
+
+      if (relacionEmpresa.rolesIds.isNotEmpty) {
+        roles = await rolService.getRolesByIds(relacionEmpresa.rolesIds);
+      }
+
+      state = state.copyWith(
+        empresaActual: nuevaEmpresa,
+        rolesDisponibles: roles,
+        rolActual: roles.isNotEmpty ? roles.first : null,
+      );
+
+      print('🔄 Empresa cambiada: ${nuevaEmpresa.nombre}');
+    } catch (e) {
+      print('❌ cambiarEmpresa: $e');
+    }
   }
 
-  /// Cambiar de empresa (y por ende de rol)
-  Future<void> cambiarEmpresa(Empresa nuevaEmpresa) async {
+  /// -----------------------------------
+  /// CAMBIAR ROL
+  /// -----------------------------------
+  void cambiarRol(Rol rol) {
+    state = state.copyWith(rolActual: rol);
+  }
+
+  /// -----------------------------------
+  /// REFRESH SESSION
+  /// -----------------------------------
+  Future<void> refreshSession() async {
     final user = state.usuario;
+
     if (user == null) return;
 
-    final userEmpresaRol = user.empresas.firstWhere(
-      (e) => e.empresaId == nuevaEmpresa.id,
-      orElse: () => UsuarioEmpresaRol(empresaId: '', rolesIds: []),
-    );
-
-    if (userEmpresaRol.rolesIds.isEmpty) return;
-
-    final rolService = ref.read(rolServiceProvider);
-    final roles = await rolService.getRolesByIds(userEmpresaRol.rolesIds);
-    final rolInicial = roles.isNotEmpty ? roles.first : null;
-
-    state = state.copyWith(
-      empresaActual: nuevaEmpresa,
-      rolesDisponibles: roles,
-      rolActual: rolInicial,
-    );
+    await initSession(user);
   }
 
-  /// Logout
+  /// -----------------------------------
+  /// LOGOUT
+  /// -----------------------------------
   void logout() {
     state = const SessionState();
   }
 }
 
-/// -----------------------------
+/// =====================================
 /// PROVIDERS
-/// -----------------------------
+/// =====================================
 final sessionProvider = StateNotifierProvider<SessionNotifier, SessionState>((
   ref,
 ) {
@@ -161,20 +181,16 @@ final sessionProvider = StateNotifierProvider<SessionNotifier, SessionState>((
 });
 
 final rolServiceProvider = Provider<RolService>((ref) => RolService());
-final menuServiceProvider = Provider<MenuService>((ref) => MenuService());
-final empresaServiceProvider = Provider<EmpresaService>(
-  (ref) => EmpresaService(),
-);
 
-/// -----------------------------
+final menuServiceProvider = Provider<MenuService>((ref) => MenuService());
+
+/// =====================================
 /// MENUS DEL ROL ACTUAL
-/// -----------------------------
+/// =====================================
 final allowedMenusProvider = FutureProvider<List<MenuApp>>((ref) async {
-  final session = ref.watch(sessionProvider);
-  final rol = session.rolActual;
+  final rol = ref.watch(sessionProvider).rolActual;
 
   if (rol == null) {
-    print('⚠️ Sin rol actual definido para la empresa');
     return [];
   }
 
@@ -183,17 +199,16 @@ final allowedMenusProvider = FutureProvider<List<MenuApp>>((ref) async {
   }
 
   final menuService = ref.read(menuServiceProvider);
-  final menus = await menuService.getMenusByIds(rol.menusPermitidos);
 
-  return menus;
+  return menuService.getMenusByIds(rol.menusPermitidos);
 });
 
 final currentUserProvider = Provider<Usuario>((ref) {
-  final usuario = ref.watch(sessionProvider).usuario;
+  final user = ref.watch(sessionProvider).usuario;
 
-  if (usuario == null) {
+  if (user == null) {
     throw Exception('No hay sesión activa');
   }
 
-  return usuario;
+  return user;
 });

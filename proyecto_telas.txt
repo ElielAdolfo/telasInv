@@ -168,129 +168,6 @@ class MyApp extends StatelessWidget {
 
 ===== D:\inv\inventario_telas\lib\Untitled-1.dart =====
 
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:inv_telas/config/env.dart';
-
-import '../models/usuario.dart';
-
-class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
-  /// Stream sesiÃ³n Firebase
-  Stream<User?> get authStateChanges => _auth.authStateChanges();
-
-  /// Obtener usuario actual
-  Future<Usuario?> getUsuarioActual() async {
-    final user = _auth.currentUser;
-
-    if (user == null) return null;
-
-    final doc = await _firestore
-        .collection(Env.col('usuarios'))
-        .doc(user.uid)
-        .get();
-
-    if (!doc.exists) {
-      print('âŒ Usuario no existe en Firestore');
-      return null;
-    }
-
-    print('ðŸ”¥ Usuario Firestore: ${doc.data()}');
-
-    final usuario = Usuario.fromJson({...doc.data()!, 'id': doc.id});
-
-    /// DEBUG CORREGIDO: Usamos rolesIds en lugar de rolId
-    print(
-      'ðŸ”¥ Empresas usuario: '
-      '${usuario.empresas.map((e) => {'empresaId': e.empresaId, 'rolesIds': e.rolesIds}).toList()}',
-    );
-
-    return usuario;
-  }
-
-  /// LOGIN
-  Future<String?> login(String email, String password) async {
-    try {
-      await _auth.signInWithEmailAndPassword(email: email, password: password);
-
-      return null;
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'user-not-found') {
-        return 'Usuario no encontrado';
-      }
-
-      if (e.code == 'wrong-password') {
-        return 'ContraseÃ±a incorrecta';
-      }
-
-      return e.message;
-    } catch (e) {
-      return 'Error desconocido';
-    }
-  }
-
-  /// REGISTRAR USUARIO
-  Future<String?> register({
-    required String email,
-    required String password,
-    required String nombre,
-
-    /// NUEVO
-    required String empresaId,
-    required String rolId, // Mantenemos el parÃ¡metro simple para el registro
-  }) async {
-    try {
-      /// Crear Auth
-      final result = await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-
-      /// Crear Firestore
-      await _firestore
-          .collection(Env.col('usuarios'))
-          .doc(result.user!.uid)
-          .set({
-            'uid': result.user!.uid,
-            'email': email,
-            'nombre': nombre,
-
-            /// NUEVA ESTRUCTURA CORREGIDA
-            /// Usamos 'rolesIds' (lista) y envolvemos el rolId en corchetes []
-            'empresas': [
-              {
-                'empresaId': empresaId,
-                'rolesIds': [rolId],
-                'sucursalesIds': [],
-              },
-            ],
-
-            'activo': true,
-            'eliminado': false,
-            'createdAt': DateTime.now().toIso8601String(),
-          });
-
-      return null;
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'email-already-in-use') {
-        return 'El correo ya estÃ¡ registrado';
-      }
-
-      return e.message;
-    } catch (e) {
-      print(e);
-
-      return 'Error al registrar';
-    }
-  }
-
-  /// LOGOUT
-  Future<void> logout() async {
-    await _auth.signOut();
-  }
-}
 
 
 ===== D:\inv\inventario_telas\lib\config\env.dart =====
@@ -443,6 +320,22 @@ class SystemInitializer {
         'ruta': '/ver-json',
         'ordenBase': 12,
       },
+
+      // NUEVOS MENÃšS PARA ABM
+      {
+        'id': 'abm_menus',
+        'nombre': 'ABM MenÃºs',
+        'icono': 'menu_open',
+        'ruta': '/abm-menus',
+        'ordenBase': 20,
+      },
+      {
+        'id': 'abm_roles',
+        'nombre': 'ABM Roles',
+        'icono': 'admin_panel_settings',
+        'ruta': '/abm-roles',
+        'ordenBase': 21,
+      },
     ];
 
     for (final menu in menus) {
@@ -470,7 +363,13 @@ class SystemInitializer {
       {
         'id': 'superAdmin',
         'nombre': 'Super Administrador',
-        'menusPermitidos': ['relaciones', 'usuarios', 'ver_json'],
+        'menusPermitidos': [
+          'relaciones',
+          'usuarios',
+          'ver_json',
+          'abm_menus', // NUEVO
+          'abm_roles',
+        ],
       },
       {
         'id': 'admin',
@@ -753,6 +652,16 @@ final allowedMenusProvider = FutureProvider<List<MenuApp>>((ref) async {
   return menus;
 });
 
+final currentUserProvider = Provider<Usuario>((ref) {
+  final usuario = ref.watch(sessionProvider).usuario;
+
+  if (usuario == null) {
+    throw Exception('No hay sesiÃ³n activa');
+  }
+
+  return usuario;
+});
+
 
 ===== D:\inv\inventario_telas\lib\core\screens\principal_shell.dart =====
 
@@ -761,6 +670,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:inv_telas/core/providers/session_provider.dart';
 import 'package:inv_telas/models/rol.dart';
+import 'package:inv_telas/moduloAbms/menus/screens/menus_abm_screen.dart';
+import 'package:inv_telas/moduloAbms/roles/screens/roles_abm_screen.dart';
 import 'package:inv_telas/modulo_json/screens/json_view_screen.dart';
 import 'package:inv_telas/providers/auth_provider.dart';
 
@@ -793,6 +704,8 @@ class _PrincipalShellState extends ConsumerState<PrincipalShell> {
     '/relaciones': const Center(child: Text('Pantalla Relaciones')),
     '/ventas': const Center(child: Text('Pantalla Ventas')),
     '/usuarios': const Center(child: Text('Pantalla Usuarios')),
+    '/abm-menus': const MenusAbmScreen(),
+    '/abm-roles': const RolesAbmScreen(),
   };
 
   /// NavegaciÃ³n
@@ -1732,6 +1645,1212 @@ class UsuarioEmpresaRol {
 }
 
 
+===== D:\inv\inventario_telas\lib\moduloAbms\menus\icon_picker_dialog.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:inv_telas/utils/icon_mapper.dart';
+
+class IconPickerDialog extends StatefulWidget {
+  final String selectedIcon;
+
+  const IconPickerDialog({super.key, required this.selectedIcon});
+
+  @override
+  State<IconPickerDialog> createState() => _IconPickerDialogState();
+}
+
+class _IconPickerDialogState extends State<IconPickerDialog> {
+  final TextEditingController _searchCtrl = TextEditingController();
+
+  late List<String> filteredIcons;
+
+  @override
+  void initState() {
+    super.initState();
+
+    filteredIcons = IconMapper.availableIcons;
+
+    _searchCtrl.addListener(_filter);
+  }
+
+  void _filter() {
+    final query = _searchCtrl.text.trim().toLowerCase();
+
+    setState(() {
+      if (query.isEmpty) {
+        filteredIcons = IconMapper.availableIcons;
+      } else {
+        filteredIcons = IconMapper.availableIcons
+            .where((icon) => icon.toLowerCase().contains(query))
+            .toList();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: SizedBox(
+        width: 850,
+        height: 650,
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Seleccionar icono',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 14),
+
+              TextField(
+                controller: _searchCtrl,
+                decoration: InputDecoration(
+                  hintText: 'Buscar icono... ej: user, sale, chart',
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 18),
+
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text('${filteredIcons.length} iconos encontrados'),
+              ),
+
+              const SizedBox(height: 12),
+
+              Expanded(
+                child: Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      // Responsive (celular/tablet/web)
+                      int crossAxisCount = 6;
+
+                      if (constraints.maxWidth < 500) {
+                        crossAxisCount = 3; // celular
+                      } else if (constraints.maxWidth < 800) {
+                        crossAxisCount = 4; // tablet
+                      }
+
+                      return GridView.builder(
+                        itemCount: filteredIcons.length,
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: crossAxisCount,
+
+                          // ðŸ”¥ corregido overflow
+                          childAspectRatio: 1.15,
+
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                        ),
+                        itemBuilder: (context, index) {
+                          final iconName = filteredIcons[index];
+
+                          final selected = widget.selectedIcon == iconName;
+
+                          return InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () {
+                              Navigator.pop(context, iconName);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? Theme.of(
+                                        context,
+                                      ).primaryColor.withOpacity(.12)
+                                    : null,
+                                border: Border.all(
+                                  color: selected
+                                      ? Theme.of(context).primaryColor
+                                      : Colors.grey.shade300,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    child: Icon(
+                                      IconMapper.getIcon(iconName),
+                                      size: 26,
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 4),
+
+                                  Flexible(
+                                    child: Text(
+                                      iconName,
+                                      textAlign: TextAlign.center,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontSize: 11),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\moduloAbms\menus\providers\menu_abm_provider.dart =====
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/moduloAbms/menus/services/menu_abm_service.dart';
+
+final menuAbmServiceProvider = Provider((ref) => MenuAbmService());
+
+final menusAbmStreamProvider = StreamProvider.autoDispose((ref) {
+  return ref.watch(menuAbmServiceProvider).streamMenus();
+});
+
+
+===== D:\inv\inventario_telas\lib\moduloAbms\menus\screens\menus_abm_screen.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/core/providers/session_provider.dart';
+import 'package:inv_telas/core/widgets/action_dialog.dart';
+import 'package:inv_telas/models/menu_item.dart';
+import 'package:inv_telas/moduloAbms/menus/providers/menu_abm_provider.dart';
+import 'package:inv_telas/moduloAbms/menus/widgets/menu_form_dialog.dart';
+import 'package:inv_telas/utils/icon_mapper.dart';
+
+class MenusAbmScreen extends ConsumerWidget {
+  const MenusAbmScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final menusAsync = ref.watch(menusAbmStreamProvider);
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
+    return Scaffold(
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          showDialog(
+            context: context,
+            builder: (_) => const MenuFormDialog(menu: null),
+          );
+        },
+        label: const Text('Nuevo MenÃº'),
+        icon: const Icon(Icons.add),
+      ),
+      body: menusAsync.when(
+        data: (menus) {
+          if (menus.isEmpty) return const Center(child: Text('No hay menÃºs'));
+
+          // RESPONSIVE: Tarjetas en MÃ³vil, Tabla en PC
+          if (isMobile) {
+            return ListView.builder(
+              padding: const EdgeInsets.all(12),
+              itemCount: menus.length,
+              itemBuilder: (_, i) => _MenuCard(menu: menus[i]),
+            );
+          } else {
+            return _MenuTable(menus: menus);
+          }
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('Error: $e')),
+      ),
+    );
+  }
+}
+
+// Widget para Vista de Tabla (PC)
+class _MenuTable extends StatelessWidget {
+  final List<MenuApp> menus;
+  const _MenuTable({required this.menus});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      child: DataTable(
+        columns: const [
+          DataColumn(label: Text('Nombre')),
+          DataColumn(label: Text('Ruta')),
+          DataColumn(label: Text('Icono')),
+          DataColumn(label: Text('Orden')),
+          DataColumn(label: Text('Activo')),
+          DataColumn(label: Text('Acciones')),
+        ],
+        rows: menus.map((m) {
+          return DataRow(
+            cells: [
+              DataCell(Text(m.nombre)),
+              DataCell(Text(m.ruta)),
+              DataCell(Icon(IconMapper.getIcon(m.icono))),
+              DataCell(Text(m.ordenBase.toString())),
+              DataCell(
+                Icon(
+                  m.activo ? Icons.check_circle : Icons.cancel,
+                  color: m.activo ? Colors.green : Colors.red,
+                ),
+              ),
+              DataCell(
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.edit),
+                      onPressed: () => _openForm(context, m),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () => _confirmDelete(context, m),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+// Widget para Vista de Tarjeta (MÃ³vil)
+class _MenuCard extends StatelessWidget {
+  final MenuApp menu;
+  const _MenuCard({required this.menu});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        leading: Icon(IconMapper.getIcon(menu.icono)),
+        title: Text(menu.nombre),
+        subtitle: Text(menu.ruta),
+        trailing: PopupMenuButton(
+          itemBuilder: (_) => [
+            const PopupMenuItem(value: 'edit', child: Text('Editar')),
+            const PopupMenuItem(value: 'delete', child: Text('Eliminar')),
+          ],
+          onSelected: (val) {
+            if (val == 'edit') _openForm(context, menu);
+            if (val == 'delete') _confirmDelete(context, menu);
+          },
+        ),
+      ),
+    );
+  }
+}
+
+void _openForm(BuildContext context, MenuApp? menu) {
+  showDialog(
+    context: context,
+    builder: (_) => MenuFormDialog(menu: menu),
+  );
+}
+
+void _confirmDelete(BuildContext context, MenuApp menu) {
+  showDialog(
+    context: context,
+    builder: (_) => ActionDialog(
+      titulo: 'Eliminar MenÃº',
+      mensaje: 'Â¿EstÃ¡ seguro de eliminar el menÃº "${menu.nombre}"?',
+      type: ActionDialogType.delete,
+      onConfirm: () async {
+        // AquÃ­ necesitarÃ­as inyectar el ref o pasar el service, simplificamos usando ProviderScope
+        final container = ProviderScope.containerOf(context);
+        final userId = container.read(currentUserProvider).id;
+        await container
+            .read(menuAbmServiceProvider)
+            .eliminarMenu(menu.id, userId);
+      },
+    ),
+  );
+}
+
+
+===== D:\inv\inventario_telas\lib\moduloAbms\menus\services\menu_abm_service.dart =====
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:inv_telas/config/env.dart';
+import 'package:inv_telas/models/menu_item.dart';
+
+class MenuAbmService {
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  CollectionReference<Map<String, dynamic>> get _menusRef =>
+      _db.collection(Env.col('menus'));
+
+  /// STREAM MENUS
+  /// Realtime sin loading infinito
+  Stream<List<MenuApp>> streamMenus() {
+    return _menusRef.orderBy('ordenBase', descending: false).snapshots().map((
+      snapshot,
+    ) {
+      return snapshot.docs
+          .map((doc) => MenuApp.fromJson({...doc.data(), 'id': doc.id}))
+          .where((m) => !m.eliminado && m.activo && m.visible)
+          .toList();
+    });
+  }
+
+  /// CREAR / EDITAR MENU
+  Future<void> guardarMenu(MenuApp menu, String usuarioId) async {
+    try {
+      final now = DateTime.now();
+
+      // NUEVO
+      if (menu.id.isEmpty) {
+        final newDoc = _menusRef.doc();
+
+        final nuevoMenu = menu.copyWith(
+          id: newDoc.id,
+          eliminado: false,
+          fechaCreacion: now,
+          usuarioCreadorId: usuarioId,
+          fechaActualizacion: now,
+          usuarioModificadorId: usuarioId,
+        );
+
+        await newDoc.set(nuevoMenu.toJson());
+
+        print('âœ… MenÃº creado: ${nuevoMenu.nombre}');
+      }
+      // EDITAR
+      else {
+        final actualizado = menu.copyWith(
+          fechaActualizacion: now,
+          usuarioModificadorId: usuarioId,
+        );
+
+        await _menusRef
+            .doc(menu.id)
+            .set(actualizado.toJson(), SetOptions(merge: true));
+
+        print('âœï¸ MenÃº actualizado: ${menu.nombre}');
+      }
+    } catch (e) {
+      print('âŒ guardarMenu: $e');
+      rethrow;
+    }
+  }
+
+  /// ELIMINACION LOGICA
+  Future<void> eliminarMenu(String id, String usuarioId) async {
+    try {
+      final now = Timestamp.now();
+
+      await _menusRef.doc(id).update({
+        'eliminado': true,
+        'activo': false,
+        'fechaEliminacion': now,
+        'usuarioEliminadorId': usuarioId,
+        'fechaActualizacion': now,
+        'usuarioModificadorId': usuarioId,
+      });
+
+      print('ðŸ—‘ï¸ MenÃº eliminado: $id');
+    } catch (e) {
+      print('âŒ eliminarMenu: $e');
+      rethrow;
+    }
+  }
+
+  /// RESTAURAR MENU
+  Future<void> restaurarMenu(String id, String usuarioId) async {
+    try {
+      final now = Timestamp.now();
+
+      await _menusRef.doc(id).update({
+        'eliminado': false,
+        'activo': true,
+        'fechaEliminacion': null,
+        'usuarioEliminadorId': null,
+        'fechaActualizacion': now,
+        'usuarioModificadorId': usuarioId,
+      });
+
+      print('â™»ï¸ MenÃº restaurado');
+    } catch (e) {
+      print('âŒ restaurarMenu: $e');
+      rethrow;
+    }
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\moduloAbms\menus\widgets\menu_form_dialog.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/core/providers/session_provider.dart';
+import 'package:inv_telas/models/menu_item.dart';
+import 'package:inv_telas/moduloAbms/menus/icon_picker_dialog.dart';
+import 'package:inv_telas/moduloAbms/menus/providers/menu_abm_provider.dart';
+import 'package:inv_telas/utils/icon_mapper.dart';
+
+class MenuFormDialog extends ConsumerStatefulWidget {
+  final MenuApp? menu;
+
+  const MenuFormDialog({super.key, this.menu});
+
+  @override
+  ConsumerState<MenuFormDialog> createState() => _MenuFormDialogState();
+}
+
+class _MenuFormDialogState extends ConsumerState<MenuFormDialog> {
+  final _formKey = GlobalKey<FormState>();
+
+  late TextEditingController _nombreCtrl;
+  late TextEditingController _rutaCtrl;
+  late TextEditingController _ordenCtrl;
+
+  bool _activo = true;
+
+  // ðŸ”¥ Icono seleccionado
+  String _selectedIcon = 'help';
+  bool get _iconoInvalido => _selectedIcon == 'help';
+
+  @override
+  void initState() {
+    super.initState();
+
+    final m = widget.menu;
+
+    _nombreCtrl = TextEditingController(text: m?.nombre ?? '');
+
+    _rutaCtrl = TextEditingController(text: m?.ruta ?? '/');
+
+    _ordenCtrl = TextEditingController(text: (m?.ordenBase ?? 0).toString());
+
+    _activo = m?.activo ?? true;
+
+    final savedIcon = m?.icono;
+
+    final availableIcons = IconMapper.availableIcons;
+
+    _selectedIcon = savedIcon != null && availableIcons.contains(savedIcon)
+        ? savedIcon
+        : 'help';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.menu == null ? 'Crear MenÃº' : 'Editar MenÃº'),
+      content: SizedBox(
+        width: 500,
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // ========================
+                // NOMBRE
+                // ========================
+                TextFormField(
+                  controller: _nombreCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Nombre *',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (v) => v!.trim().isEmpty ? 'Requerido' : null,
+                ),
+
+                const SizedBox(height: 16),
+
+                // ========================
+                // RUTA
+                // ========================
+                TextFormField(
+                  controller: _rutaCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Ruta (ej: /inventario) *',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (v) => v!.trim().isEmpty ? 'Requerido' : null,
+                ),
+
+                const SizedBox(height: 16),
+
+                // ========================
+                // SELECT DE ICONOS
+                // ========================
+                // ========================
+                // SELECTOR DE ICONOS
+                // ========================
+                InkWell(
+                  onTap: () async {
+                    final selected = await showDialog<String>(
+                      context: context,
+                      builder: (_) =>
+                          IconPickerDialog(selectedIcon: _selectedIcon),
+                    );
+
+                    if (selected != null) {
+                      setState(() {
+                        _selectedIcon = selected;
+                      });
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 14,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: _iconoInvalido
+                            ? Colors.red
+                            : Colors.grey.shade400,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      color: _iconoInvalido
+                          ? Colors.red.withOpacity(0.05)
+                          : null,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          IconMapper.getIcon(_selectedIcon),
+                          size: 24,
+                          color: _iconoInvalido ? Colors.red : null,
+                        ),
+
+                        const SizedBox(width: 12),
+
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Icono',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+
+                              Text(
+                                _selectedIcon,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w500,
+                                  color: _iconoInvalido ? Colors.red : null,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const Icon(Icons.search),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // PREVIEW DEL ICONO
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: _iconoInvalido ? Colors.red : Colors.grey.shade300,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    color: _iconoInvalido ? Colors.red.withOpacity(0.08) : null,
+                  ),
+                  child: Row(
+                    children: [
+                      const Text("Vista previa: "),
+                      const SizedBox(width: 12),
+
+                      Icon(
+                        IconMapper.getIcon(_selectedIcon),
+                        size: 28,
+                        color: _iconoInvalido ? Colors.red : null,
+                      ),
+
+                      const SizedBox(width: 10),
+
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _selectedIcon,
+                              style: TextStyle(
+                                color: _iconoInvalido ? Colors.red : null,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+
+                            if (_iconoInvalido)
+                              const Text(
+                                'Icono invÃ¡lido o reservado. No se puede guardar.',
+                                style: TextStyle(
+                                  color: Colors.red,
+                                  fontSize: 12,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // ========================
+                // ORDEN
+                // ========================
+                TextFormField(
+                  controller: _ordenCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Orden',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // ========================
+                // ACTIVO
+                // ========================
+                SwitchListTile(
+                  title: const Text('Activo'),
+                  value: _activo,
+                  onChanged: (v) {
+                    setState(() {
+                      _activo = v;
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+
+        ElevatedButton.icon(
+          icon: const Icon(Icons.save),
+          label: const Text('Guardar'),
+          onPressed: () async {
+            // ==========================
+            // VALIDAR FORM
+            // ==========================
+            if (!_formKey.currentState!.validate()) {
+              return;
+            }
+
+            // ==========================
+            // VALIDAR ICONO
+            // ==========================
+            if (_iconoInvalido) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  backgroundColor: Colors.red,
+                  content: Text('Debe seleccionar un icono vÃ¡lido.'),
+                ),
+              );
+
+              return;
+            }
+
+            // ==========================
+            // LOADING
+            // ==========================
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (_) => const Center(child: CircularProgressIndicator()),
+            );
+
+            try {
+              final nuevoMenu = MenuApp(
+                id: widget.menu?.id ?? '',
+                nombre: _nombreCtrl.text.trim(),
+                ruta: _rutaCtrl.text.trim(),
+                icono: _selectedIcon,
+                ordenBase: int.tryParse(_ordenCtrl.text) ?? 0,
+                activo: _activo,
+                visible: true,
+                eliminado: false,
+              );
+              final userId = ref.read(currentUserProvider).id;
+              await ref
+                  .read(menuAbmServiceProvider)
+                  .guardarMenu(nuevoMenu, userId);
+
+              if (context.mounted) {
+                Navigator.pop(context); // loading
+                Navigator.pop(context); // dialog
+              }
+            } catch (e) {
+              if (context.mounted) {
+                Navigator.pop(context);
+
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text('Error: $e')));
+              }
+            }
+          },
+        ),
+      ],
+    );
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\moduloAbms\roles\providers\rol_abm_provider.dart =====
+
+// Archivo: lib/moduloAbms/roles/providers/rol_abm_provider.dart
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/moduloAbms/roles/services/rol_abm_service.dart';
+import 'package:inv_telas/services/menu_service.dart';
+
+// ðŸ‘‡ IMPORTANTE: Importar el archivo donde estÃ¡ definido 'menuServiceProvider'
+import 'package:inv_telas/core/providers/session_provider.dart'; 
+
+final rolAbmServiceProvider = Provider((ref) => RolAbmService());
+
+final rolesAbmStreamProvider = StreamProvider.autoDispose((ref) {
+  return ref.watch(rolAbmServiceProvider).streamRoles();
+});
+
+// Provider para traer todos los menÃºs disponibles
+final allMenusForSelectProvider = FutureProvider.autoDispose((ref) async {
+  // Ahora 'menuServiceProvider' sÃ­ es reconocido porque lo importamos arriba
+  return ref.watch(menuServiceProvider).getAllMenus();
+});
+
+
+===== D:\inv\inventario_telas\lib\moduloAbms\roles\screens\roles_abm_screen.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/core/providers/session_provider.dart';
+import 'package:inv_telas/core/widgets/action_dialog.dart';
+import 'package:inv_telas/moduloAbms/roles/providers/rol_abm_provider.dart';
+import 'package:inv_telas/moduloAbms/roles/widgets/rol_form_dialog.dart';
+import 'package:inv_telas/models/rol.dart';
+
+class RolesAbmScreen extends ConsumerWidget {
+  const RolesAbmScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rolesAsync = ref.watch(rolesAbmStreamProvider);
+
+    return Scaffold(
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => showDialog(
+          context: context,
+          builder: (_) => const RolFormDialog(rol: null),
+        ),
+        label: const Text('Nuevo Rol'),
+        icon: const Icon(Icons.add),
+      ),
+      body: rolesAsync.when(
+        data: (roles) {
+          if (roles.isEmpty) return const Center(child: Text('No hay roles'));
+          return ListView.builder(
+            itemCount: roles.length,
+            itemBuilder: (_, i) {
+              final rol = roles[i];
+              return Card(
+                child: ListTile(
+                  title: Text(rol.nombre),
+                  subtitle: Text(
+                    'Permisos: ${rol.menusPermitidos.length} menÃºs',
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit),
+                        onPressed: () => _openForm(context, rol),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () => _confirmDelete(context, ref, rol),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('Error: $e')),
+      ),
+    );
+  }
+
+  void _openForm(BuildContext context, Rol? rol) {
+    showDialog(
+      context: context,
+      builder: (_) => RolFormDialog(rol: rol),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, WidgetRef ref, Rol rol) {
+    showDialog(
+      context: context,
+      builder: (_) => ActionDialog(
+        titulo: 'Eliminar Rol',
+        mensaje:
+            'Â¿EstÃ¡ seguro de eliminar el rol "${rol.nombre}"? Esto afectarÃ¡ a los usuarios asignados.',
+        type: ActionDialogType.delete,
+        onConfirm: () async {
+          final userId = ref.read(currentUserProvider).id;
+          await ref.read(rolAbmServiceProvider).eliminarRol(rol.id, userId);
+        },
+      ),
+    );
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\moduloAbms\roles\services\rol_abm_service.dart =====
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:inv_telas/config/env.dart';
+import 'package:inv_telas/models/rol.dart';
+
+class RolAbmService {
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  CollectionReference<Map<String, dynamic>> get _rolesRef =>
+      _db.collection(Env.col('roles'));
+
+  /// STREAM ROLES
+  /// realtime estable
+  Stream<List<Rol>> streamRoles() {
+    return _rolesRef.snapshots().map((snapshot) {
+      return snapshot.docs
+          .map((doc) => Rol.fromJson({...doc.data(), 'id': doc.id}))
+          // FILTRADO EN MEMORIA
+          .where((r) => !(r.eliminado ?? false) && (r.activo ?? true))
+          .toList();
+    });
+  }
+
+  /// CREAR / EDITAR ROL
+  Future<void> guardarRol(Rol rol, String usuarioId) async {
+    try {
+      final now = DateTime.now();
+
+      // NUEVO
+      if (rol.id.isEmpty) {
+        final newDoc = _rolesRef.doc();
+
+        final nuevoRol = rol.copyWith(
+          id: newDoc.id,
+
+          eliminado: false,
+
+          fechaCreacion: now,
+          usuarioCreadorId: usuarioId,
+
+          fechaActualizacion: now,
+          usuarioModificadorId: usuarioId,
+        );
+
+        await newDoc.set(nuevoRol.toJson());
+
+        print('âœ… Rol creado: ${nuevoRol.nombre}');
+      }
+      // EDITAR
+      else {
+        final rolActualizado = rol.copyWith(
+          fechaActualizacion: now,
+          usuarioModificadorId: usuarioId,
+        );
+
+        await _rolesRef
+            .doc(rol.id)
+            .set(rolActualizado.toJson(), SetOptions(merge: true));
+
+        print('âœï¸ Rol actualizado: ${rol.nombre}');
+      }
+    } catch (e) {
+      print('âŒ Error guardarRol: $e');
+      rethrow;
+    }
+  }
+
+  /// ELIMINACION LOGICA
+  Future<void> eliminarRol(String id, String usuarioId) async {
+    try {
+      final now = Timestamp.now();
+
+      await _rolesRef.doc(id).update({
+        'eliminado': true,
+
+        'activo': false,
+
+        'fechaEliminacion': now,
+
+        'usuarioEliminadorId': usuarioId,
+
+        'fechaActualizacion': now,
+
+        'usuarioModificadorId': usuarioId,
+      });
+
+      print('ðŸ—‘ï¸ Rol eliminado: $id');
+    } catch (e) {
+      print('âŒ Error eliminarRol: $e');
+      rethrow;
+    }
+  }
+
+  /// RESTAURAR ROL
+  Future<void> restaurarRol(String id, String usuarioId) async {
+    try {
+      final now = Timestamp.now();
+
+      await _rolesRef.doc(id).update({
+        'eliminado': false,
+
+        'activo': true,
+
+        'fechaEliminacion': null,
+
+        'usuarioEliminadorId': null,
+
+        'fechaActualizacion': now,
+
+        'usuarioModificadorId': usuarioId,
+      });
+
+      print('â™»ï¸ Rol restaurado');
+    } catch (e) {
+      print('âŒ Error restaurarRol: $e');
+      rethrow;
+    }
+  }
+
+  /// TODOS LOS ROLES
+  /// incluye eliminados
+  Stream<List<Rol>> streamTodosRoles() {
+    return _rolesRef.snapshots().map((snapshot) {
+      return snapshot.docs
+          .map((doc) => Rol.fromJson({...doc.data(), 'id': doc.id}))
+          .toList();
+    });
+  }
+
+  /// SOLO ELIMINADOS
+  Stream<List<Rol>> streamRolesEliminados() {
+    return _rolesRef.snapshots().map((snapshot) {
+      return snapshot.docs
+          .map((doc) => Rol.fromJson({...doc.data(), 'id': doc.id}))
+          .where((r) => r.eliminado ?? false)
+          .toList();
+    });
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\moduloAbms\roles\widgets\rol_form_dialog.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:inv_telas/core/providers/session_provider.dart';
+import 'package:inv_telas/models/rol.dart';
+import 'package:inv_telas/models/menu_item.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/moduloAbms/roles/providers/rol_abm_provider.dart';
+import 'package:inv_telas/moduloAbms/menus/providers/menu_abm_provider.dart'; // Para obtener lista de menÃºs
+
+class RolFormDialog extends ConsumerStatefulWidget {
+  final Rol? rol;
+  const RolFormDialog({super.key, this.rol});
+
+  @override
+  ConsumerState<RolFormDialog> createState() => _RolFormDialogState();
+}
+
+class _RolFormDialogState extends ConsumerState<RolFormDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late TextEditingController _nombreCtrl;
+  late List<String> _selectedMenuIds;
+  bool _activo = true;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nombreCtrl = TextEditingController(text: widget.rol?.nombre ?? '');
+    _selectedMenuIds = widget.rol?.menusPermitidos.toList() ?? [];
+    _activo = widget.rol?.activo ?? true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Obtenemos todos los menÃºs disponibles para mostrar checkboxes
+    final menusAsync = ref.watch(
+      menusAbmStreamProvider,
+    ); // Reutilizamos el provider de menÃºs
+
+    return AlertDialog(
+      title: Text(widget.rol == null ? 'Crear Rol' : 'Editar Rol'),
+      content: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextFormField(
+                controller: _nombreCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Nombre del Rol *',
+                ),
+                validator: (v) => v!.isEmpty ? 'Requerido' : null,
+              ),
+              const SizedBox(height: 10),
+              SwitchListTile(
+                title: const Text('Activo'),
+                value: _activo,
+                onChanged: (v) => setState(() => _activo = v),
+              ),
+              const Divider(),
+              const Text(
+                'Permisos de MenÃº:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 5),
+
+              // Lista de Checkboxes Responsiva
+              menusAsync.when(
+                data: (menus) {
+                  return Container(
+                    constraints: const BoxConstraints(
+                      maxHeight: 300,
+                    ), // Scroll si hay muchos
+                    child: Wrap(
+                      spacing: 8.0,
+                      runSpacing: 4.0,
+                      children: menus.map((m) {
+                        final isSelected = _selectedMenuIds.contains(m.id);
+                        return FilterChip(
+                          label: Text(m.nombre),
+                          selected: isSelected,
+                          selectedColor: Theme.of(
+                            context,
+                          ).primaryColor.withOpacity(0.3),
+                          onSelected: (bool selected) {
+                            setState(() {
+                              if (selected) {
+                                _selectedMenuIds.add(m.id);
+                              } else {
+                                _selectedMenuIds.remove(m.id);
+                              }
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                  );
+                },
+                loading: () => const CircularProgressIndicator(),
+                error: (_, __) => const Text('Error cargando menÃºs'),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isLoading ? null : () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        ElevatedButton(
+          onPressed: _isLoading
+              ? null
+              : () async {
+                  if (_formKey.currentState!.validate()) {
+                    setState(() => _isLoading = true);
+
+                    final nuevoRol = Rol(
+                      id: widget.rol?.id ?? '',
+                      nombre: _nombreCtrl.text,
+                      activo: _activo,
+                      menusPermitidos: _selectedMenuIds,
+                      eliminado: false,
+                    );
+
+                    final userId = ref.read(currentUserProvider).id;
+                    await ref
+                        .read(rolAbmServiceProvider)
+                        .guardarRol(nuevoRol, userId);
+                    if (mounted) {
+                      Navigator.pop(context); // Cierra el dialog
+                    }
+                  }
+                },
+          child: _isLoading
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Guardar'),
+        ),
+      ],
+    );
+  }
+}
+
+
 ===== D:\inv\inventario_telas\lib\modulo_json\providers\json_provider.dart =====
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -2647,6 +3766,17 @@ class MenuService {
 
     return menus;
   }
+
+  Future<List<MenuApp>> getAllMenus() async {
+    final snapshot = await _db
+        .collection(Env.col('menus'))
+        .orderBy('ordenBase')
+        .get();
+
+    return snapshot.docs
+        .map((doc) => MenuApp.fromJson({...doc.data(), 'id': doc.id}))
+        .toList();
+  }
 }
 
 
@@ -2700,33 +3830,266 @@ class RolService {
 import 'package:flutter/material.dart';
 
 class IconMapper {
-  static IconData getIcon(String iconName) {
-    switch (iconName) {
-      case 'inventory':
-        return Icons.inventory;
+  static const Map<String, IconData> icons = {
+    // ==========================
+    // SISTEMA / DASHBOARD
+    // ==========================
+    'home': Icons.home,
+    'dashboard': Icons.dashboard,
+    'apps': Icons.apps,
+    'menu': Icons.menu,
+    'menu_open': Icons.menu_open,
+    'widgets': Icons.widgets,
+    'grid_view': Icons.grid_view,
+    'space_dashboard': Icons.space_dashboard,
+    'view_list': Icons.view_list,
+    'view_module': Icons.view_module,
+    'folder': Icons.folder,
+    'folder_open': Icons.folder_open,
 
-      case 'inventory_2':
-        return Icons.inventory_2;
+    // ==========================
+    // INVENTARIO / PRODUCTOS
+    // ==========================
+    'inventory': Icons.inventory,
+    'inventory_2': Icons.inventory_2,
+    'inventory_outlined': Icons.inventory_outlined,
+    'warehouse': Icons.warehouse,
+    'store': Icons.store,
+    'category': Icons.category,
+    'shopping_bag': Icons.shopping_bag,
+    'shopping_cart': Icons.shopping_cart,
+    'add_shopping_cart': Icons.add_shopping_cart,
+    'remove_shopping_cart': Icons.remove_shopping_cart,
+    'sell': Icons.sell,
+    'barcode': Icons.qr_code,
+    'qr_code_scanner': Icons.qr_code_scanner,
+    'production_quantity_limits': Icons.production_quantity_limits,
+    'local_shipping': Icons.local_shipping,
+    'storefront': Icons.storefront,
+    'shopping_basket': Icons.shopping_basket,
+    'layers': Icons.layers,
+    'list_alt': Icons.list_alt,
 
-      case 'point_of_sale':
-        return Icons.point_of_sale;
+    // ==========================
+    // VENTAS / CAJA
+    // ==========================
+    'point_of_sale': Icons.point_of_sale,
+    'payments': Icons.payments,
+    'payment': Icons.payment,
+    'price_change': Icons.price_change,
+    'attach_money': Icons.attach_money,
+    'money': Icons.money,
+    'account_balance_wallet': Icons.account_balance_wallet,
+    'receipt': Icons.receipt,
+    'receipt_long': Icons.receipt_long,
+    'credit_card': Icons.credit_card,
+    'currency_exchange': Icons.currency_exchange,
+    'paid': Icons.paid,
+    'request_quote': Icons.request_quote,
+    'calculate': Icons.calculate,
+    'price_check': Icons.price_check,
 
-      case 'settings':
-        return Icons.settings;
+    // ==========================
+    // USUARIOS / RRHH
+    // ==========================
+    'person': Icons.person,
+    'person_add': Icons.person_add,
+    'person_remove': Icons.person_remove,
+    'group': Icons.group,
+    'groups': Icons.groups,
+    'people': Icons.people,
+    'people_alt': Icons.people_alt,
+    'badge': Icons.badge,
+    'admin_panel_settings': Icons.admin_panel_settings,
+    'supervisor_account': Icons.supervisor_account,
+    'manage_accounts': Icons.manage_accounts,
 
-      case 'people_alt':
-        return Icons.people_alt;
+    // ==========================
+    // CONFIGURACION
+    // ==========================
+    'settings': Icons.settings,
+    'settings_applications': Icons.settings_applications,
+    'tune': Icons.tune,
+    'build': Icons.build,
+    'construction': Icons.construction,
+    'engineering': Icons.engineering,
+    'extension': Icons.extension,
+    'miscellaneous_services': Icons.miscellaneous_services,
 
-      case 'data_object':
-        return Icons.data_object;
+    // ==========================
+    // SEGURIDAD
+    // ==========================
+    'security': Icons.security,
+    'verified_user': Icons.verified_user,
+    'lock': Icons.lock,
+    'lock_open': Icons.lock_open,
+    'vpn_key': Icons.vpn_key,
+    'fingerprint': Icons.fingerprint,
+    'shield': Icons.shield,
+    'privacy_tip': Icons.privacy_tip,
+    'policy': Icons.policy,
 
-      case 'price_change':
-        return Icons.price_change;
+    // ==========================
+    // REPORTES / ANALITICA
+    // ==========================
+    'analytics': Icons.analytics,
+    'bar_chart': Icons.bar_chart,
+    'pie_chart': Icons.pie_chart,
+    'stacked_bar_chart': Icons.stacked_bar_chart,
+    'show_chart': Icons.show_chart,
+    'insights': Icons.insights,
+    'monitor': Icons.monitor,
+    'assessment': Icons.assessment,
+    'query_stats': Icons.query_stats,
 
-      default:
-        return Icons.help_outline;
-    }
+    // ==========================
+    // ARCHIVOS / DOCUMENTOS
+    // ==========================
+    'description': Icons.description,
+    'article': Icons.article,
+    'insert_drive_file': Icons.insert_drive_file,
+    'file_copy': Icons.file_copy,
+    'save': Icons.save,
+    'download': Icons.download,
+    'upload': Icons.upload,
+    'print': Icons.print,
+    'archive': Icons.archive,
+    'unarchive': Icons.unarchive,
+
+    // ==========================
+    // NAVEGACION
+    // ==========================
+    'arrow_back': Icons.arrow_back,
+    'arrow_forward': Icons.arrow_forward,
+    'chevron_left': Icons.chevron_left,
+    'chevron_right': Icons.chevron_right,
+    'expand_less': Icons.expand_less,
+    'expand_more': Icons.expand_more,
+    'refresh': Icons.refresh,
+    'sync': Icons.sync,
+    'redo': Icons.redo,
+    'undo': Icons.undo,
+
+    // ==========================
+    // ACCIONES CRUD
+    // ==========================
+    'add': Icons.add,
+    'edit': Icons.edit,
+    'delete': Icons.delete,
+    'remove': Icons.remove,
+    'visibility': Icons.visibility,
+    'visibility_off': Icons.visibility_off,
+    'search': Icons.search,
+    'filter_list': Icons.filter_list,
+    'sort': Icons.sort,
+    'content_copy': Icons.content_copy,
+
+    // ==========================
+    // ALERTAS / ESTADOS
+    // ==========================
+    'check': Icons.check,
+    'check_circle': Icons.check_circle,
+    'cancel': Icons.cancel,
+    'warning': Icons.warning,
+    'error': Icons.error,
+    'info': Icons.info,
+    'notifications': Icons.notifications,
+    'notifications_active': Icons.notifications_active,
+    'priority_high': Icons.priority_high,
+
+    // ==========================
+    // COMUNICACION
+    // ==========================
+    'email': Icons.email,
+    'chat': Icons.chat,
+    'message': Icons.message,
+    'call': Icons.call,
+    'support_agent': Icons.support_agent,
+    'forum': Icons.forum,
+
+    // ==========================
+    // FECHA / TIEMPO
+    // ==========================
+    'calendar_today': Icons.calendar_today,
+    'event': Icons.event,
+    'schedule': Icons.schedule,
+    'access_time': Icons.access_time,
+    'alarm': Icons.alarm,
+    'timer': Icons.timer,
+
+    // ==========================
+    // UBICACION
+    // ==========================
+    'location_on': Icons.location_on,
+    'map': Icons.map,
+    'place': Icons.place,
+    'pin_drop': Icons.pin_drop,
+    'explore': Icons.explore,
+
+    // ==========================
+    // MULTIMEDIA
+    // ==========================
+    'image': Icons.image,
+    'photo_camera': Icons.photo_camera,
+    'videocam': Icons.videocam,
+    'mic': Icons.mic,
+    'volume_up': Icons.volume_up,
+
+    // ==========================
+    // BASE DE DATOS / API
+    // ==========================
+    'database': Icons.storage,
+    'dns': Icons.dns,
+    'cloud': Icons.cloud,
+    'cloud_upload': Icons.cloud_upload,
+    'cloud_download': Icons.cloud_download,
+    'data_object': Icons.data_object,
+    'api': Icons.api,
+    'memory': Icons.memory,
+    'terminal': Icons.terminal,
+    'developer_mode': Icons.developer_mode,
+
+    // ==========================
+    // FAVORITOS
+    // ==========================
+    'favorite': Icons.favorite,
+    'favorite_border': Icons.favorite_border,
+    'star': Icons.star,
+    'star_border': Icons.star_border,
+    'bookmark': Icons.bookmark,
+
+    // ==========================
+    // UTILIDADES
+    // ==========================
+    'help': Icons.help_outline, // reservado
+    'help_center': Icons.help_center,
+    'question_mark': Icons.question_mark,
+    'language': Icons.language,
+    'public': Icons.public,
+    'wifi': Icons.wifi,
+    'bluetooth': Icons.bluetooth,
+    'battery_full': Icons.battery_full,
+    'phone_android': Icons.phone_android,
+    'computer': Icons.computer,
+    'laptop': Icons.laptop,
+    'tablet': Icons.tablet,
+  };
+
+  static IconData getIcon(String? iconName) {
+    return icons[iconName] ?? Icons.help_outline;
   }
+
+  static bool isValidIcon(String? iconName) {
+    return iconName != null &&
+        icons.containsKey(iconName) &&
+        iconName != 'help';
+  }
+
+  static List<String> get availableIcons =>
+      icons.keys
+          .where((e) => e != 'help') // ocultamos help
+          .toList()
+        ..sort();
 }
 
 

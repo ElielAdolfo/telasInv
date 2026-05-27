@@ -66,10 +66,6 @@ class AuthService {
     required String email,
     required String password,
     required String nombre,
-
-    /// NUEVO
-    required String empresaId,
-    required String rolId,
   }) async {
     try {
       /// Crear Auth
@@ -78,7 +74,7 @@ class AuthService {
         password: password,
       );
 
-      /// Crear Firestore
+      /// Crear usuario Firestore
       await _firestore
           .collection(Env.col('usuarios'))
           .doc(result.user!.uid)
@@ -87,20 +83,17 @@ class AuthService {
             'email': email,
             'nombre': nombre,
 
-            /// NUEVA ESTRUCTURA CORREGIDA
-            /// Usamos 'rolesIds' (lista) y envolvemos el rolId en corchetes []
-            'empresas': [
-              {
-                'empresaId': empresaId,
-                'rolesIds': [rolId],
-                'sucursalesIds': [],
-              },
-            ],
+            /// VACÍO
+            'empresas': [],
 
             'activo': true,
             'eliminado': false,
             'createdAt': DateTime.now().toIso8601String(),
           });
+
+      /// cerrar sesión automática
+      /// para volver al login
+      await _auth.signOut();
 
       return null;
     } on FirebaseAuthException catch (e) {
@@ -111,7 +104,6 @@ class AuthService {
       return e.message;
     } catch (e) {
       print(e);
-
       return 'Error al registrar';
     }
   }

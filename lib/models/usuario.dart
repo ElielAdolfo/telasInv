@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:inv_telas/models/usuario_empresa_rol.dart';
 
 class Usuario {
@@ -56,7 +57,13 @@ class Usuario {
 
   static DateTime? _parseDate(dynamic value) {
     if (value == null) return null;
+
     if (value is DateTime) return value;
+
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+
     try {
       return DateTime.parse(value.toString());
     } catch (_) {
