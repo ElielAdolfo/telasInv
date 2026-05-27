@@ -98,7 +98,7 @@ class DefaultFirebaseOptions {
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:inv_telas/screens/auth_screen.dart';
+import 'package:inv_telas/core/screens/session_gate_screen.dart';
 
 import 'firebase_options.dart';
 import 'config/system_initializer.dart'; // Importamos el inicializador
@@ -144,7 +144,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       home: conectado
-          ? const AuthScreen()
+          ? const SessionGateScreen()
           : Scaffold(
               backgroundColor: Colors.red.shade50,
               body: Center(
@@ -469,23 +469,18 @@ import 'package:inv_telas/models/menu_item.dart';
 import 'package:inv_telas/models/rol.dart';
 import 'package:inv_telas/models/usuario.dart';
 import 'package:inv_telas/models/usuario_empresa_rol.dart';
-import 'package:inv_telas/services/empresa_service.dart';
+import 'package:inv_telas/providers/empresa_provider.dart';
 import 'package:inv_telas/services/menu_service.dart';
 import 'package:inv_telas/services/rol_service.dart';
 
-/// -----------------------------
-/// ESTADO DE SESIÃ“N
-/// -----------------------------
+/// =====================================
+/// SESSION STATE
+/// =====================================
 class SessionState {
   final Usuario? usuario;
-
-  // Nuevo: Empresa actualmente seleccionada
   final Empresa? empresaActual;
-
-  // Nuevo: Rol correspondiente a la empresa actual
   final Rol? rolActual;
 
-  // Nuevo: Lista de empresas disponibles para el usuario
   final List<Rol> rolesDisponibles;
   final List<Empresa> empresasDisponibles;
 
@@ -514,110 +509,159 @@ class SessionState {
   }
 }
 
-/// -----------------------------
+/// =====================================
 /// SESSION NOTIFIER
-/// -----------------------------
+/// =====================================
 class SessionNotifier extends StateNotifier<SessionState> {
   final Ref ref;
 
   SessionNotifier(this.ref) : super(const SessionState());
 
-  /// Inicializar sesiÃ³n
+  /// -----------------------------------
+  /// INIT SESSION
+  /// -----------------------------------
   Future<void> initSession(Usuario user) async {
     try {
-      final empresaService = ref.read(empresaServiceProvider);
       final rolService = ref.read(rolServiceProvider);
+      final empresaService = ref.read(empresaServiceProvider);
 
-      print('ðŸ” Iniciando sesiÃ³n para: ${user.nombre}');
+      print('ðŸ” Iniciando sesiÃ³n ${user.nombre}');
 
-      // 1. Obtener IDs de empresas del usuario
       final empresasIds = user.empresas.map((e) => e.empresaId).toList();
 
+      /// SIN EMPRESAS
       if (empresasIds.isEmpty) {
-        print('âš ï¸ Usuario sin empresas asignadas');
         state = state.copyWith(usuario: user);
         return;
       }
 
-      // 2. Cargar objetos Empresa completos
+      /// CARGAR EMPRESAS
       final empresas = await empresaService.getEmpresasByIds(empresasIds);
 
-      // 3. LÃ³gica de selecciÃ³n de empresa
-      // Por ahora seleccionamos la PRIMERA automÃ¡ticamente.
-      // TODO: Si hay mÃ¡s de una, mostrar un diÃ¡logo de selecciÃ³n en la UI.
-      final empresaSeleccionada = empresas.isNotEmpty ? empresas.first : null;
-
-      if (empresaSeleccionada == null) {
-        print('âŒ No se encontraron datos de las empresas asignadas');
-        state = state.copyWith(usuario: user, empresasDisponibles: empresas);
+      if (empresas.isEmpty) {
+        state = state.copyWith(usuario: user);
         return;
       }
 
-      // 4. Buscar el Rol correspondiente a esta empresa
-      final userEmpresaRol = user.empresas.firstWhere(
+      /// EMPRESA DEFAULT
+      final empresaSeleccionada = empresas.first;
+
+      /// RELACIÃ“N EMPRESA-USUARIO
+      final relacionEmpresa = user.empresas.firstWhere(
         (e) => e.empresaId == empresaSeleccionada.id,
-        orElse: () => UsuarioEmpresaRol(empresaId: '', rolesIds: []),
+        orElse: () => UsuarioEmpresaRol(empresaId: ''),
       );
 
+      /// CARGAR ROLES
       List<Rol> roles = [];
-      if (userEmpresaRol.rolesIds.isNotEmpty) {
-        roles = await rolService.getRolesByIds(userEmpresaRol.rolesIds);
-      }
-      Rol? rolInicial = roles.isNotEmpty ? roles.first : null;
 
-      print('âœ… Empresa seleccionada: ${empresaSeleccionada.nombre}');
-      print('âœ… Roles disponibles: ${roles.map((r) => r.nombre).join(", ")}');
-      print('âœ… Rol activo: ${rolInicial?.nombre}');
+      if (relacionEmpresa.rolesIds.isNotEmpty) {
+        roles = await rolService.getRolesByIds(relacionEmpresa.rolesIds);
+      }
+
+      /// SI EXISTE SUPERADMIN LO PRIORIZAMOS
+      Rol? rolInicial;
+
+      try {
+        rolInicial = roles.firstWhere((r) => r.id == 'superAdmin');
+      } catch (_) {
+        if (roles.isNotEmpty) {
+          rolInicial = roles.first;
+        }
+      }
 
       state = state.copyWith(
         usuario: user,
         empresaActual: empresaSeleccionada,
+        empresasDisponibles: empresas,
         rolesDisponibles: roles,
         rolActual: rolInicial,
-        empresasDisponibles: empresas,
       );
+
+      print('âœ… Empresa actual: ${empresaSeleccionada.nombre}');
+
+      print('âœ… Rol actual: ${rolInicial?.nombre}');
     } catch (e) {
-      print('âŒ Error initSession: $e');
+      print('âŒ initSession: $e');
     }
   }
 
-  void cambiarRol(Rol nuevoRol) {
-    state = state.copyWith(rolActual: nuevoRol);
-    print('ðŸ”„ Rol cambiado a: ${nuevoRol.nombre}');
+  /// -----------------------------------
+  /// CAMBIAR EMPRESA
+  /// -----------------------------------
+  Future<void> cambiarEmpresa(Empresa nuevaEmpresa) async {
+    try {
+      final user = state.usuario;
+
+      if (user == null) return;
+
+      final rolService = ref.read(rolServiceProvider);
+
+      final relacionEmpresa = user.empresas.firstWhere(
+        (e) => e.empresaId == nuevaEmpresa.id,
+        orElse: () => UsuarioEmpresaRol(empresaId: ''),
+      );
+
+      List<Rol> roles = [];
+
+      if (relacionEmpresa.rolesIds.isNotEmpty) {
+        roles = await rolService.getRolesByIds(relacionEmpresa.rolesIds);
+      }
+
+      /// SUPERADMIN PRIORIDAD
+      Rol? rolInicial;
+
+      try {
+        rolInicial = roles.firstWhere((r) => r.id == 'superAdmin');
+      } catch (_) {
+        if (roles.isNotEmpty) {
+          rolInicial = roles.first;
+        }
+      }
+
+      state = state.copyWith(
+        empresaActual: nuevaEmpresa,
+        rolesDisponibles: roles,
+        rolActual: rolInicial,
+      );
+
+      print('ðŸ”„ Empresa cambiada: ${nuevaEmpresa.nombre}');
+
+      print('ðŸ”„ Rol actual: ${rolInicial?.nombre}');
+    } catch (e) {
+      print('âŒ cambiarEmpresa: $e');
+    }
   }
 
-  /// Cambiar de empresa (y por ende de rol)
-  Future<void> cambiarEmpresa(Empresa nuevaEmpresa) async {
+  /// -----------------------------------
+  /// CAMBIAR ROL
+  /// -----------------------------------
+  void cambiarRol(Rol rol) {
+    state = state.copyWith(rolActual: rol);
+  }
+
+  /// -----------------------------------
+  /// REFRESH SESSION
+  /// -----------------------------------
+  Future<void> refreshSession() async {
     final user = state.usuario;
+
     if (user == null) return;
 
-    final userEmpresaRol = user.empresas.firstWhere(
-      (e) => e.empresaId == nuevaEmpresa.id,
-      orElse: () => UsuarioEmpresaRol(empresaId: '', rolesIds: []),
-    );
-
-    if (userEmpresaRol.rolesIds.isEmpty) return;
-
-    final rolService = ref.read(rolServiceProvider);
-    final roles = await rolService.getRolesByIds(userEmpresaRol.rolesIds);
-    final rolInicial = roles.isNotEmpty ? roles.first : null;
-
-    state = state.copyWith(
-      empresaActual: nuevaEmpresa,
-      rolesDisponibles: roles,
-      rolActual: rolInicial,
-    );
+    await initSession(user);
   }
 
-  /// Logout
+  /// -----------------------------------
+  /// LOGOUT
+  /// -----------------------------------
   void logout() {
     state = const SessionState();
   }
 }
 
-/// -----------------------------
+/// =====================================
 /// PROVIDERS
-/// -----------------------------
+/// =====================================
 final sessionProvider = StateNotifierProvider<SessionNotifier, SessionState>((
   ref,
 ) {
@@ -625,20 +669,16 @@ final sessionProvider = StateNotifierProvider<SessionNotifier, SessionState>((
 });
 
 final rolServiceProvider = Provider<RolService>((ref) => RolService());
-final menuServiceProvider = Provider<MenuService>((ref) => MenuService());
-final empresaServiceProvider = Provider<EmpresaService>(
-  (ref) => EmpresaService(),
-);
 
-/// -----------------------------
+final menuServiceProvider = Provider<MenuService>((ref) => MenuService());
+
+/// =====================================
 /// MENUS DEL ROL ACTUAL
-/// -----------------------------
+/// =====================================
 final allowedMenusProvider = FutureProvider<List<MenuApp>>((ref) async {
-  final session = ref.watch(sessionProvider);
-  final rol = session.rolActual;
+  final rol = ref.watch(sessionProvider).rolActual;
 
   if (rol == null) {
-    print('âš ï¸ Sin rol actual definido para la empresa');
     return [];
   }
 
@@ -647,19 +687,18 @@ final allowedMenusProvider = FutureProvider<List<MenuApp>>((ref) async {
   }
 
   final menuService = ref.read(menuServiceProvider);
-  final menus = await menuService.getMenusByIds(rol.menusPermitidos);
 
-  return menus;
+  return menuService.getMenusByIds(rol.menusPermitidos);
 });
 
 final currentUserProvider = Provider<Usuario>((ref) {
-  final usuario = ref.watch(sessionProvider).usuario;
+  final user = ref.watch(sessionProvider).usuario;
 
-  if (usuario == null) {
+  if (user == null) {
     throw Exception('No hay sesiÃ³n activa');
   }
 
-  return usuario;
+  return user;
 });
 
 
@@ -674,6 +713,7 @@ import 'package:inv_telas/moduloAbms/menus/screens/menus_abm_screen.dart';
 import 'package:inv_telas/moduloAbms/roles/screens/roles_abm_screen.dart';
 import 'package:inv_telas/modulo_json/screens/json_view_screen.dart';
 import 'package:inv_telas/providers/auth_provider.dart';
+import 'package:inv_telas/screens/auth_screen.dart';
 
 import 'package:inv_telas/screens/homeScreen.dart';
 import 'package:inv_telas/utils/icon_mapper.dart';
@@ -753,9 +793,13 @@ class _PrincipalShellState extends ConsumerState<PrincipalShell> {
                         .read(sessionProvider.notifier)
                         .cambiarEmpresa(empresa);
 
-                    if (mounted) {
-                      Navigator.pop(context);
-                    }
+                    if (!mounted) return;
+
+                    setState(() {
+                      _currentRoute = '/home';
+                    });
+
+                    Navigator.pop(context);
                   },
                 );
               },
@@ -916,9 +960,49 @@ class _PrincipalShellState extends ConsumerState<PrincipalShell> {
           /// LOGOUT
           IconButton(
             icon: const Icon(Icons.logout),
-            tooltip: "Cerrar SesiÃ³n",
+            tooltip: "Cerrar SesiÃ³n 1",
             onPressed: () async {
-              // ... cÃ³digo de logout existente
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (_) {
+                  return AlertDialog(
+                    title: const Text('Cerrar sesiÃ³n'),
+                    content: const Text('Â¿Seguro que desea cerrar sesiÃ³n?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(context, false);
+                        },
+                        child: const Text('Cancelar'),
+                      ),
+
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context, true);
+                        },
+                        child: const Text('Cerrar sesiÃ³n'),
+                      ),
+                    ],
+                  );
+                },
+              );
+
+              if (confirm != true) return;
+
+              /// logout firebase
+              await ref.read(authProvider.notifier).logout();
+
+              /// limpiar session state
+              ref.read(sessionProvider.notifier).logout();
+
+              if (!mounted) return;
+
+              /// limpiar stack completo
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const AuthScreen()),
+                (_) => false,
+              );
             },
           ),
         ],
@@ -926,6 +1010,84 @@ class _PrincipalShellState extends ConsumerState<PrincipalShell> {
 
       /// BODY
       body: currentScreen,
+    );
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\core\screens\session_gate_screen.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:inv_telas/core/providers/session_provider.dart';
+import 'package:inv_telas/core/screens/principal_shell.dart';
+
+import 'package:inv_telas/moduloAbms/empresas/screens/dashboard_empresas_screen.dart';
+
+import 'package:inv_telas/providers/auth_provider.dart';
+import 'package:inv_telas/screens/auth_screen.dart';
+
+class SessionGateScreen extends ConsumerStatefulWidget {
+  const SessionGateScreen({super.key});
+
+  @override
+  ConsumerState<SessionGateScreen> createState() => _SessionGateScreenState();
+}
+
+class _SessionGateScreenState extends ConsumerState<SessionGateScreen> {
+  bool _initialized = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final authAsync = ref.watch(authProvider);
+
+    return authAsync.when(
+      loading: () {
+        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      },
+
+      error: (_, __) {
+        return const AuthScreen();
+      },
+
+      data: (user) {
+        /// NO LOGIN
+        if (user == null) {
+          return const AuthScreen();
+        }
+
+        /// INIT SOLO UNA VEZ
+        if (!_initialized) {
+          _initialized = true;
+
+          Future.microtask(() async {
+            await ref.read(sessionProvider.notifier).initSession(user);
+          });
+        }
+
+        final session = ref.watch(sessionProvider);
+
+        /// esperando init
+        if (session.usuario == null) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        /// SIN EMPRESAS
+        if (session.empresasDisponibles.isEmpty) {
+          return const DashboardEmpresasScreen();
+        }
+
+        /// UNA EMPRESA
+        if (session.empresasDisponibles.length == 1) {
+          return const PrincipalShell();
+        }
+
+        /// VARIAS EMPRESAS
+        return const DashboardEmpresasScreen();
+      },
     );
   }
 }
@@ -1117,29 +1279,36 @@ class FirebaseService {
 ===== D:\inv\inventario_telas\lib\models\empresa.dart =====
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
+import 'package:inv_telas/models/usuario_empresa_permiso.dart';
 
 class Empresa {
   final String id;
   final String nombre;
-  final String? nit; // Opcional: IdentificaciÃ³n fiscal
+  final String? nit;
   final bool activo;
 
-  // EliminaciÃ³n lÃ³gica
+  /// Usuarios permitidos en esta empresa
+  /// Cada usuario tiene roles SOLO para esta empresa
+  final List<UsuarioEmpresaPermiso> usuariosPermitidos;
+
+  /// EliminaciÃ³n lÃ³gica
   final bool eliminado;
   final DateTime? fechaEliminacion;
   final String? usuarioEliminadorId;
 
-  // AuditorÃ­a
+  /// AuditorÃ­a
   final DateTime? fechaCreacion;
-  final String? usuarioCreadorId; // QuiÃ©n creÃ³ la empresa
+  final String? usuarioCreadorId;
   final DateTime? fechaActualizacion;
   final String? usuarioModificadorId;
 
-  Empresa({
+  const Empresa({
     required this.id,
     required this.nombre,
     this.nit,
     this.activo = true,
+    this.usuariosPermitidos = const [],
     this.eliminado = false,
     this.fechaEliminacion,
     this.usuarioEliminadorId,
@@ -1149,45 +1318,188 @@ class Empresa {
     this.usuarioModificadorId,
   });
 
-  factory Empresa.fromJson(Map<String, dynamic> json) => Empresa(
-    id: json['id'] ?? '',
-    nombre: json['nombre'] ?? '',
-    nit: json['nit'],
-    activo: json['activo'] ?? true,
-    eliminado: json['eliminado'] ?? false,
-    fechaEliminacion: json['fechaEliminacion'] != null
-        ? (json['fechaEliminacion'] as Timestamp).toDate()
-        : null,
-    usuarioEliminadorId: json['usuarioEliminadorId'],
-    fechaCreacion: json['fechaCreacion'] != null
-        ? (json['fechaCreacion'] as Timestamp).toDate()
-        : null,
-    usuarioCreadorId: json['usuarioCreadorId'],
-    fechaActualizacion: json['fechaActualizacion'] != null
-        ? (json['fechaActualizacion'] as Timestamp).toDate()
-        : null,
-    usuarioModificadorId: json['usuarioModificadorId'],
-  );
+  /// Constructor vacÃ­o
+  factory Empresa.empty() {
+    return const Empresa(
+      id: '',
+      nombre: '',
+      activo: true,
+      usuariosPermitidos: [],
+      eliminado: false,
+    );
+  }
 
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'nombre': nombre,
-    'nit': nit,
-    'activo': activo,
-    'eliminado': eliminado,
-    'fechaEliminacion': fechaEliminacion != null
-        ? Timestamp.fromDate(fechaEliminacion!)
-        : null,
-    'usuarioEliminadorId': usuarioEliminadorId,
-    'fechaCreacion': fechaCreacion != null
-        ? Timestamp.fromDate(fechaCreacion!)
-        : null,
-    'usuarioCreadorId': usuarioCreadorId,
-    'fechaActualizacion': fechaActualizacion != null
-        ? Timestamp.fromDate(fechaActualizacion!)
-        : null,
-    'usuarioModificadorId': usuarioModificadorId,
-  };
+  /// Desde JSON / Firestore
+  factory Empresa.fromJson(Map<String, dynamic> json) {
+    return Empresa(
+      id: json['id'] ?? '',
+      nombre: json['nombre'] ?? '',
+      nit: json['nit'],
+      activo: json['activo'] ?? true,
+
+      usuariosPermitidos:
+          (json['usuariosPermitidos'] as List<dynamic>?)
+              ?.map(
+                (e) => UsuarioEmpresaPermiso.fromJson(
+                  Map<String, dynamic>.from(e),
+                ),
+              )
+              .toList() ??
+          [],
+
+      eliminado: json['eliminado'] ?? false,
+
+      fechaEliminacion: json['fechaEliminacion'] != null
+          ? (json['fechaEliminacion'] as Timestamp).toDate()
+          : null,
+
+      usuarioEliminadorId: json['usuarioEliminadorId'],
+
+      fechaCreacion: json['fechaCreacion'] != null
+          ? (json['fechaCreacion'] as Timestamp).toDate()
+          : null,
+
+      usuarioCreadorId: json['usuarioCreadorId'],
+
+      fechaActualizacion: json['fechaActualizacion'] != null
+          ? (json['fechaActualizacion'] as Timestamp).toDate()
+          : null,
+
+      usuarioModificadorId: json['usuarioModificadorId'],
+    );
+  }
+
+  /// Desde Firestore DocumentSnapshot
+  factory Empresa.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data();
+
+    if (data == null) {
+      return Empresa.empty();
+    }
+
+    return Empresa.fromJson({...data, 'id': doc.id});
+  }
+
+  /// A JSON
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'nombre': nombre,
+      'nit': nit,
+      'activo': activo,
+
+      'usuariosPermitidos': usuariosPermitidos.map((e) => e.toJson()).toList(),
+
+      'eliminado': eliminado,
+
+      'fechaEliminacion': fechaEliminacion != null
+          ? Timestamp.fromDate(fechaEliminacion!)
+          : null,
+
+      'usuarioEliminadorId': usuarioEliminadorId,
+
+      'fechaCreacion': fechaCreacion != null
+          ? Timestamp.fromDate(fechaCreacion!)
+          : null,
+
+      'usuarioCreadorId': usuarioCreadorId,
+
+      'fechaActualizacion': fechaActualizacion != null
+          ? Timestamp.fromDate(fechaActualizacion!)
+          : null,
+
+      'usuarioModificadorId': usuarioModificadorId,
+    };
+  }
+
+  /// Para Firestore (sin guardar ID dentro del documento)
+  Map<String, dynamic> toFirestore() {
+    final json = toJson();
+    json.remove('id');
+    return json;
+  }
+
+  /// CopyWith
+  Empresa copyWith({
+    String? id,
+    String? nombre,
+    String? nit,
+    bool? activo,
+    List<UsuarioEmpresaPermiso>? usuariosPermitidos,
+    bool? eliminado,
+    DateTime? fechaEliminacion,
+    String? usuarioEliminadorId,
+    DateTime? fechaCreacion,
+    String? usuarioCreadorId,
+    DateTime? fechaActualizacion,
+    String? usuarioModificadorId,
+  }) {
+    return Empresa(
+      id: id ?? this.id,
+      nombre: nombre ?? this.nombre,
+      nit: nit ?? this.nit,
+      activo: activo ?? this.activo,
+      usuariosPermitidos: usuariosPermitidos ?? this.usuariosPermitidos,
+      eliminado: eliminado ?? this.eliminado,
+      fechaEliminacion: fechaEliminacion ?? this.fechaEliminacion,
+      usuarioEliminadorId: usuarioEliminadorId ?? this.usuarioEliminadorId,
+      fechaCreacion: fechaCreacion ?? this.fechaCreacion,
+      usuarioCreadorId: usuarioCreadorId ?? this.usuarioCreadorId,
+      fechaActualizacion: fechaActualizacion ?? this.fechaActualizacion,
+      usuarioModificadorId: usuarioModificadorId ?? this.usuarioModificadorId,
+    );
+  }
+
+  @override
+  String toString() {
+    return '''
+Empresa(
+  id: $id,
+  nombre: $nombre,
+  nit: $nit,
+  activo: $activo,
+  usuariosPermitidos: ${usuariosPermitidos.length},
+  eliminado: $eliminado
+)
+''';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+
+    return other is Empresa &&
+        other.id == id &&
+        other.nombre == nombre &&
+        other.nit == nit &&
+        other.activo == activo &&
+        listEquals(other.usuariosPermitidos, usuariosPermitidos) &&
+        other.eliminado == eliminado &&
+        other.fechaEliminacion == fechaEliminacion &&
+        other.usuarioEliminadorId == usuarioEliminadorId &&
+        other.fechaCreacion == fechaCreacion &&
+        other.usuarioCreadorId == usuarioCreadorId &&
+        other.fechaActualizacion == fechaActualizacion &&
+        other.usuarioModificadorId == usuarioModificadorId;
+  }
+
+  @override
+  int get hashCode {
+    return Object.hash(
+      id,
+      nombre,
+      nit,
+      activo,
+      Object.hashAll(usuariosPermitidos),
+      eliminado,
+      fechaEliminacion,
+      usuarioEliminadorId,
+      fechaCreacion,
+      usuarioCreadorId,
+      fechaActualizacion,
+      usuarioModificadorId,
+    );
+  }
 }
 
 
@@ -1522,6 +1834,7 @@ class Sucursal {
 
 ===== D:\inv\inventario_telas\lib\models\usuario.dart =====
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:inv_telas/models/usuario_empresa_rol.dart';
 
 class Usuario {
@@ -1580,7 +1893,13 @@ class Usuario {
 
   static DateTime? _parseDate(dynamic value) {
     if (value == null) return null;
+
     if (value is DateTime) return value;
+
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+
     try {
       return DateTime.parse(value.toString());
     } catch (_) {
@@ -1600,6 +1919,53 @@ class Usuario {
       'usuarioCreadorId': usuarioCreadorId,
       'fechaActualizacion': fechaActualizacion?.toIso8601String(),
       'usuarioModificadorId': usuarioModificadorId,
+    };
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\models\usuario_empresa_permiso.dart =====
+
+class UsuarioEmpresaPermiso {
+  final String usuarioId;
+
+  /// Roles SOLO para esta empresa
+  final List<String> rolesIds;
+
+  /// Puede administrar empresa
+  final bool esPrincipal;
+
+  /// Puede vender
+  final bool puedeVender;
+
+  /// Puede consultar
+  final bool puedeConsultar;
+
+  const UsuarioEmpresaPermiso({
+    required this.usuarioId,
+    this.rolesIds = const [],
+    this.esPrincipal = false,
+    this.puedeVender = false,
+    this.puedeConsultar = true,
+  });
+
+  factory UsuarioEmpresaPermiso.fromJson(Map<String, dynamic> json) {
+    return UsuarioEmpresaPermiso(
+      usuarioId: json['usuarioId'] ?? '',
+      rolesIds: List<String>.from(json['rolesIds'] ?? []),
+      esPrincipal: json['esPrincipal'] ?? false,
+      puedeVender: json['puedeVender'] ?? false,
+      puedeConsultar: json['puedeConsultar'] ?? true,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'usuarioId': usuarioId,
+      'rolesIds': rolesIds,
+      'esPrincipal': esPrincipal,
+      'puedeVender': puedeVender,
+      'puedeConsultar': puedeConsultar,
     };
   }
 }
@@ -1637,10 +2003,444 @@ class UsuarioEmpresaRol {
   Map<String, dynamic> toJson() {
     return {
       'empresaId': empresaId,
-      'empresaId': empresaId,
       'rolesIds': rolesIds,
       'sucursalesIds': sucursalesIds,
     };
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\moduloAbms\empresas\screens\dashboard_empresas_screen.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:inv_telas/core/providers/session_provider.dart';
+import 'package:inv_telas/core/screens/principal_shell.dart';
+import 'package:inv_telas/moduloAbms/empresas/widgets/crear_empresa_dialog.dart';
+
+import 'package:inv_telas/moduloAbms/empresas/widgets/empresa_card.dart';
+import 'package:inv_telas/moduloAbms/empresas/widgets/empresa_empty_state.dart';
+
+import 'package:inv_telas/providers/auth_provider.dart';
+
+class DashboardEmpresasScreen extends ConsumerWidget {
+  const DashboardEmpresasScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    /// USAR SESSION COMO SINGLE SOURCE OF TRUTH
+    final session = ref.watch(sessionProvider);
+
+    final empresas = session.empresasDisponibles;
+
+    final isMobile = MediaQuery.of(context).size.width < 700;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Mis Empresas'), centerTitle: true),
+
+      body: empresas.isEmpty
+          ? EmpresaEmptyState(
+              onCrearEmpresa: () async {
+                final creada = await showDialog<bool>(
+                  context: context,
+                  builder: (_) => const CrearEmpresaDialog(),
+                );
+
+                if (creada == true && context.mounted) {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PrincipalShell()),
+                  );
+                }
+              },
+              onUnirseEmpresa: () {
+                print('Unirse empresa');
+              },
+
+              onEditarPerfil: () {
+                print('Editar perfil');
+              },
+
+              onCerrarSesion: () async {
+                await ref.read(authProvider.notifier).logout();
+
+                /// limpiar session
+                ref.read(sessionProvider.notifier).logout();
+              },
+            )
+          : Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Tus Empresas',
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  Expanded(
+                    child: GridView.builder(
+                      itemCount: empresas.length,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: isMobile ? 1 : 2,
+                        crossAxisSpacing: 14,
+                        mainAxisSpacing: 14,
+                        childAspectRatio: isMobile ? 3.8 : 3.2,
+                      ),
+                      itemBuilder: (_, index) {
+                        final empresa = empresas[index];
+
+                        return EmpresaCard(
+                          empresa: empresa,
+                          onTap: () async {
+                            /// CAMBIAR EMPRESA EN SESSION
+                            await ref
+                                .read(sessionProvider.notifier)
+                                .cambiarEmpresa(empresa);
+
+                            if (!context.mounted) return;
+
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const PrincipalShell(),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      if (empresas.length < 5)
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.add_business),
+                          label: const Text('Crear Empresa'),
+                          onPressed: () async {
+                            final creada = await showDialog<bool>(
+                              context: context,
+                              builder: (_) => const CrearEmpresaDialog(),
+                            );
+
+                            if (creada == true && context.mounted) {
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const PrincipalShell(),
+                                ),
+                              );
+                            }
+                          },
+                        ),
+
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.group_add),
+                        label: const Text('Unirme a Empresa'),
+                        onPressed: () {
+                          print('unirme empresa');
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\moduloAbms\empresas\widgets\crear_empresa_dialog.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/providers/empresa_provider.dart';
+
+class CrearEmpresaDialog extends ConsumerStatefulWidget {
+  const CrearEmpresaDialog({super.key});
+
+  @override
+  ConsumerState<CrearEmpresaDialog> createState() => _CrearEmpresaDialogState();
+}
+
+class _CrearEmpresaDialogState extends ConsumerState<CrearEmpresaDialog> {
+  final _nombreCtrl = TextEditingController();
+  final _nitCtrl = TextEditingController();
+
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    _nombreCtrl.dispose();
+    _nitCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _crearEmpresa() async {
+    if (_loading) return;
+
+    final nombre = _nombreCtrl.text.trim();
+
+    if (nombre.isEmpty) {
+      _showError('Ingrese nombre de empresa');
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+    });
+
+    final empresa = await ref
+        .read(empresaProvider)
+        .crearEmpresa(nombre: nombre, nit: _nitCtrl.text.trim());
+
+    if (!mounted) return;
+
+    setState(() {
+      _loading = false;
+    });
+
+    if (empresa == null) {
+      _showError('No se pudo crear la empresa');
+      return;
+    }
+
+    Navigator.pop(context, true);
+  }
+
+  void _showError(String msg) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Crear Empresa'),
+
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _nombreCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Nombre Empresa *',
+                prefixIcon: Icon(Icons.business),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            TextField(
+              controller: _nitCtrl,
+              decoration: const InputDecoration(
+                labelText: 'NIT (Opcional)',
+                prefixIcon: Icon(Icons.badge),
+              ),
+            ),
+          ],
+        ),
+      ),
+
+      actions: [
+        TextButton(
+          onPressed: _loading
+              ? null
+              : () {
+                  Navigator.pop(context);
+                },
+          child: const Text('Cancelar'),
+        ),
+
+        ElevatedButton.icon(
+          onPressed: _loading ? null : _crearEmpresa,
+          icon: _loading
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(),
+                )
+              : const Icon(Icons.add_business),
+          label: const Text('Crear'),
+        ),
+      ],
+    );
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\moduloAbms\empresas\widgets\empresa_card.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:inv_telas/models/empresa.dart';
+import 'package:inv_telas/utils/styles.dart';
+
+class EmpresaCard extends StatelessWidget {
+  final Empresa empresa;
+  final VoidCallback? onTap;
+
+  const EmpresaCard({super.key, required this.empresa, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 28,
+                backgroundColor: AppColors.primary.withOpacity(0.1),
+                child: const Icon(
+                  Icons.business,
+                  size: 30,
+                  color: AppColors.primary,
+                ),
+              ),
+
+              const SizedBox(width: 16),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      empresa.nombre,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    const SizedBox(height: 4),
+
+                    Text(
+                      empresa.nit ?? 'Sin NIT',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              ),
+
+              const Icon(Icons.arrow_forward_ios_rounded),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\moduloAbms\empresas\widgets\empresa_empty_state.dart =====
+
+import 'package:flutter/material.dart';
+
+class EmpresaEmptyState extends StatelessWidget {
+  final VoidCallback onCrearEmpresa;
+  final VoidCallback onUnirseEmpresa;
+  final VoidCallback onEditarPerfil;
+  final VoidCallback onCerrarSesion;
+
+  const EmpresaEmptyState({
+    super.key,
+    required this.onCrearEmpresa,
+    required this.onUnirseEmpresa,
+    required this.onEditarPerfil,
+    required this.onCerrarSesion,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Card(
+          elevation: 4,
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.business_center_rounded,
+                  size: 90,
+                  color: Colors.blue,
+                ),
+
+                const SizedBox(height: 20),
+
+                const Text(
+                  'Bienvenido',
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                ),
+
+                const SizedBox(height: 10),
+
+                Text(
+                  'AÃºn no tienes empresas asociadas.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey[700]),
+                ),
+
+                const SizedBox(height: 30),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.add_business),
+                    label: const Text('Crear Empresa'),
+                    onPressed: onCrearEmpresa,
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.group_add),
+                    label: const Text('Unirme a Empresa'),
+                    onPressed: onUnirseEmpresa,
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                TextButton.icon(
+                  icon: const Icon(Icons.person),
+                  label: const Text('Editar Perfil'),
+                  onPressed: onEditarPerfil,
+                ),
+
+                TextButton.icon(
+                  icon: const Icon(Icons.logout),
+                  label: const Text('Cerrar SesiÃ³n'),
+                  onPressed: onCerrarSesion,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -3162,17 +3962,11 @@ class AuthNotifier extends StateNotifier<AsyncValue<Usuario?>> {
     required String email,
     required String pass,
     required String nombre,
-
-    /// NUEVOS PARAMETROS
-    required String empresaId,
-    required String rolId,
   }) async {
     return await _authService.register(
       email: email,
       password: pass,
       nombre: nombre,
-      empresaId: empresaId,
-      rolId: rolId,
     );
   }
 
@@ -3185,18 +3979,89 @@ class AuthNotifier extends StateNotifier<AsyncValue<Usuario?>> {
 }
 
 
+===== D:\inv\inventario_telas\lib\providers\empresa_provider.dart =====
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/core/providers/session_provider.dart';
+import 'package:inv_telas/models/empresa.dart';
+import 'package:inv_telas/services/empresa_service.dart';
+
+final empresaServiceProvider = Provider<EmpresaService>(
+  (ref) => EmpresaService(),
+);
+
+class EmpresaNotifier {
+  final Ref ref;
+
+  EmpresaNotifier(this.ref);
+
+  /// =====================================
+  /// REFRESH
+  /// =====================================
+  Future<void> refresh() async {
+    await ref.read(sessionProvider.notifier).refreshSession();
+  }
+
+  /// =====================================
+  /// CAMBIAR EMPRESA
+  /// =====================================
+  Future<void> cambiarEmpresa(Empresa empresa) async {
+    await ref.read(sessionProvider.notifier).cambiarEmpresa(empresa);
+  }
+
+  /// =====================================
+  /// CREAR EMPRESA
+  /// =====================================
+  Future<Empresa?> crearEmpresa({required String nombre, String? nit}) async {
+    try {
+      final session = ref.read(sessionProvider);
+      final usuario = session.usuario;
+
+      if (usuario == null) {
+        throw Exception('Usuario no autenticado');
+      }
+
+      final empresa = Empresa(
+        id: '',
+        nombre: nombre.trim(),
+        nit: nit?.trim().isEmpty == true ? null : nit?.trim(),
+      );
+
+      /// crear empresa
+      final empresaCreada = await ref
+          .read(empresaServiceProvider)
+          .crearEmpresa(
+            empresa: empresa,
+            usuarioId: usuario.id,
+            rolAdministradorId: 'admin',
+          );
+
+      /// refrescar session
+      await ref.read(sessionProvider.notifier).refreshSession();
+
+      /// seleccionar empresa reciÃ©n creada
+      await ref.read(sessionProvider.notifier).cambiarEmpresa(empresaCreada);
+
+      return empresaCreada;
+    } catch (e) {
+      print('âŒ crearEmpresa provider: $e');
+      return null;
+    }
+  }
+}
+
+final empresaProvider = Provider<EmpresaNotifier>(
+  (ref) => EmpresaNotifier(ref),
+);
+
+
 ===== D:\inv\inventario_telas\lib\screens\auth_screen.dart =====
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:inv_telas/core/providers/session_provider.dart';
-import 'package:inv_telas/core/screens/principal_shell.dart';
-import '../../../models/usuario.dart';
+
 import '../../../utils/styles.dart';
 import '../providers/auth_provider.dart';
-
-// Importa tu pantalla de inicio cuando la tengas
-// import 'package:inventario_telas/screens/homeScreen.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
@@ -3209,57 +4074,48 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  // Controladores Login
+  /// LOGIN
   final _emailLoginCtrl = TextEditingController();
   final _passLoginCtrl = TextEditingController();
 
-  // Controladores Registro
+  /// REGISTER
   final _emailRegCtrl = TextEditingController();
   final _passRegCtrl = TextEditingController();
   final _nameRegCtrl = TextEditingController();
 
-  // Estado UI local
   bool _isLoading = false;
   bool _obscurePass = true;
+  bool _obscureRegisterPass = true;
 
   @override
   void initState() {
     super.initState();
+
     _tabController = TabController(length: 2, vsync: this);
-
-    // Listener para redirigir automÃ¡ticamente si ya estÃ¡ logueado
-    Future.microtask(() {
-      ref.listenManual<AsyncValue<Usuario?>>(authProvider, (prev, next) async {
-        next.whenData((user) async {
-          if (user != null && mounted) {
-            // Inicializar sesiÃ³n
-            await ref.read(sessionProvider.notifier).initSession(user);
-
-            // Navegar al shell principal
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const PrincipalShell()),
-            );
-          }
-        });
-      });
-    });
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+
     _emailLoginCtrl.dispose();
     _passLoginCtrl.dispose();
+
     _emailRegCtrl.dispose();
     _passRegCtrl.dispose();
     _nameRegCtrl.dispose();
+
     super.dispose();
   }
 
+  /// =====================================
+  /// LOGIN
+  /// =====================================
   Future<void> _handleLogin() async {
     if (_isLoading) return;
-    if (_emailLoginCtrl.text.isEmpty || _passLoginCtrl.text.isEmpty) {
+
+    if (_emailLoginCtrl.text.trim().isEmpty ||
+        _passLoginCtrl.text.trim().isEmpty) {
       _showError("Complete todos los campos");
       return;
     }
@@ -3268,22 +4124,35 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
 
     final errorMsg = await ref
         .read(authProvider.notifier)
-        .login(_emailLoginCtrl.text, _passLoginCtrl.text);
+        .login(_emailLoginCtrl.text.trim(), _passLoginCtrl.text.trim());
 
-    if (mounted) setState(() => _isLoading = false);
+    if (!mounted) return;
+
+    setState(() => _isLoading = false);
 
     if (errorMsg != null) {
       _showError(errorMsg);
     }
+
+    /// No navegar aquÃ­
+    /// SessionGateScreen se encargarÃ¡ automÃ¡ticamente
   }
 
+  /// =====================================
+  /// REGISTER
+  /// =====================================
   Future<void> _handleRegister() async {
     if (_isLoading) return;
 
-    if (_emailRegCtrl.text.isEmpty ||
-        _passRegCtrl.text.isEmpty ||
-        _nameRegCtrl.text.isEmpty) {
+    if (_emailRegCtrl.text.trim().isEmpty ||
+        _passRegCtrl.text.trim().isEmpty ||
+        _nameRegCtrl.text.trim().isEmpty) {
       _showError("Complete todos los campos");
+      return;
+    }
+
+    if (_passRegCtrl.text.length < 6) {
+      _showError("La contraseÃ±a debe tener mÃ­nimo 6 caracteres");
       return;
     }
 
@@ -3295,33 +4164,30 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
           email: _emailRegCtrl.text.trim(),
           pass: _passRegCtrl.text.trim(),
           nombre: _nameRegCtrl.text.trim(),
-
-          /// NUEVO
-          empresaId: 'empAdmin',
-
-          /// OJO: minÃºsculas
-          rolId: 'vendedor',
         );
 
-    if (mounted) {
-      setState(() => _isLoading = false);
-    }
+    if (!mounted) return;
+
+    setState(() => _isLoading = false);
 
     if (errorMsg != null) {
       _showError(errorMsg);
-    } else {
-      _showSuccess("Cuenta creada. Ahora inicie sesiÃ³n.");
-
-      /// limpiar form
-      _emailRegCtrl.clear();
-      _passRegCtrl.clear();
-      _nameRegCtrl.clear();
-
-      /// volver al login
-      _tabController.animateTo(0);
+      return;
     }
+
+    _showSuccess("Cuenta creada correctamente");
+
+    _emailRegCtrl.clear();
+    _passRegCtrl.clear();
+    _nameRegCtrl.clear();
+
+    /// Volver a login
+    _tabController.animateTo(0);
   }
 
+  /// =====================================
+  /// SNACKS
+  /// =====================================
   void _showError(String msg) {
     ScaffoldMessenger.of(
       context,
@@ -3354,9 +4220,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                 borderRadius: BorderRadius.circular(20),
               ),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 400),
-                child: Container(
-                  width: double.infinity,
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Padding(
                   padding: const EdgeInsets.all(24),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -3366,9 +4231,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                         size: 50,
                         color: AppColors.primary,
                       ),
+
                       const SizedBox(height: 10),
+
                       Text("Inventario Telas", style: AppTextStyles.heading2),
+
                       const SizedBox(height: 20),
+
                       TabBar(
                         controller: _tabController,
                         labelColor: AppColors.primary,
@@ -3378,9 +4247,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
                           Tab(text: "Registrar"),
                         ],
                       ),
+
                       const SizedBox(height: 20),
+
                       SizedBox(
-                        height: 300,
+                        height: 320,
                         child: TabBarView(
                           controller: _tabController,
                           children: [_buildLoginForm(), _buildRegisterForm()],
@@ -3397,20 +4268,26 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
     );
   }
 
+  /// =====================================
+  /// LOGIN FORM
+  /// =====================================
   Widget _buildLoginForm() {
     return Column(
       children: [
         TextField(
           controller: _emailLoginCtrl,
+          keyboardType: TextInputType.emailAddress,
           decoration: const InputDecoration(
             labelText: "Correo electrÃ³nico",
             prefixIcon: Icon(Icons.email_outlined),
           ),
-          keyboardType: TextInputType.emailAddress,
         ),
+
         const SizedBox(height: 16),
+
         TextField(
           controller: _passLoginCtrl,
+          obscureText: _obscurePass,
           decoration: InputDecoration(
             labelText: "ContraseÃ±a",
             prefixIcon: const Icon(Icons.lock_outline),
@@ -3418,39 +4295,38 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
               icon: Icon(
                 _obscurePass ? Icons.visibility : Icons.visibility_off,
               ),
-              onPressed: () => setState(() => _obscurePass = !_obscurePass),
+              onPressed: () {
+                setState(() {
+                  _obscurePass = !_obscurePass;
+                });
+              },
             ),
           ),
-          obscureText: _obscurePass,
         ),
+
         const SizedBox(height: 24),
+
         SizedBox(
           width: double.infinity,
           height: 50,
           child: ElevatedButton(
             onPressed: _isLoading ? null : _handleLogin,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
             child: _isLoading
-                ? const CircularProgressIndicator(color: Colors.white)
-                : const Text(
-                    "ENTRAR",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(),
+                  )
+                : const Text('ENTRAR'),
           ),
         ),
       ],
     );
   }
 
+  /// =====================================
+  /// REGISTER FORM
+  /// =====================================
   Widget _buildRegisterForm() {
     return Column(
       children: [
@@ -3461,46 +4337,53 @@ class _AuthScreenState extends ConsumerState<AuthScreen>
             prefixIcon: Icon(Icons.person_outline),
           ),
         ),
+
         const SizedBox(height: 16),
+
         TextField(
           controller: _emailRegCtrl,
+          keyboardType: TextInputType.emailAddress,
           decoration: const InputDecoration(
-            labelText: "Correo electrÃ³nico",
+            labelText: "Correo",
             prefixIcon: Icon(Icons.email_outlined),
           ),
-          keyboardType: TextInputType.emailAddress,
         ),
+
         const SizedBox(height: 16),
+
         TextField(
           controller: _passRegCtrl,
-          decoration: const InputDecoration(
+          obscureText: _obscureRegisterPass,
+          decoration: InputDecoration(
             labelText: "ContraseÃ±a",
-            prefixIcon: Icon(Icons.lock_outline),
+            prefixIcon: const Icon(Icons.lock_outline),
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscureRegisterPass ? Icons.visibility : Icons.visibility_off,
+              ),
+              onPressed: () {
+                setState(() {
+                  _obscureRegisterPass = !_obscureRegisterPass;
+                });
+              },
+            ),
           ),
-          obscureText: true,
         ),
+
         const SizedBox(height: 24),
+
         SizedBox(
           width: double.infinity,
           height: 50,
           child: ElevatedButton(
             onPressed: _isLoading ? null : _handleRegister,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.success,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
             child: _isLoading
-                ? const CircularProgressIndicator(color: Colors.white)
-                : const Text(
-                    "CREAR CUENTA",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(),
+                  )
+                : const Text('CREAR CUENTA'),
           ),
         ),
       ],
@@ -3599,10 +4482,6 @@ class AuthService {
     required String email,
     required String password,
     required String nombre,
-
-    /// NUEVO
-    required String empresaId,
-    required String rolId,
   }) async {
     try {
       /// Crear Auth
@@ -3611,7 +4490,7 @@ class AuthService {
         password: password,
       );
 
-      /// Crear Firestore
+      /// Crear usuario Firestore
       await _firestore
           .collection(Env.col('usuarios'))
           .doc(result.user!.uid)
@@ -3620,20 +4499,17 @@ class AuthService {
             'email': email,
             'nombre': nombre,
 
-            /// NUEVA ESTRUCTURA CORREGIDA
-            /// Usamos 'rolesIds' (lista) y envolvemos el rolId en corchetes []
-            'empresas': [
-              {
-                'empresaId': empresaId,
-                'rolesIds': [rolId],
-                'sucursalesIds': [],
-              },
-            ],
+            /// VACÃO
+            'empresas': [],
 
             'activo': true,
             'eliminado': false,
             'createdAt': DateTime.now().toIso8601String(),
           });
+
+      /// cerrar sesiÃ³n automÃ¡tica
+      /// para volver al login
+      await _auth.signOut();
 
       return null;
     } on FirebaseAuthException catch (e) {
@@ -3644,7 +4520,6 @@ class AuthService {
       return e.message;
     } catch (e) {
       print(e);
-
       return 'Error al registrar';
     }
   }
@@ -3661,36 +4536,214 @@ class AuthService {
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:inv_telas/config/env.dart';
 import 'package:inv_telas/models/empresa.dart';
+import 'package:inv_telas/models/usuario_empresa_permiso.dart';
+import 'package:inv_telas/models/usuario_empresa_rol.dart';
 
 class EmpresaService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  Future<Empresa?> getEmpresaById(String id) async {
+  CollectionReference<Map<String, dynamic>> get _empresaRef =>
+      _db.collection(Env.col('empresas'));
+
+  CollectionReference<Map<String, dynamic>> get _usuariosRef =>
+      _db.collection(Env.col('usuarios'));
+
+  // ==========================================
+  // OBTENER EMPRESAS DEL USUARIO
+  // ==========================================
+  Future<List<Empresa>> getEmpresasByIds(List<String> ids) async {
     try {
-      final doc = await _db.collection(Env.col('empresas')).doc(id).get();
-      if (doc.exists && doc.data() != null) {
-        return Empresa.fromJson({'id': doc.id, ...doc.data()!});
-      }
-      return null;
+      if (ids.isEmpty) return [];
+
+      final futures = ids.map((id) => _empresaRef.doc(id).get());
+
+      final docs = await Future.wait(futures);
+
+      return docs
+          .where((d) => d.exists)
+          .map((d) => Empresa.fromFirestore(d))
+          .where((e) => !e.eliminado)
+          .toList();
     } catch (e) {
-      print('Error obteniendo empresa: $e');
-      return null;
+      print('âŒ getEmpresasByIds: $e');
+      rethrow;
     }
   }
 
-  Future<List<Empresa>> getEmpresasByIds(List<String> ids) async {
-    if (ids.isEmpty) return [];
+  // ==========================================
+  // CREAR EMPRESA
+  // ==========================================
+  Future<Empresa> crearEmpresa({
+    required Empresa empresa,
+    required String usuarioId,
+    required String rolAdministradorId,
+  }) async {
     try {
-      final snapshot = await _db
-          .collection(Env.col('empresas'))
-          .where(FieldPath.documentId, whereIn: ids)
-          .get();
-      return snapshot.docs
-          .map((doc) => Empresa.fromJson({'id': doc.id, ...doc.data()}))
-          .toList();
+      final doc = _empresaRef.doc();
+
+      final nuevaEmpresa = empresa.copyWith(
+        id: doc.id,
+        fechaCreacion: DateTime.now(),
+        usuarioCreadorId: usuarioId,
+        fechaActualizacion: DateTime.now(),
+        usuarioModificadorId: usuarioId,
+        eliminado: false,
+        activo: true,
+        usuariosPermitidos: [
+          UsuarioEmpresaPermiso(
+            usuarioId: usuarioId,
+            rolesIds: [rolAdministradorId],
+            esPrincipal: true,
+            puedeVender: true,
+            puedeConsultar: true,
+          ),
+        ],
+      );
+
+      final batch = _db.batch();
+
+      batch.set(doc, nuevaEmpresa.toFirestore());
+
+      batch.update(_usuariosRef.doc(usuarioId), {
+        'empresas': FieldValue.arrayUnion([
+          UsuarioEmpresaRol(
+            empresaId: doc.id,
+            rolesIds: [rolAdministradorId],
+            sucursalesIds: [],
+          ).toJson(),
+        ]),
+      });
+
+      await batch.commit();
+
+      print('âœ… Empresa creada correctamente');
+
+      /// DEVOLVER EMPRESA
+      return nuevaEmpresa;
     } catch (e) {
-      print('Error obteniendo empresas: $e');
-      return [];
+      print('âŒ crearEmpresa: $e');
+      rethrow;
+    }
+  }
+
+  // ==========================================
+  // ACTUALIZAR EMPRESA
+  // ==========================================
+  Future<void> actualizarEmpresa(Empresa empresa, String usuarioId) async {
+    try {
+      await _empresaRef
+          .doc(empresa.id)
+          .set(
+            empresa
+                .copyWith(
+                  fechaActualizacion: DateTime.now(),
+                  usuarioModificadorId: usuarioId,
+                )
+                .toFirestore(),
+            SetOptions(merge: true),
+          );
+    } catch (e) {
+      print('âŒ actualizarEmpresa: $e');
+      rethrow;
+    }
+  }
+
+  // ==========================================
+  // ELIMINACIÃ“N LÃ“GICA
+  // ==========================================
+  Future<void> eliminarEmpresa({
+    required String empresaId,
+    required String usuarioId,
+  }) async {
+    try {
+      await _empresaRef.doc(empresaId).update({
+        'activo': false,
+        'eliminado': true,
+        'fechaEliminacion': Timestamp.now(),
+        'usuarioEliminadorId': usuarioId,
+        'fechaActualizacion': Timestamp.now(),
+        'usuarioModificadorId': usuarioId,
+      });
+    } catch (e) {
+      print('âŒ eliminarEmpresa: $e');
+      rethrow;
+    }
+  }
+
+  // ==========================================
+  // AGREGAR USUARIO A EMPRESA
+  // ==========================================
+  Future<void> agregarUsuarioAEmpresa({
+    required String empresaId,
+    required String usuarioId,
+    required List<String> rolesIds,
+    bool esPrincipal = false,
+  }) async {
+    try {
+      final permiso = UsuarioEmpresaPermiso(
+        usuarioId: usuarioId,
+        rolesIds: rolesIds,
+        esPrincipal: esPrincipal,
+        puedeVender: !esPrincipal,
+        puedeConsultar: true,
+      );
+
+      await _empresaRef.doc(empresaId).update({
+        'usuariosPermitidos': FieldValue.arrayUnion([permiso.toJson()]),
+      });
+
+      await _usuariosRef.doc(usuarioId).update({
+        'empresas': FieldValue.arrayUnion([
+          UsuarioEmpresaRol(
+            empresaId: empresaId,
+            rolesIds: rolesIds,
+            sucursalesIds: [],
+          ).toJson(),
+        ]),
+      });
+    } catch (e) {
+      print('âŒ agregarUsuarioAEmpresa: $e');
+      rethrow;
+    }
+  }
+
+  // ==========================================
+  // CAMBIAR ROLES
+  // ==========================================
+  Future<void> cambiarRolesUsuario({
+    required String empresaId,
+    required String usuarioId,
+    required List<String> nuevosRoles,
+  }) async {
+    try {
+      final empresaDoc = await _empresaRef.doc(empresaId).get();
+
+      if (!empresaDoc.exists) return;
+
+      final empresa = Empresa.fromFirestore(empresaDoc);
+
+      final usuariosActualizados = empresa.usuariosPermitidos.map((u) {
+        if (u.usuarioId == usuarioId) {
+          return UsuarioEmpresaPermiso(
+            usuarioId: u.usuarioId,
+            rolesIds: nuevosRoles,
+            esPrincipal: u.esPrincipal,
+            puedeVender: u.puedeVender,
+            puedeConsultar: u.puedeConsultar,
+          );
+        }
+
+        return u;
+      }).toList();
+
+      await _empresaRef.doc(empresaId).update({
+        'usuariosPermitidos': usuariosActualizados
+            .map((e) => e.toJson())
+            .toList(),
+      });
+    } catch (e) {
+      print('âŒ cambiarRolesUsuario: $e');
+      rethrow;
     }
   }
 }

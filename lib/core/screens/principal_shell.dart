@@ -207,38 +207,38 @@ class _PrincipalShellState extends ConsumerState<PrincipalShell> {
         // En el build del AppBar, dentro de actions:
         actions: [
           /// SELECTOR DE ROL (Nuevo)
-          if (session.rolesDisponibles.length > 1)
-            PopupMenuButton<Rol>(
-              icon: Row(
-                children: [
-                  Text(
-                    session.rolActual?.nombre ?? "Rol",
-                    style: const TextStyle(color: Colors.white, fontSize: 12),
-                  ),
-                  const Icon(Icons.arrow_drop_down, color: Colors.white),
-                ],
-              ),
-              onSelected: (Rol rol) {
-                ref.read(sessionProvider.notifier).cambiarRol(rol);
-              },
-              itemBuilder: (context) {
-                return session.rolesDisponibles.map((rol) {
-                  return PopupMenuItem<Rol>(
-                    value: rol,
-                    child: Row(
-                      children: [
-                        if (session.rolActual?.id == rol.id)
-                          const Icon(Icons.check, size: 20, color: Colors.green)
-                        else
-                          const SizedBox(width: 20),
-                        const SizedBox(width: 8),
-                        Text(rol.nombre),
-                      ],
-                    ),
-                  );
-                }).toList();
-              },
+          //if (session.rolesDisponibles.length > 1)
+          PopupMenuButton<Rol>(
+            icon: Row(
+              children: [
+                Text(
+                  session.rolActual?.nombre ?? "Rol",
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                ),
+                const Icon(Icons.arrow_drop_down, color: Colors.white),
+              ],
             ),
+            onSelected: (Rol rol) {
+              ref.read(sessionProvider.notifier).cambiarRol(rol);
+            },
+            itemBuilder: (context) {
+              return session.rolesDisponibles.map((rol) {
+                return PopupMenuItem<Rol>(
+                  value: rol,
+                  child: Row(
+                    children: [
+                      if (session.rolActual?.id == rol.id)
+                        const Icon(Icons.check, size: 20, color: Colors.green)
+                      else
+                        const SizedBox(width: 20),
+                      const SizedBox(width: 8),
+                      Text(rol.nombre),
+                    ],
+                  ),
+                );
+              }).toList();
+            },
+          ),
 
           /// CAMBIAR EMPRESA (Existente)
           if (session.empresasDisponibles.length > 1)
@@ -254,7 +254,7 @@ class _PrincipalShellState extends ConsumerState<PrincipalShell> {
           /// LOGOUT
           IconButton(
             icon: const Icon(Icons.logout),
-            tooltip: "Cerrar Sesión",
+            tooltip: "Cerrar Sesión 1",
             onPressed: () async {
               final confirm = await showDialog<bool>(
                 context: context,
