@@ -1,0 +1,931 @@
+﻿
+
+===== .\lib\providers\empresa_provider.dart =====
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/core/providers/session_provider.dart';
+import 'package:inv_telas/models/empresa.dart';
+import 'package:inv_telas/services/empresa_service.dart';
+
+final empresaServiceProvider = Provider<EmpresaService>(
+  (ref) => EmpresaService(),
+);
+
+class EmpresaNotifier {
+  final Ref ref;
+
+  EmpresaNotifier(this.ref);
+
+  /// =====================================
+  /// REFRESH
+  /// =====================================
+  Future<void> refresh() async {
+    await ref.read(sessionProvider.notifier).refreshSession();
+  }
+
+  /// =====================================
+  /// CAMBIAR EMPRESA
+  /// =====================================
+  Future<void> cambiarEmpresa(Empresa empresa) async {
+    await ref.read(sessionProvider.notifier).cambiarEmpresa(empresa);
+  }
+
+  /// =====================================
+  /// CREAR EMPRESA
+  /// =====================================
+  Future<Empresa?> crearEmpresa({required String nombre, String? nit}) async {
+    try {
+      final session = ref.read(sessionProvider);
+      final usuario = session.usuario;
+
+      if (usuario == null) {
+        throw Exception('Usuario no autenticado');
+      }
+
+      final empresa = Empresa(
+        id: '',
+        nombre: nombre.trim(),
+        nit: nit?.trim().isEmpty == true ? null : nit?.trim(),
+      );
+
+      /// crear empresa
+      final empresaCreada = await ref
+          .read(empresaServiceProvider)
+          .crearEmpresa(
+            empresa: empresa,
+            usuarioId: usuario.id,
+            rolAdministradorId: 'admin',
+          );
+
+      /// refrescar session
+      await ref.read(sessionProvider.notifier).refreshSession();
+
+      /// seleccionar empresa reciÃ©n creada
+      await ref.read(sessionProvider.notifier).cambiarEmpresa(empresaCreada);
+
+      return empresaCreada;
+    } catch (e) {
+      print('âŒ crearEmpresa provider: $e');
+      return null;
+    }
+  }
+}
+
+final empresaProvider = Provider<EmpresaNotifier>(
+  (ref) => EmpresaNotifier(ref),
+);
+
+
+===== .\lib\services\empresa_service.dart =====
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:inv_telas/config/env.dart';
+import 'package:inv_telas/models/empresa.dart';
+import 'package:inv_telas/models/usuario_empresa_permiso.dart';
+import 'package:inv_telas/models/usuario_empresa_rol.dart';
+
+class EmpresaService {
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  CollectionReference<Map<String, dynamic>> get _empresaRef =>
+      _db.collection(Env.col('empresas'));
+
+  CollectionReference<Map<String, dynamic>> get _usuariosRef =>
+      _db.collection(Env.col('usuarios'));
+
+  // ==========================================
+  // OBTENER EMPRESAS DEL USUARIO
+  // ==========================================
+  Future<List<Empresa>> getEmpresasByIds(List<String> ids) async {
+    try {
+      if (ids.isEmpty) return [];
+
+      final futures = ids.map((id) => _empresaRef.doc(id).get());
+
+      final docs = await Future.wait(futures);
+
+      return docs
+          .where((d) => d.exists)
+          .map((d) => Empresa.fromFirestore(d))
+          .where((e) => !e.eliminado)
+          .toList();
+    } catch (e) {
+      print('âŒ getEmpresasByIds: $e');
+      rethrow;
+    }
+  }
+
+  // ==========================================
+  // CREAR EMPRESA
+  // ==========================================
+  Future<Empresa> crearEmpresa({
+    required Empresa empresa,
+    required String usuarioId,
+    required String rolAdministradorId,
+  }) async {
+    try {
+      final doc = _empresaRef.doc();
+
+      final nuevaEmpresa = empresa.copyWith(
+        id: doc.id,
+        fechaCreacion: DateTime.now(),
+        usuarioCreadorId: usuarioId,
+        fechaActualizacion: DateTime.now(),
+        usuarioModificadorId: usuarioId,
+        eliminado: false,
+        activo: true,
+        usuariosPermitidos: [
+          UsuarioEmpresaPermiso(
+            usuarioId: usuarioId,
+            rolesIds: [rolAdministradorId],
+            esPrincipal: true,
+            puedeVender: true,
+            puedeConsultar: true,
+          ),
+        ],
+      );
+
+      final batch = _db.batch();
+
+      batch.set(doc, nuevaEmpresa.toFirestore());
+
+      batch.update(_usuariosRef.doc(usuarioId), {
+        'empresas': FieldValue.arrayUnion([
+          UsuarioEmpresaRol(
+            empresaId: doc.id,
+            rolesIds: [rolAdministradorId],
+            sucursalesIds: [],
+          ).toJson(),
+        ]),
+      });
+
+      await batch.commit();
+
+      print('âœ… Empresa creada correctamente');
+
+      /// DEVOLVER EMPRESA
+      return nuevaEmpresa;
+    } catch (e) {
+      print('âŒ crearEmpresa: $e');
+      rethrow;
+    }
+  }
+
+  // ==========================================
+  // ACTUALIZAR EMPRESA
+  // ==========================================
+  Future<void> actualizarEmpresa(Empresa empresa, String usuarioId) async {
+    try {
+      await _empresaRef
+          .doc(empresa.id)
+          .set(
+            empresa
+                .copyWith(
+                  fechaActualizacion: DateTime.now(),
+                  usuarioModificadorId: usuarioId,
+                )
+                .toFirestore(),
+            SetOptions(merge: true),
+          );
+    } catch (e) {
+      print('âŒ actualizarEmpresa: $e');
+      rethrow;
+    }
+  }
+
+  // ==========================================
+  // ELIMINACIÃ“N LÃ“GICA
+  // ==========================================
+  Future<void> eliminarEmpresa({
+    required String empresaId,
+    required String usuarioId,
+  }) async {
+    try {
+      await _empresaRef.doc(empresaId).update({
+        'activo': false,
+        'eliminado': true,
+        'fechaEliminacion': Timestamp.now(),
+        'usuarioEliminadorId': usuarioId,
+        'fechaActualizacion': Timestamp.now(),
+        'usuarioModificadorId': usuarioId,
+      });
+    } catch (e) {
+      print('âŒ eliminarEmpresa: $e');
+      rethrow;
+    }
+  }
+
+  // ==========================================
+  // AGREGAR USUARIO A EMPRESA
+  // ==========================================
+  Future<void> agregarUsuarioAEmpresa({
+    required String empresaId,
+    required String usuarioId,
+    required List<String> rolesIds,
+    bool esPrincipal = false,
+  }) async {
+    try {
+      final permiso = UsuarioEmpresaPermiso(
+        usuarioId: usuarioId,
+        rolesIds: rolesIds,
+        esPrincipal: esPrincipal,
+        puedeVender: !esPrincipal,
+        puedeConsultar: true,
+      );
+
+      await _empresaRef.doc(empresaId).update({
+        'usuariosPermitidos': FieldValue.arrayUnion([permiso.toJson()]),
+      });
+
+      await _usuariosRef.doc(usuarioId).update({
+        'empresas': FieldValue.arrayUnion([
+          UsuarioEmpresaRol(
+            empresaId: empresaId,
+            rolesIds: rolesIds,
+            sucursalesIds: [],
+          ).toJson(),
+        ]),
+      });
+    } catch (e) {
+      print('âŒ agregarUsuarioAEmpresa: $e');
+      rethrow;
+    }
+  }
+
+  // ==========================================
+  // CAMBIAR ROLES
+  // ==========================================
+  Future<void> cambiarRolesUsuario({
+    required String empresaId,
+    required String usuarioId,
+    required List<String> nuevosRoles,
+  }) async {
+    try {
+      final empresaDoc = await _empresaRef.doc(empresaId).get();
+
+      if (!empresaDoc.exists) return;
+
+      final empresa = Empresa.fromFirestore(empresaDoc);
+
+      final usuariosActualizados = empresa.usuariosPermitidos.map((u) {
+        if (u.usuarioId == usuarioId) {
+          return UsuarioEmpresaPermiso(
+            usuarioId: u.usuarioId,
+            rolesIds: nuevosRoles,
+            esPrincipal: u.esPrincipal,
+            puedeVender: u.puedeVender,
+            puedeConsultar: u.puedeConsultar,
+          );
+        }
+
+        return u;
+      }).toList();
+
+      await _empresaRef.doc(empresaId).update({
+        'usuariosPermitidos': usuariosActualizados
+            .map((e) => e.toJson())
+            .toList(),
+      });
+    } catch (e) {
+      print('âŒ cambiarRolesUsuario: $e');
+      rethrow;
+    }
+  }
+}
+
+
+===== .\lib\moduloAbms\menus\providers\menu_abm_provider.dart =====
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/moduloAbms/menus/services/menu_abm_service.dart';
+
+final menuAbmServiceProvider = Provider((ref) => MenuAbmService());
+
+final menusAbmStreamProvider = StreamProvider.autoDispose((ref) {
+  return ref.watch(menuAbmServiceProvider).streamMenus();
+});
+
+
+===== .\lib\moduloAbms\menus\services\menu_abm_service.dart =====
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:inv_telas/config/env.dart';
+import 'package:inv_telas/models/menu_item.dart';
+
+class MenuAbmService {
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  CollectionReference<Map<String, dynamic>> get _menusRef =>
+      _db.collection(Env.col('menus'));
+
+  /// STREAM MENUS
+  /// Realtime sin loading infinito
+  Stream<List<MenuApp>> streamMenus() {
+    return _menusRef.orderBy('ordenBase', descending: false).snapshots().map((
+      snapshot,
+    ) {
+      return snapshot.docs
+          .map((doc) => MenuApp.fromJson({...doc.data(), 'id': doc.id}))
+          .where((m) => !m.eliminado && m.activo && m.visible)
+          .toList();
+    });
+  }
+
+  /// CREAR / EDITAR MENU
+  Future<void> guardarMenu(MenuApp menu, String usuarioId) async {
+    try {
+      final now = DateTime.now();
+
+      // NUEVO
+      if (menu.id.isEmpty) {
+        final newDoc = _menusRef.doc();
+
+        final nuevoMenu = menu.copyWith(
+          id: newDoc.id,
+          eliminado: false,
+          fechaCreacion: now,
+          usuarioCreadorId: usuarioId,
+          fechaActualizacion: now,
+          usuarioModificadorId: usuarioId,
+        );
+
+        await newDoc.set(nuevoMenu.toJson());
+
+        print('âœ… MenÃº creado: ${nuevoMenu.nombre}');
+      }
+      // EDITAR
+      else {
+        final actualizado = menu.copyWith(
+          fechaActualizacion: now,
+          usuarioModificadorId: usuarioId,
+        );
+
+        await _menusRef
+            .doc(menu.id)
+            .set(actualizado.toJson(), SetOptions(merge: true));
+
+        print('âœï¸ MenÃº actualizado: ${menu.nombre}');
+      }
+    } catch (e) {
+      print('âŒ guardarMenu: $e');
+      rethrow;
+    }
+  }
+
+  /// ELIMINACION LOGICA
+  Future<void> eliminarMenu(String id, String usuarioId) async {
+    try {
+      final now = Timestamp.now();
+
+      await _menusRef.doc(id).update({
+        'eliminado': true,
+        'activo': false,
+        'fechaEliminacion': now,
+        'usuarioEliminadorId': usuarioId,
+        'fechaActualizacion': now,
+        'usuarioModificadorId': usuarioId,
+      });
+
+      print('ðŸ—‘ï¸ MenÃº eliminado: $id');
+    } catch (e) {
+      print('âŒ eliminarMenu: $e');
+      rethrow;
+    }
+  }
+
+  /// RESTAURAR MENU
+  Future<void> restaurarMenu(String id, String usuarioId) async {
+    try {
+      final now = Timestamp.now();
+
+      await _menusRef.doc(id).update({
+        'eliminado': false,
+        'activo': true,
+        'fechaEliminacion': null,
+        'usuarioEliminadorId': null,
+        'fechaActualizacion': now,
+        'usuarioModificadorId': usuarioId,
+      });
+
+      print('â™»ï¸ MenÃº restaurado');
+    } catch (e) {
+      print('âŒ restaurarMenu: $e');
+      rethrow;
+    }
+  }
+}
+
+
+===== .\lib\moduloAbms\menus\screens\menus_abm_screen.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/core/providers/session_provider.dart';
+import 'package:inv_telas/core/widgets/action_dialog.dart';
+import 'package:inv_telas/models/menu_item.dart';
+import 'package:inv_telas/moduloAbms/menus/providers/menu_abm_provider.dart';
+import 'package:inv_telas/moduloAbms/menus/widgets/menu_form_dialog.dart';
+import 'package:inv_telas/utils/icon_mapper.dart';
+
+class MenusAbmScreen extends ConsumerWidget {
+  const MenusAbmScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final menusAsync = ref.watch(menusAbmStreamProvider);
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
+    return Scaffold(
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          showDialog(
+            context: context,
+            builder: (_) => const MenuFormDialog(menu: null),
+          );
+        },
+        label: const Text('Nuevo MenÃº'),
+        icon: const Icon(Icons.add),
+      ),
+      body: menusAsync.when(
+        data: (menus) {
+          if (menus.isEmpty) return const Center(child: Text('No hay menÃºs'));
+
+          // RESPONSIVE: Tarjetas en MÃ³vil, Tabla en PC
+          if (isMobile) {
+            return ListView.builder(
+              padding: const EdgeInsets.all(12),
+              itemCount: menus.length,
+              itemBuilder: (_, i) => _MenuCard(menu: menus[i]),
+            );
+          } else {
+            return _MenuTable(menus: menus);
+          }
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('Error: $e')),
+      ),
+    );
+  }
+}
+
+// Widget para Vista de Tabla (PC)
+class _MenuTable extends StatelessWidget {
+  final List<MenuApp> menus;
+  const _MenuTable({required this.menus});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      child: DataTable(
+        columns: const [
+          DataColumn(label: Text('Nombre')),
+          DataColumn(label: Text('Ruta')),
+          DataColumn(label: Text('Icono')),
+          DataColumn(label: Text('Orden')),
+          DataColumn(label: Text('Activo')),
+          DataColumn(label: Text('Acciones')),
+        ],
+        rows: menus.map((m) {
+          return DataRow(
+            cells: [
+              DataCell(Text(m.nombre)),
+              DataCell(Text(m.ruta)),
+              DataCell(Icon(IconMapper.getIcon(m.icono))),
+              DataCell(Text(m.ordenBase.toString())),
+              DataCell(
+                Icon(
+                  m.activo ? Icons.check_circle : Icons.cancel,
+                  color: m.activo ? Colors.green : Colors.red,
+                ),
+              ),
+              DataCell(
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.edit),
+                      onPressed: () => _openForm(context, m),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () => _confirmDelete(context, m),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+// Widget para Vista de Tarjeta (MÃ³vil)
+class _MenuCard extends StatelessWidget {
+  final MenuApp menu;
+  const _MenuCard({required this.menu});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        leading: Icon(IconMapper.getIcon(menu.icono)),
+        title: Text(menu.nombre),
+        subtitle: Text(menu.ruta),
+        trailing: PopupMenuButton(
+          itemBuilder: (_) => [
+            const PopupMenuItem(value: 'edit', child: Text('Editar')),
+            const PopupMenuItem(value: 'delete', child: Text('Eliminar')),
+          ],
+          onSelected: (val) {
+            if (val == 'edit') _openForm(context, menu);
+            if (val == 'delete') _confirmDelete(context, menu);
+          },
+        ),
+      ),
+    );
+  }
+}
+
+void _openForm(BuildContext context, MenuApp? menu) {
+  showDialog(
+    context: context,
+    builder: (_) => MenuFormDialog(menu: menu),
+  );
+}
+
+void _confirmDelete(BuildContext context, MenuApp menu) {
+  showDialog(
+    context: context,
+    builder: (_) => ActionDialog(
+      titulo: 'Eliminar MenÃº',
+      mensaje: 'Â¿EstÃ¡ seguro de eliminar el menÃº "${menu.nombre}"?',
+      type: ActionDialogType.delete,
+      onConfirm: () async {
+        // AquÃ­ necesitarÃ­as inyectar el ref o pasar el service, simplificamos usando ProviderScope
+        final container = ProviderScope.containerOf(context);
+        final userId = container.read(currentUserProvider).id;
+        await container
+            .read(menuAbmServiceProvider)
+            .eliminarMenu(menu.id, userId);
+      },
+    ),
+  );
+}
+
+
+===== .\lib\moduloAbms\roles\providers\rol_abm_provider.dart =====
+
+// Archivo: lib/moduloAbms/roles/providers/rol_abm_provider.dart
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/moduloAbms/roles/services/rol_abm_service.dart';
+import 'package:inv_telas/services/menu_service.dart';
+
+// ðŸ‘‡ IMPORTANTE: Importar el archivo donde estÃ¡ definido 'menuServiceProvider'
+import 'package:inv_telas/core/providers/session_provider.dart'; 
+
+final rolAbmServiceProvider = Provider((ref) => RolAbmService());
+
+final rolesAbmStreamProvider = StreamProvider.autoDispose((ref) {
+  return ref.watch(rolAbmServiceProvider).streamRoles();
+});
+
+// Provider para traer todos los menÃºs disponibles
+final allMenusForSelectProvider = FutureProvider.autoDispose((ref) async {
+  // Ahora 'menuServiceProvider' sÃ­ es reconocido porque lo importamos arriba
+  return ref.watch(menuServiceProvider).getAllMenus();
+});
+
+
+===== .\lib\moduloAbms\roles\services\rol_abm_service.dart =====
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:inv_telas/config/env.dart';
+import 'package:inv_telas/models/rol.dart';
+
+class RolAbmService {
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  CollectionReference<Map<String, dynamic>> get _rolesRef =>
+      _db.collection(Env.col('roles'));
+
+  /// STREAM ROLES
+  /// realtime estable
+  Stream<List<Rol>> streamRoles() {
+    return _rolesRef.snapshots().map((snapshot) {
+      return snapshot.docs
+          .map((doc) => Rol.fromJson({...doc.data(), 'id': doc.id}))
+          // FILTRADO EN MEMORIA
+          .where((r) => !(r.eliminado ?? false) && (r.activo ?? true))
+          .toList();
+    });
+  }
+
+  /// CREAR / EDITAR ROL
+  Future<void> guardarRol(Rol rol, String usuarioId) async {
+    try {
+      final now = DateTime.now();
+
+      // NUEVO
+      if (rol.id.isEmpty) {
+        final newDoc = _rolesRef.doc();
+
+        final nuevoRol = rol.copyWith(
+          id: newDoc.id,
+
+          eliminado: false,
+
+          fechaCreacion: now,
+          usuarioCreadorId: usuarioId,
+
+          fechaActualizacion: now,
+          usuarioModificadorId: usuarioId,
+        );
+
+        await newDoc.set(nuevoRol.toJson());
+
+        print('âœ… Rol creado: ${nuevoRol.nombre}');
+      }
+      // EDITAR
+      else {
+        final rolActualizado = rol.copyWith(
+          fechaActualizacion: now,
+          usuarioModificadorId: usuarioId,
+        );
+
+        await _rolesRef
+            .doc(rol.id)
+            .set(rolActualizado.toJson(), SetOptions(merge: true));
+
+        print('âœï¸ Rol actualizado: ${rol.nombre}');
+      }
+    } catch (e) {
+      print('âŒ Error guardarRol: $e');
+      rethrow;
+    }
+  }
+
+  /// ELIMINACION LOGICA
+  Future<void> eliminarRol(String id, String usuarioId) async {
+    try {
+      final now = Timestamp.now();
+
+      await _rolesRef.doc(id).update({
+        'eliminado': true,
+
+        'activo': false,
+
+        'fechaEliminacion': now,
+
+        'usuarioEliminadorId': usuarioId,
+
+        'fechaActualizacion': now,
+
+        'usuarioModificadorId': usuarioId,
+      });
+
+      print('ðŸ—‘ï¸ Rol eliminado: $id');
+    } catch (e) {
+      print('âŒ Error eliminarRol: $e');
+      rethrow;
+    }
+  }
+
+  /// RESTAURAR ROL
+  Future<void> restaurarRol(String id, String usuarioId) async {
+    try {
+      final now = Timestamp.now();
+
+      await _rolesRef.doc(id).update({
+        'eliminado': false,
+
+        'activo': true,
+
+        'fechaEliminacion': null,
+
+        'usuarioEliminadorId': null,
+
+        'fechaActualizacion': now,
+
+        'usuarioModificadorId': usuarioId,
+      });
+
+      print('â™»ï¸ Rol restaurado');
+    } catch (e) {
+      print('âŒ Error restaurarRol: $e');
+      rethrow;
+    }
+  }
+
+  /// TODOS LOS ROLES
+  /// incluye eliminados
+  Stream<List<Rol>> streamTodosRoles() {
+    return _rolesRef.snapshots().map((snapshot) {
+      return snapshot.docs
+          .map((doc) => Rol.fromJson({...doc.data(), 'id': doc.id}))
+          .toList();
+    });
+  }
+
+  /// SOLO ELIMINADOS
+  Stream<List<Rol>> streamRolesEliminados() {
+    return _rolesRef.snapshots().map((snapshot) {
+      return snapshot.docs
+          .map((doc) => Rol.fromJson({...doc.data(), 'id': doc.id}))
+          .where((r) => r.eliminado ?? false)
+          .toList();
+    });
+  }
+}
+
+
+===== .\lib\moduloAbms\roles\screens\roles_abm_screen.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/core/providers/session_provider.dart';
+import 'package:inv_telas/core/widgets/action_dialog.dart';
+import 'package:inv_telas/moduloAbms/roles/providers/rol_abm_provider.dart';
+import 'package:inv_telas/moduloAbms/roles/widgets/rol_form_dialog.dart';
+import 'package:inv_telas/models/rol.dart';
+
+class RolesAbmScreen extends ConsumerWidget {
+  const RolesAbmScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rolesAsync = ref.watch(rolesAbmStreamProvider);
+
+    return Scaffold(
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => showDialog(
+          context: context,
+          builder: (_) => const RolFormDialog(rol: null),
+        ),
+        label: const Text('Nuevo Rol'),
+        icon: const Icon(Icons.add),
+      ),
+      body: rolesAsync.when(
+        data: (roles) {
+          if (roles.isEmpty) return const Center(child: Text('No hay roles'));
+          return ListView.builder(
+            itemCount: roles.length,
+            itemBuilder: (_, i) {
+              final rol = roles[i];
+              return Card(
+                child: ListTile(
+                  title: Text(rol.nombre),
+                  subtitle: Text(
+                    'Permisos: ${rol.menusPermitidos.length} menÃºs',
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit),
+                        onPressed: () => _openForm(context, rol),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () => _confirmDelete(context, ref, rol),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('Error: $e')),
+      ),
+    );
+  }
+
+  void _openForm(BuildContext context, Rol? rol) {
+    showDialog(
+      context: context,
+      builder: (_) => RolFormDialog(rol: rol),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, WidgetRef ref, Rol rol) {
+    showDialog(
+      context: context,
+      builder: (_) => ActionDialog(
+        titulo: 'Eliminar Rol',
+        mensaje:
+            'Â¿EstÃ¡ seguro de eliminar el rol "${rol.nombre}"? Esto afectarÃ¡ a los usuarios asignados.',
+        type: ActionDialogType.delete,
+        onConfirm: () async {
+          final userId = ref.read(currentUserProvider).id;
+          await ref.read(rolAbmServiceProvider).eliminarRol(rol.id, userId);
+        },
+      ),
+    );
+  }
+}
+
+
+===== .\lib\widgets\confirm_action_dialog.dart =====
+
+import 'package:flutter/material.dart';
+
+class ConfirmActionDialog extends StatefulWidget {
+  final String title;
+  final String message;
+  final IconData icon;
+  final Color iconColor;
+  final String confirmText;
+  final Future<void> Function() onConfirm;
+
+  const ConfirmActionDialog({
+    super.key,
+    required this.title,
+    required this.message,
+    required this.icon,
+    required this.iconColor,
+    this.confirmText = "Confirmar",
+    required this.onConfirm,
+  });
+
+  @override
+  State<ConfirmActionDialog> createState() => _ConfirmActionDialogState();
+}
+
+class _ConfirmActionDialogState extends State<ConfirmActionDialog> {
+  bool _isLoading = false;
+
+  Future<void> _handleConfirm() async {
+    setState(() => _isLoading = true);
+    try {
+      await widget.onConfirm();
+      if (mounted)
+        Navigator.of(context).pop(true); // Devuelve true si fue exitoso
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+        );
+      }
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Row(
+        children: [
+          Icon(widget.icon, color: widget.iconColor, size: 28),
+          const SizedBox(width: 10),
+          Text(widget.title),
+        ],
+      ),
+      content: Text(widget.message),
+      actions: [
+        TextButton(
+          onPressed: _isLoading ? null : () => Navigator.of(context).pop(false),
+          child: const Text("Cancelar"),
+        ),
+        ElevatedButton(
+          onPressed: _isLoading ? null : _handleConfirm,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: widget.iconColor,
+            foregroundColor: Colors.white,
+          ),
+          child: _isLoading
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
+                )
+              : Text(widget.confirmText),
+        ),
+      ],
+    );
+  }
+}
+
+
+===== .\lib\utils\styles.dart =====
+
+import 'package:flutter/material.dart';
+
+class AppColors {
+  static const Color primary = Color(0xFF1565C0); // Azul
+  static const Color success = Color(0xFF2E7D32); // Verde
+}
+
+class AppTextStyles {
+  static const TextStyle heading2 = TextStyle(
+    fontSize: 24,
+    fontWeight: FontWeight.bold,
+    color: Colors.black87,
+  );
+}
