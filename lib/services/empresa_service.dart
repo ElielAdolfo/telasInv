@@ -3,6 +3,7 @@ import 'package:inv_telas/config/env.dart';
 import 'package:inv_telas/models/empresa.dart';
 import 'package:inv_telas/models/usuario_empresa_permiso.dart';
 import 'package:inv_telas/models/usuario_empresa_rol.dart';
+import 'package:inv_telas/models/usuario_sucursal_rol.dart';
 
 class EmpresaService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -57,10 +58,16 @@ class EmpresaService {
         usuariosPermitidos: [
           UsuarioEmpresaPermiso(
             usuarioId: usuarioId,
-            rolesIds: [rolAdministradorId],
+            sucursales: [],
             esPrincipal: true,
             puedeVender: true,
             puedeConsultar: true,
+            activo: true,
+            eliminado: false,
+            usuarioCreadorId: usuarioId,
+            usuarioModificadorId: usuarioId,
+            fechaCreacion: DateTime.now(),
+            fechaActualizacion: DateTime.now(),
           ),
         ],
       );
@@ -73,8 +80,13 @@ class EmpresaService {
         'empresas': FieldValue.arrayUnion([
           UsuarioEmpresaRol(
             empresaId: doc.id,
-            rolesIds: [rolAdministradorId],
-            sucursalesIds: [],
+            sucursales: [],
+            activo: true,
+            eliminado: false,
+            usuarioCreadorId: usuarioId,
+            usuarioModificadorId: usuarioId,
+            fechaCreacion: DateTime.now(),
+            fechaActualizacion: DateTime.now(),
           ).toJson(),
         ]),
       });
@@ -141,16 +153,22 @@ class EmpresaService {
   Future<void> agregarUsuarioAEmpresa({
     required String empresaId,
     required String usuarioId,
-    required List<String> rolesIds,
+    required List<UsuarioSucursalRol> sucursales,
     bool esPrincipal = false,
   }) async {
     try {
       final permiso = UsuarioEmpresaPermiso(
         usuarioId: usuarioId,
-        rolesIds: rolesIds,
+        sucursales: sucursales,
         esPrincipal: esPrincipal,
         puedeVender: !esPrincipal,
         puedeConsultar: true,
+        activo: true,
+        eliminado: false,
+        usuarioCreadorId: usuarioId,
+        usuarioModificadorId: usuarioId,
+        fechaCreacion: DateTime.now(),
+        fechaActualizacion: DateTime.now(),
       );
 
       await _empresaRef.doc(empresaId).update({
@@ -161,8 +179,13 @@ class EmpresaService {
         'empresas': FieldValue.arrayUnion([
           UsuarioEmpresaRol(
             empresaId: empresaId,
-            rolesIds: rolesIds,
-            sucursalesIds: [],
+            sucursales: sucursales,
+            activo: true,
+            eliminado: false,
+            usuarioCreadorId: usuarioId,
+            usuarioModificadorId: usuarioId,
+            fechaCreacion: DateTime.now(),
+            fechaActualizacion: DateTime.now(),
           ).toJson(),
         ]),
       });
@@ -178,34 +201,90 @@ class EmpresaService {
   Future<void> cambiarRolesUsuario({
     required String empresaId,
     required String usuarioId,
+    required String sucursalId,
     required List<String> nuevosRoles,
   }) async {
     try {
       final empresaDoc = await _empresaRef.doc(empresaId).get();
+      final usuarioDoc = await _usuariosRef.doc(usuarioId).get();
 
-      if (!empresaDoc.exists) return;
+      if (!empresaDoc.exists || !usuarioDoc.exists) {
+        return;
+      }
 
       final empresa = Empresa.fromFirestore(empresaDoc);
 
+      // ==========================
+      // ACTUALIZAR EMPRESA
+      // ==========================
       final usuariosActualizados = empresa.usuariosPermitidos.map((u) {
-        if (u.usuarioId == usuarioId) {
-          return UsuarioEmpresaPermiso(
-            usuarioId: u.usuarioId,
-            rolesIds: nuevosRoles,
-            esPrincipal: u.esPrincipal,
-            puedeVender: u.puedeVender,
-            puedeConsultar: u.puedeConsultar,
-          );
+        if (u.usuarioId != usuarioId) {
+          return u;
         }
 
-        return u;
+        final sucursalesActualizadas = u.sucursales.map((s) {
+          if (s.sucursalId != sucursalId) {
+            return s;
+          }
+
+          return s.copyWith(
+            rolesIds: nuevosRoles,
+            fechaActualizacion: DateTime.now(),
+          );
+        }).toList();
+
+        return u.copyWith(
+          sucursales: sucursalesActualizadas,
+          fechaActualizacion: DateTime.now(),
+        );
       }).toList();
 
-      await _empresaRef.doc(empresaId).update({
+      // ==========================
+      // ACTUALIZAR USUARIO
+      // ==========================
+      final usuarioData = usuarioDoc.data()!;
+
+      final empresasUsuario = (usuarioData['empresas'] as List<dynamic>? ?? [])
+          .map((e) => UsuarioEmpresaRol.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+
+      final empresasActualizadas = empresasUsuario.map((empresaRol) {
+        if (empresaRol.empresaId != empresaId) {
+          return empresaRol;
+        }
+
+        final sucursalesActualizadas = empresaRol.sucursales.map((s) {
+          if (s.sucursalId != sucursalId) {
+            return s;
+          }
+
+          return s.copyWith(
+            rolesIds: nuevosRoles,
+            fechaActualizacion: DateTime.now(),
+          );
+        }).toList();
+
+        return empresaRol.copyWith(
+          sucursales: sucursalesActualizadas,
+          fechaActualizacion: DateTime.now(),
+        );
+      }).toList();
+
+      final batch = _db.batch();
+
+      batch.update(_empresaRef.doc(empresaId), {
         'usuariosPermitidos': usuariosActualizados
             .map((e) => e.toJson())
             .toList(),
       });
+
+      batch.update(_usuariosRef.doc(usuarioId), {
+        'empresas': empresasActualizadas.map((e) => e.toJson()).toList(),
+      });
+
+      await batch.commit();
+
+      print('✅ Roles sincronizados');
     } catch (e) {
       print('❌ cambiarRolesUsuario: $e');
       rethrow;

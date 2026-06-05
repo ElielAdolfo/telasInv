@@ -34,7 +34,10 @@ class AuthService {
     /// DEBUG NUEVO
     print(
       '🔥 Empresas usuario: '
-      '${usuario.empresas.map((e) => {'empresaId': e.empresaId, 'rolesIds': e.rolesIds}).toList()}',
+      '${usuario.empresas.map((e) => {
+        'empresaId': e.empresaId,
+        'sucursales': e.sucursales.map((s) => {'sucursalId': s.sucursalId, 'rolesIds': s.rolesIds}).toList(),
+      }).toList()}',
     );
 
     return usuario;

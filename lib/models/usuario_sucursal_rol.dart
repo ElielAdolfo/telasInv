@@ -1,9 +1,7 @@
-import 'usuario_sucursal_rol.dart';
+class UsuarioSucursalRol {
+  final String sucursalId;
 
-class UsuarioEmpresaRol {
-  final String empresaId;
-
-  final List<UsuarioSucursalRol> sucursales;
+  final List<String> rolesIds;
 
   final bool activo;
   final bool eliminado;
@@ -16,9 +14,9 @@ class UsuarioEmpresaRol {
   final DateTime? fechaActualizacion;
   final DateTime? fechaEliminacion;
 
-  const UsuarioEmpresaRol({
-    required this.empresaId,
-    this.sucursales = const [],
+  const UsuarioSucursalRol({
+    required this.sucursalId,
+    this.rolesIds = const [],
     this.activo = true,
     this.eliminado = false,
     this.usuarioCreadorId,
@@ -29,16 +27,11 @@ class UsuarioEmpresaRol {
     this.fechaEliminacion,
   });
 
-  factory UsuarioEmpresaRol.fromJson(Map<String, dynamic> json) {
-    return UsuarioEmpresaRol(
-      empresaId: json['empresaId'] ?? '',
-      sucursales: json['sucursales'] != null
-          ? (json['sucursales'] as List)
-                .map(
-                  (e) =>
-                      UsuarioSucursalRol.fromJson(Map<String, dynamic>.from(e)),
-                )
-                .toList()
+  factory UsuarioSucursalRol.fromJson(Map<String, dynamic> json) {
+    return UsuarioSucursalRol(
+      sucursalId: json['sucursalId'] ?? '',
+      rolesIds: json['rolesIds'] != null
+          ? List<String>.from(json['rolesIds'])
           : [],
       activo: json['activo'] ?? true,
       eliminado: json['eliminado'] ?? false,
@@ -59,8 +52,8 @@ class UsuarioEmpresaRol {
 
   Map<String, dynamic> toJson() {
     return {
-      'empresaId': empresaId,
-      'sucursales': sucursales.map((e) => e.toJson()).toList(),
+      'sucursalId': sucursalId,
+      'rolesIds': rolesIds,
       'activo': activo,
       'eliminado': eliminado,
       'usuarioCreadorId': usuarioCreadorId,
@@ -72,9 +65,9 @@ class UsuarioEmpresaRol {
     };
   }
 
-  UsuarioEmpresaRol copyWith({
-    String? empresaId,
-    List<UsuarioSucursalRol>? sucursales,
+  UsuarioSucursalRol copyWith({
+    String? sucursalId,
+    List<String>? rolesIds,
     bool? activo,
     bool? eliminado,
     String? usuarioCreadorId,
@@ -84,9 +77,9 @@ class UsuarioEmpresaRol {
     DateTime? fechaActualizacion,
     DateTime? fechaEliminacion,
   }) {
-    return UsuarioEmpresaRol(
-      empresaId: empresaId ?? this.empresaId,
-      sucursales: sucursales ?? this.sucursales,
+    return UsuarioSucursalRol(
+      sucursalId: sucursalId ?? this.sucursalId,
+      rolesIds: rolesIds ?? this.rolesIds,
       activo: activo ?? this.activo,
       eliminado: eliminado ?? this.eliminado,
       usuarioCreadorId: usuarioCreadorId ?? this.usuarioCreadorId,

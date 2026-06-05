@@ -91,8 +91,10 @@ class SessionNotifier extends StateNotifier<SessionState> {
       /// CARGAR ROLES
       List<Rol> roles = [];
 
-      if (relacionEmpresa.rolesIds.isNotEmpty) {
-        roles = await rolService.getRolesByIds(relacionEmpresa.rolesIds);
+      final rolesIds = _obtenerRolesEmpresa(relacionEmpresa);
+
+      if (rolesIds.isNotEmpty) {
+        roles = await rolService.getRolesByIds(rolesIds);
       }
 
       /// SI EXISTE SUPERADMIN LO PRIORIZAMOS
@@ -140,8 +142,10 @@ class SessionNotifier extends StateNotifier<SessionState> {
 
       List<Rol> roles = [];
 
-      if (relacionEmpresa.rolesIds.isNotEmpty) {
-        roles = await rolService.getRolesByIds(relacionEmpresa.rolesIds);
+      final rolesIds = _obtenerRolesEmpresa(relacionEmpresa);
+
+      if (rolesIds.isNotEmpty) {
+        roles = await rolService.getRolesByIds(rolesIds);
       }
 
       /// SUPERADMIN PRIORIDAD
@@ -192,6 +196,20 @@ class SessionNotifier extends StateNotifier<SessionState> {
   /// -----------------------------------
   void logout() {
     state = const SessionState();
+  }
+
+  List<String> _obtenerRolesEmpresa(UsuarioEmpresaRol relacionEmpresa) {
+    final rolesIds = <String>{};
+
+    for (final sucursal in relacionEmpresa.sucursales) {
+      if (!sucursal.activo || sucursal.eliminado) {
+        continue;
+      }
+
+      rolesIds.addAll(sucursal.rolesIds);
+    }
+
+    return rolesIds.toList();
   }
 }
 
