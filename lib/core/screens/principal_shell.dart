@@ -6,6 +6,7 @@ import 'package:inv_telas/models/rol.dart';
 import 'package:inv_telas/moduloAbms/menus/screens/menus_abm_screen.dart';
 import 'package:inv_telas/moduloAbms/roles/screens/roles_abm_screen.dart';
 import 'package:inv_telas/moduloAbms/sucursal/screens/sucursales_abm_screen.dart';
+import 'package:inv_telas/moduloAsignacion/screens/usuarios_empresa_screen.dart';
 import 'package:inv_telas/modulo_json/screens/json_view_screen.dart';
 import 'package:inv_telas/providers/auth_provider.dart';
 import 'package:inv_telas/screens/auth_screen.dart';
@@ -43,6 +44,7 @@ class _PrincipalShellState extends ConsumerState<PrincipalShell> {
     '/abm-roles': const RolesAbmScreen(),
     '/abm-sucursales': const SucursalesAbmScreen(),
     //'/empresa': const empr
+    '/asignaciones': const UsuariosEmpresaScreen(),
   };
 
   /// Navegación
