@@ -10,25 +10,42 @@ class CrearEmpresaDialog extends ConsumerStatefulWidget {
 }
 
 class _CrearEmpresaDialogState extends ConsumerState<CrearEmpresaDialog> {
-  final _nombreCtrl = TextEditingController();
+  final _nombreEmpresaCtrl = TextEditingController();
   final _nitCtrl = TextEditingController();
+
+  final _nombreSucursalCtrl = TextEditingController();
+  final _direccionSucursalCtrl = TextEditingController();
 
   bool _loading = false;
 
   @override
   void dispose() {
-    _nombreCtrl.dispose();
+    _nombreEmpresaCtrl.dispose();
     _nitCtrl.dispose();
+    _nombreSucursalCtrl.dispose();
+    _direccionSucursalCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _crearEmpresa() async {
     if (_loading) return;
 
-    final nombre = _nombreCtrl.text.trim();
+    final nombreEmpresa = _nombreEmpresaCtrl.text.trim();
+    final nombreSucursal = _nombreSucursalCtrl.text.trim();
+    final direccionSucursal = _direccionSucursalCtrl.text.trim();
 
-    if (nombre.isEmpty) {
+    if (nombreEmpresa.isEmpty) {
       _showError('Ingrese nombre de empresa');
+      return;
+    }
+
+    if (nombreSucursal.isEmpty) {
+      _showError('Ingrese nombre de la sucursal');
+      return;
+    }
+
+    if (direccionSucursal.isEmpty) {
+      _showError('Ingrese dirección de la sucursal');
       return;
     }
 
@@ -38,7 +55,12 @@ class _CrearEmpresaDialogState extends ConsumerState<CrearEmpresaDialog> {
 
     final empresa = await ref
         .read(empresaProvider)
-        .crearEmpresa(nombre: nombre, nit: _nitCtrl.text.trim());
+        .crearEmpresa(
+          nombreEmpresa: nombreEmpresa,
+          nombreSucursal: nombreSucursal,
+          direccionSucursal: direccionSucursal,
+          nitEmpresa: _nitCtrl.text.trim(),
+        );
 
     if (!mounted) return;
 
@@ -67,11 +89,12 @@ class _CrearEmpresaDialogState extends ConsumerState<CrearEmpresaDialog> {
 
       content: SizedBox(
         width: 420,
+
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
-              controller: _nombreCtrl,
+              controller: _nombreEmpresaCtrl,
               decoration: const InputDecoration(
                 labelText: 'Nombre Empresa *',
                 prefixIcon: Icon(Icons.business),
@@ -85,6 +108,36 @@ class _CrearEmpresaDialogState extends ConsumerState<CrearEmpresaDialog> {
               decoration: const InputDecoration(
                 labelText: 'NIT (Opcional)',
                 prefixIcon: Icon(Icons.badge),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            const Divider(),
+
+            const SizedBox(height: 8),
+
+            Text(
+              'Sucursal Inicial',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+
+            const SizedBox(height: 16),
+
+            TextField(
+              controller: _nombreSucursalCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Nombre Sucursal *',
+                prefixIcon: Icon(Icons.store),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            TextField(
+              controller: _direccionSucursalCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Dirección *',
+                prefixIcon: Icon(Icons.location_on),
               ),
             ),
           ],

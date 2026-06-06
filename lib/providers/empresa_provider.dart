@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/core/providers/session_provider.dart';
 import 'package:inv_telas/models/empresa.dart';
+import 'package:inv_telas/models/sucursal.dart';
 import 'package:inv_telas/services/empresa_service.dart';
 
 final empresaServiceProvider = Provider<EmpresaService>(
@@ -29,7 +30,12 @@ class EmpresaNotifier {
   /// =====================================
   /// CREAR EMPRESA
   /// =====================================
-  Future<Empresa?> crearEmpresa({required String nombre, String? nit}) async {
+  Future<Empresa?> crearEmpresa({
+    required String nombreEmpresa,
+    required String nombreSucursal,
+    required String direccionSucursal,
+    String? nitEmpresa,
+  }) async {
     try {
       final session = ref.read(sessionProvider);
       final usuario = session.usuario;
@@ -40,23 +46,28 @@ class EmpresaNotifier {
 
       final empresa = Empresa(
         id: '',
-        nombre: nombre.trim(),
-        nit: nit?.trim().isEmpty == true ? null : nit?.trim(),
+        nombre: nombreEmpresa.trim(),
+        nit: nitEmpresa?.trim().isEmpty == true ? null : nitEmpresa?.trim(),
       );
 
-      /// crear empresa
+      final sucursal = Sucursal(
+        id: '',
+        empresaId: '',
+        nombre: nombreSucursal.trim(),
+        direccion: direccionSucursal.trim(),
+      );
+
       final empresaCreada = await ref
           .read(empresaServiceProvider)
           .crearEmpresa(
             empresa: empresa,
+            sucursalInicial: sucursal,
             usuarioId: usuario.id,
             rolAdministradorId: 'admin',
           );
 
-      /// refrescar session
       await ref.read(sessionProvider.notifier).refreshSession();
 
-      /// seleccionar empresa recién creada
       await ref.read(sessionProvider.notifier).cambiarEmpresa(empresaCreada);
 
       return empresaCreada;

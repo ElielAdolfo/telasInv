@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:inv_telas/config/env.dart';
 import 'package:inv_telas/models/empresa.dart';
+import 'package:inv_telas/models/sucursal.dart';
 import 'package:inv_telas/models/usuario_empresa_permiso.dart';
 import 'package:inv_telas/models/usuario_empresa_rol.dart';
 import 'package:inv_telas/models/usuario_sucursal_rol.dart';
@@ -13,6 +14,9 @@ class EmpresaService {
 
   CollectionReference<Map<String, dynamic>> get _usuariosRef =>
       _db.collection(Env.col('usuarios'));
+
+  CollectionReference<Map<String, dynamic>> get _sucursalesRef =>
+      _db.collection(Env.col('sucursales'));
 
   // ==========================================
   // OBTENER EMPRESAS DEL USUARIO
@@ -41,24 +45,40 @@ class EmpresaService {
   // ==========================================
   Future<Empresa> crearEmpresa({
     required Empresa empresa,
+    required Sucursal sucursalInicial,
     required String usuarioId,
     required String rolAdministradorId,
   }) async {
     try {
-      final doc = _empresaRef.doc();
+      final now = DateTime.now();
+
+      final empresaDoc = _empresaRef.doc();
+      final sucursalDoc = _sucursalesRef.doc();
+
+      final sucursalRol = UsuarioSucursalRol(
+        sucursalId: sucursalDoc.id,
+        rolesIds: [rolAdministradorId],
+        activo: true,
+        eliminado: false,
+        usuarioCreadorId: usuarioId,
+        usuarioModificadorId: usuarioId,
+        fechaCreacion: now,
+        fechaActualizacion: now,
+      );
 
       final nuevaEmpresa = empresa.copyWith(
-        id: doc.id,
-        fechaCreacion: DateTime.now(),
-        usuarioCreadorId: usuarioId,
-        fechaActualizacion: DateTime.now(),
-        usuarioModificadorId: usuarioId,
-        eliminado: false,
+        id: empresaDoc.id,
         activo: true,
+        eliminado: false,
+        fechaCreacion: now,
+        fechaActualizacion: now,
+        usuarioCreadorId: usuarioId,
+        usuarioModificadorId: usuarioId,
+
         usuariosPermitidos: [
           UsuarioEmpresaPermiso(
             usuarioId: usuarioId,
-            sucursales: [],
+            sucursales: [sucursalRol],
             esPrincipal: true,
             puedeVender: true,
             puedeConsultar: true,
@@ -66,36 +86,56 @@ class EmpresaService {
             eliminado: false,
             usuarioCreadorId: usuarioId,
             usuarioModificadorId: usuarioId,
-            fechaCreacion: DateTime.now(),
-            fechaActualizacion: DateTime.now(),
+            fechaCreacion: now,
+            fechaActualizacion: now,
           ),
         ],
       );
 
+      final nuevaSucursal = sucursalInicial.copyWith(
+        id: sucursalDoc.id,
+        empresaId: empresaDoc.id,
+
+        activo: true,
+        eliminado: false,
+
+        encargadosIds: [usuarioId],
+
+        fechaCreacion: now,
+        fechaActualizacion: now,
+
+        usuarioCreadorId: usuarioId,
+        usuarioModificadorId: usuarioId,
+      );
+
+      final usuarioEmpresaRol = UsuarioEmpresaRol(
+        empresaId: empresaDoc.id,
+        sucursales: [sucursalRol],
+        activo: true,
+        eliminado: false,
+        usuarioCreadorId: usuarioId,
+        usuarioModificadorId: usuarioId,
+        fechaCreacion: now,
+        fechaActualizacion: now,
+      );
+
       final batch = _db.batch();
 
-      batch.set(doc, nuevaEmpresa.toFirestore());
+      /// EMPRESA
+      batch.set(empresaDoc, nuevaEmpresa.toFirestore());
 
+      /// SUCURSAL
+      batch.set(sucursalDoc, nuevaSucursal.toJson());
+
+      /// USUARIO
       batch.update(_usuariosRef.doc(usuarioId), {
-        'empresas': FieldValue.arrayUnion([
-          UsuarioEmpresaRol(
-            empresaId: doc.id,
-            sucursales: [],
-            activo: true,
-            eliminado: false,
-            usuarioCreadorId: usuarioId,
-            usuarioModificadorId: usuarioId,
-            fechaCreacion: DateTime.now(),
-            fechaActualizacion: DateTime.now(),
-          ).toJson(),
-        ]),
+        'empresas': FieldValue.arrayUnion([usuarioEmpresaRol.toJson()]),
       });
 
       await batch.commit();
 
-      print('✅ Empresa creada correctamente');
+      print('✅ Empresa + Sucursal creadas correctamente');
 
-      /// DEVOLVER EMPRESA
       return nuevaEmpresa;
     } catch (e) {
       print('❌ crearEmpresa: $e');
