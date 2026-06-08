@@ -227,6 +227,7 @@ class SystemInitializer {
       'uid': uid,
       'nombre': 'super usuario',
       'email': email,
+      'esSuperAdmin': true,
 
       /// NUEVA ESTRUCTURA
       'empresas': [

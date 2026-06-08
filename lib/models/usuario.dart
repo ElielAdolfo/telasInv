@@ -6,7 +6,9 @@ class Usuario {
   final String email;
   final String nombre;
 
-  // NUEVA ESTRUCTURA: Lista de relaciones Usuario-Empresa-Rol
+  /// NUEVO
+  final bool esSuperAdmin;
+
   final List<UsuarioEmpresaRol> empresas;
 
   final bool activo;
@@ -21,6 +23,9 @@ class Usuario {
     required this.id,
     required this.email,
     required this.nombre,
+
+    this.esSuperAdmin = false,
+
     this.empresas = const [],
     this.activo = true,
     this.eliminado = false,
@@ -31,8 +36,8 @@ class Usuario {
   });
 
   factory Usuario.fromJson(Map<String, dynamic> json) {
-    // Mapeo de la nueva estructura
     List<UsuarioEmpresaRol> empresasList = [];
+
     if (json['empresas'] != null) {
       empresasList = (json['empresas'] as List)
           .map((e) => UsuarioEmpresaRol.fromJson(e))
@@ -43,6 +48,10 @@ class Usuario {
       id: json['id'] ?? json['uid'] ?? '',
       email: json['email'] ?? json['correo'] ?? '',
       nombre: json['nombre'] ?? '',
+
+      /// NUEVO
+      esSuperAdmin: json['esSuperAdmin'] ?? false,
+
       empresas: empresasList,
       activo: json['activo'] ?? true,
       eliminado: json['eliminado'] ?? false,
@@ -76,6 +85,10 @@ class Usuario {
       'id': id,
       'email': email,
       'nombre': nombre,
+
+      /// NUEVO
+      'esSuperAdmin': esSuperAdmin,
+
       'empresas': empresas.map((e) => e.toJson()).toList(),
       'activo': activo,
       'eliminado': eliminado,
@@ -84,5 +97,33 @@ class Usuario {
       'fechaActualizacion': fechaActualizacion?.toIso8601String(),
       'usuarioModificadorId': usuarioModificadorId,
     };
+  }
+
+  Usuario copyWith({
+    String? id,
+    String? email,
+    String? nombre,
+    bool? esSuperAdmin,
+    List<UsuarioEmpresaRol>? empresas,
+    bool? activo,
+    bool? eliminado,
+    DateTime? fechaCreacion,
+    String? usuarioCreadorId,
+    DateTime? fechaActualizacion,
+    String? usuarioModificadorId,
+  }) {
+    return Usuario(
+      id: id ?? this.id,
+      email: email ?? this.email,
+      nombre: nombre ?? this.nombre,
+      esSuperAdmin: esSuperAdmin ?? this.esSuperAdmin,
+      empresas: empresas ?? this.empresas,
+      activo: activo ?? this.activo,
+      eliminado: eliminado ?? this.eliminado,
+      fechaCreacion: fechaCreacion ?? this.fechaCreacion,
+      usuarioCreadorId: usuarioCreadorId ?? this.usuarioCreadorId,
+      fechaActualizacion: fechaActualizacion ?? this.fechaActualizacion,
+      usuarioModificadorId: usuarioModificadorId ?? this.usuarioModificadorId,
+    );
   }
 }

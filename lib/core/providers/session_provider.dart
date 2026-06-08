@@ -63,6 +63,24 @@ class SessionNotifier extends StateNotifier<SessionState> {
 
       print('🔍 Iniciando sesión ${user.nombre}');
 
+      /// SUPER ADMIN GLOBAL
+      if (user.esSuperAdmin) {
+        final rolService = ref.read(rolServiceProvider);
+
+        final roles = await rolService.getRolesByIds(['superAdmin']);
+
+        state = state.copyWith(
+          usuario: user,
+          empresaActual: null,
+          empresasDisponibles: [],
+          rolesDisponibles: roles,
+          rolActual: roles.isNotEmpty ? roles.first : null,
+        );
+
+        print('✅ Sesión SuperAdmin');
+        return;
+      }
+
       final empresasIds = user.empresas.map((e) => e.empresaId).toList();
 
       /// SIN EMPRESAS
@@ -230,7 +248,22 @@ final menuServiceProvider = Provider<MenuService>((ref) => MenuService());
 /// MENUS DEL ROL ACTUAL
 /// =====================================
 final allowedMenusProvider = FutureProvider<List<MenuApp>>((ref) async {
-  final rol = ref.watch(sessionProvider).rolActual;
+  final session = ref.watch(sessionProvider);
+
+  final user = session.usuario;
+
+  if (user == null) {
+    return [];
+  }
+
+  final menuService = ref.read(menuServiceProvider);
+
+  /// SUPER ADMIN
+  if (user.esSuperAdmin) {
+    return menuService.getAllMenus();
+  }
+
+  final rol = session.rolActual;
 
   if (rol == null) {
     return [];
@@ -239,8 +272,6 @@ final allowedMenusProvider = FutureProvider<List<MenuApp>>((ref) async {
   if (rol.menusPermitidos.isEmpty) {
     return [];
   }
-
-  final menuService = ref.read(menuServiceProvider);
 
   return menuService.getMenusByIds(rol.menusPermitidos);
 });

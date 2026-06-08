@@ -246,7 +246,7 @@ class _PrincipalShellState extends ConsumerState<PrincipalShell> {
           ),
 
           /// CAMBIAR EMPRESA (Existente)
-          if (session.empresasDisponibles.length > 1)
+          if (!user!.esSuperAdmin && session.empresasDisponibles.length > 1)
             TextButton.icon(
               icon: const Icon(Icons.business, color: Colors.white),
               label: Text(

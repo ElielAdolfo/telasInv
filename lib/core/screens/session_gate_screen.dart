@@ -57,6 +57,9 @@ class _SessionGateScreenState extends ConsumerState<SessionGateScreen> {
         }
 
         /// SIN EMPRESAS
+        if (session.usuario!.esSuperAdmin) {
+          return const PrincipalShell();
+        }
         if (session.empresasDisponibles.isEmpty) {
           return const DashboardEmpresasScreen();
         }
