@@ -330,4 +330,19 @@ class EmpresaService {
       rethrow;
     }
   }
+
+  Future<Empresa?> getEmpresaById(String empresaId) async {
+    try {
+      final doc = await _empresaRef.doc(empresaId).get();
+
+      if (!doc.exists) {
+        return null;
+      }
+
+      return Empresa.fromFirestore(doc);
+    } catch (e) {
+      print('❌ getEmpresaById: $e');
+      rethrow;
+    }
+  }
 }

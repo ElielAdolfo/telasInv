@@ -28,7 +28,7 @@ class UsuarioEmpresaDetalleScreen extends ConsumerWidget {
       (e) => e.usuarioId == usuario.id,
     );
 
-    final sucursalesAsync = ref.watch(sucursalesStreamProvider(empresa.id));
+    final sucursalesAsync = ref.watch(sucursalesProvider(empresa.id));
 
     final rolesAsync = ref.watch(rolesAbmStreamProvider);
 
@@ -46,11 +46,14 @@ class UsuarioEmpresaDetalleScreen extends ConsumerWidget {
                 onAsignarSucursal: () async {
                   await showDialog(
                     context: context,
+                    barrierDismissible: false,
                     builder: (_) => AsignarSucursalDialog(
                       empresa: empresa,
                       usuario: usuario,
                     ),
                   );
+
+                  ref.invalidate(sucursalesProvider(empresa.id));
                 },
                 onDesactivar: () {
                   // siguiente fase
@@ -59,48 +62,111 @@ class UsuarioEmpresaDetalleScreen extends ConsumerWidget {
             ),
           ),
 
-          const VerticalDivider(),
+          const VerticalDivider(width: 1),
 
           Expanded(
             child: sucursalesAsync.when(
+              loading: () {
+                return const Center(child: CircularProgressIndicator());
+              },
+
+              error: (e, _) {
+                return Center(
+                  child: Text(
+                    'Error cargando sucursales\n$e',
+                    textAlign: TextAlign.center,
+                  ),
+                );
+              },
+
               data: (sucursales) {
                 return rolesAsync.when(
+                  loading: () {
+                    return const Center(child: CircularProgressIndicator());
+                  },
+
+                  error: (e, _) {
+                    return Center(
+                      child: Text(
+                        'Error cargando roles\n$e',
+                        textAlign: TextAlign.center,
+                      ),
+                    );
+                  },
+
                   data: (roles) {
-                    return ListView(
+                    if (permiso.sucursales.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            Icon(
+                              Icons.store_outlined,
+                              size: 80,
+                              color: Colors.grey,
+                            ),
+                            SizedBox(height: 16),
+                            Text(
+                              'Este usuario no tiene sucursales asignadas',
+                              style: TextStyle(fontSize: 16),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    return ListView.builder(
                       padding: const EdgeInsets.all(16),
-                      children: permiso.sucursales.map((sucursalRol) {
-                        final sucursal = sucursales.firstWhere(
-                          (e) => e.id == sucursalRol.sucursalId,
-                        );
+                      itemCount: permiso.sucursales.length,
+                      itemBuilder: (_, index) {
+                        final sucursalRol = permiso.sucursales[index];
+
+                        final coincidencias = sucursales
+                            .where((e) => e.id == sucursalRol.sucursalId)
+                            .toList();
+
+                        if (coincidencias.isEmpty) {
+                          return Card(
+                            child: ListTile(
+                              leading: const Icon(
+                                Icons.warning_amber,
+                                color: Colors.orange,
+                              ),
+                              title: const Text('Sucursal no encontrada'),
+                              subtitle: Text(sucursalRol.sucursalId),
+                            ),
+                          );
+                        }
+
+                        final sucursal = coincidencias.first;
 
                         final rolesAsignados = roles
                             .where((r) => sucursalRol.rolesIds.contains(r.id))
                             .toList();
 
-                        return SucursalRolesCard(
-                          sucursal: sucursal,
-                          roles: rolesAsignados,
-                          onEditarRoles: () async {
-                            await showDialog(
-                              context: context,
-                              builder: (_) => AsignarRolesDialog(
-                                empresa: empresa,
-                                usuario: usuario,
-                                sucursalId: sucursal.id,
-                              ),
-                            );
-                          },
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: SucursalRolesCard(
+                            sucursal: sucursal,
+                            roles: rolesAsignados,
+                            onEditarRoles: () async {
+                              await showDialog(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (_) => AsignarRolesDialog(
+                                  empresa: empresa,
+                                  usuario: usuario,
+                                  sucursalId: sucursal.id,
+                                ),
+                              );
+                            },
+                          ),
                         );
-                      }).toList(),
+                      },
                     );
                   },
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (_, __) => const SizedBox(),
                 );
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, __) => const SizedBox(),
             ),
           ),
         ],

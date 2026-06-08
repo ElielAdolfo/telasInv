@@ -81,3 +81,10 @@ class EmpresaNotifier {
 final empresaProvider = Provider<EmpresaNotifier>(
   (ref) => EmpresaNotifier(ref),
 );
+
+final empresaDetalleProvider = FutureProvider.autoDispose
+    .family<Empresa?, String>((ref, empresaId) async {
+      final service = ref.read(empresaServiceProvider);
+
+      return service.getEmpresaById(empresaId);
+    });

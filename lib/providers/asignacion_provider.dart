@@ -1,7 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'package:inv_telas/core/providers/session_provider.dart';
+
 import 'package:inv_telas/models/empresa.dart';
 import 'package:inv_telas/models/usuario.dart';
+
 import 'package:inv_telas/services/asignacion_service.dart';
 
 final asignacionServiceProvider = Provider<AsignacionService>(
@@ -13,7 +16,8 @@ class AsignacionNotifier {
 
   AsignacionNotifier(this.ref);
 
-  AsignacionService get _service => ref.read(asignacionServiceProvider);
+  AsignacionService get _service =>
+      ref.read(asignacionServiceProvider);
 
   Future<Usuario?> buscarUsuarioPorCorreo(String correo) {
     return _service.buscarUsuarioPorCorreo(correo);
@@ -23,9 +27,8 @@ class AsignacionNotifier {
     required Empresa empresa,
     required Usuario usuario,
   }) async {
-    final session = ref.read(sessionProvider);
-
-    final usuarioActual = session.usuario;
+    final usuarioActual =
+        ref.read(sessionProvider).usuario;
 
     if (usuarioActual == null) {
       throw Exception('Usuario no autenticado');
@@ -36,8 +39,6 @@ class AsignacionNotifier {
       usuario: usuario,
       usuarioAccionId: usuarioActual.id,
     );
-
-    await ref.read(sessionProvider.notifier).refreshSession();
   }
 
   Future<void> asignarSucursal({
@@ -45,9 +46,8 @@ class AsignacionNotifier {
     required Usuario usuario,
     required String sucursalId,
   }) async {
-    final session = ref.read(sessionProvider);
-
-    final usuarioActual = session.usuario;
+    final usuarioActual =
+        ref.read(sessionProvider).usuario;
 
     if (usuarioActual == null) {
       throw Exception('Usuario no autenticado');
@@ -74,8 +74,30 @@ class AsignacionNotifier {
       rolesIds: rolesIds,
     );
   }
+
+  /// NUEVO
+  Future<void> sincronizarSucursalesUsuario({
+    required String empresaId,
+    required String usuarioId,
+    required List<String> sucursalesSeleccionadas,
+  }) async {
+    final usuarioActual =
+        ref.read(sessionProvider).usuario;
+
+    if (usuarioActual == null) {
+      throw Exception('Usuario no autenticado');
+    }
+
+    await _service.sincronizarSucursalesUsuario(
+      empresaId: empresaId,
+      usuarioId: usuarioId,
+      sucursalesSeleccionadas: sucursalesSeleccionadas,
+      usuarioAccionId: usuarioActual.id,
+    );
+  }
 }
 
-final asignacionProvider = Provider<AsignacionNotifier>(
+final asignacionProvider =
+    Provider<AsignacionNotifier>(
   (ref) => AsignacionNotifier(ref),
 );

@@ -96,4 +96,20 @@ class SucursalService {
       rethrow;
     }
   }
+
+  Future<List<Sucursal>> getSucursales(String empresaId) async {
+    try {
+      final snapshot = await _sucursalesRef
+          .where('empresaId', isEqualTo: empresaId)
+          .get();
+
+      return snapshot.docs
+          .map((doc) => Sucursal.fromJson({...doc.data(), 'id': doc.id}))
+          .where((s) => !s.eliminado && s.activo)
+          .toList();
+    } catch (e) {
+      print('❌ getSucursales: $e');
+      rethrow;
+    }
+  }
 }

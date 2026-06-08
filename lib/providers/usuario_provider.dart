@@ -1,7 +1,17 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:inv_telas/models/empresa.dart';
 import 'package:inv_telas/models/usuario.dart';
 
+import 'package:inv_telas/services/usuario_service.dart';
+
+final usuarioServiceProvider = Provider<UsuarioService>(
+  (ref) => UsuarioService(),
+);
+
+/// =================================================
+/// OBTENER USUARIOS DE UNA EMPRESA
+/// =================================================
 final usuariosEmpresaProvider = FutureProvider.family<List<Usuario>, String>((
   ref,
   empresaId,
@@ -10,25 +20,28 @@ final usuariosEmpresaProvider = FutureProvider.family<List<Usuario>, String>((
     return [];
   }
 
-  final firestore = FirebaseFirestore.instance;
+  return ref.read(usuarioServiceProvider).getUsuariosByEmpresaId(empresaId);
+});
 
-  try {
-    final snapshot = await firestore.collection('usuarios').get();
+/// =================================================
+/// OBTENER USUARIOS PERMITIDOS
+/// SEGÚN empresa.usuariosPermitidos
+/// =================================================
+final usuariosPermitidosProvider =
+    FutureProvider.family<List<Usuario>, Empresa>((ref, empresa) async {
+      return ref.read(usuarioServiceProvider).getUsuariosPermitidos(empresa);
+    });
 
-    final usuarios = snapshot.docs
-        .map((e) => Usuario.fromJson({...e.data(), 'id': e.id}))
-        .where((usuario) {
-          if (!usuario.activo || usuario.eliminado) {
-            return false;
-          }
-
-          /// SOLO usuarios de esa empresa
-          return usuario.empresas.any((e) => e.empresaId == empresaId);
-        })
-        .toList();
-
-    return usuarios;
-  } catch (e) {
-    throw Exception('No se pudo cargar usuarios: $e');
+/// =================================================
+/// OBTENER USUARIO POR ID
+/// =================================================
+final usuarioProvider = FutureProvider.family<Usuario?, String>((
+  ref,
+  usuarioId,
+) async {
+  if (usuarioId.isEmpty) {
+    return null;
   }
+
+  return ref.read(usuarioServiceProvider).getUsuarioById(usuarioId);
 });

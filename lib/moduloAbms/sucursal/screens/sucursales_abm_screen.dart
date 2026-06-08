@@ -27,6 +27,8 @@ class _SucursalesAbmScreenState extends ConsumerState<SucursalesAbmScreen> {
     Future.microtask(() {
       final session = ref.read(sessionProvider);
 
+      if (!mounted) return;
+
       setState(() {
         empresaId = session.empresaActual?.id;
       });
@@ -36,27 +38,30 @@ class _SucursalesAbmScreenState extends ConsumerState<SucursalesAbmScreen> {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
-
     final isMobile = width < 900;
 
     if (empresaId == null) {
-      return const Center(child: Text('Debe seleccionar una empresa'));
+      return const Scaffold(
+        body: Center(child: Text('Debe seleccionar una empresa')),
+      );
     }
 
-    final sucursalesAsync = ref.watch(sucursalesStreamProvider(empresaId!));
+    final sucursalesAsync = ref.watch(sucursalesProvider(empresaId!));
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          showDialog(
-            context: context,
-            builder: (_) => const SucursalFormDialog(sucursal: null),
-          );
-        },
         icon: const Icon(Icons.add),
         label: const Text('Nueva sucursal'),
-      ),
+        onPressed: () async {
+          await showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => const SucursalFormDialog(sucursal: null),
+          );
 
+          ref.invalidate(sucursalesProvider(empresaId!));
+        },
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -69,6 +74,8 @@ class _SucursalesAbmScreenState extends ConsumerState<SucursalesAbmScreen> {
                       setState(() {
                         empresaId = empresa.id;
                       });
+
+                      ref.invalidate(sucursalesProvider(empresa.id));
                     },
                   ),
                 ),
@@ -79,6 +86,15 @@ class _SucursalesAbmScreenState extends ConsumerState<SucursalesAbmScreen> {
 
             Expanded(
               child: sucursalesAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+
+                error: (e, _) => Center(
+                  child: Text(
+                    'Error cargando sucursales\n$e',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+
                 data: (sucursales) {
                   if (sucursales.isEmpty) {
                     return Center(
@@ -90,10 +106,11 @@ class _SucursalesAbmScreenState extends ConsumerState<SucursalesAbmScreen> {
                             size: 80,
                             color: Colors.grey,
                           ),
-
-                          SizedBox(height: 12),
-
-                          Text('No hay sucursales creadas'),
+                          SizedBox(height: 16),
+                          Text(
+                            'No existen sucursales registradas',
+                            style: TextStyle(fontSize: 16),
+                          ),
                         ],
                       ),
                     );
@@ -103,17 +120,14 @@ class _SucursalesAbmScreenState extends ConsumerState<SucursalesAbmScreen> {
                     return SucursalTable(sucursales: sucursales);
                   }
 
-                  return ListView.builder(
+                  return ListView.separated(
                     itemCount: sucursales.length,
-                    itemBuilder: (_, i) {
-                      return SucursalCard(sucursal: sucursales[i]);
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (_, index) {
+                      return SucursalCard(sucursal: sucursales[index]);
                     },
                   );
                 },
-
-                loading: () => const Center(child: CircularProgressIndicator()),
-
-                error: (e, _) => Center(child: Text('Error: $e')),
               ),
             ),
           ],

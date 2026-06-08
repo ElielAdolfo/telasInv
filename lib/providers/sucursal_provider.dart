@@ -1,13 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/models/sucursal.dart';
 import 'package:inv_telas/services/sucursal_service.dart';
 
 final sucursalServiceProvider = Provider<SucursalService>(
   (ref) => SucursalService(),
 );
 
-final sucursalesStreamProvider = StreamProvider.autoDispose.family((
+final sucursalesProvider = FutureProvider.family<List<Sucursal>, String>((
   ref,
-  String empresaId,
-) {
-  return ref.watch(sucursalServiceProvider).streamSucursales(empresaId);
+  empresaId,
+) async {
+  return ref.read(sucursalServiceProvider).getSucursales(empresaId);
 });

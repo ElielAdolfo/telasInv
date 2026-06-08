@@ -123,4 +123,23 @@ class UsuarioEmpresaPermiso {
       fechaEliminacion: fechaEliminacion ?? this.fechaEliminacion,
     );
   }
+
+  @override
+  String toString() {
+    return 'UsuarioEmpresaPermiso('
+        'usuarioId: $usuarioId, '
+        'sucursales: $sucursales, '
+        'esPrincipal: $esPrincipal, '
+        'puedeVender: $puedeVender, '
+        'puedeConsultar: $puedeConsultar, '
+        'activo: $activo, '
+        'eliminado: $eliminado, '
+        'usuarioCreadorId: $usuarioCreadorId, '
+        'usuarioModificadorId: $usuarioModificadorId, '
+        'usuarioEliminadorId: $usuarioEliminadorId, '
+        'fechaCreacion: $fechaCreacion, '
+        'fechaActualizacion: $fechaActualizacion, '
+        'fechaEliminacion: $fechaEliminacion'
+        ')';
+  }
 }
