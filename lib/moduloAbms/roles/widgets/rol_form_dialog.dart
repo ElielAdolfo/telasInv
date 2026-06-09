@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:inv_telas/core/providers/session_provider.dart';
 import 'package:inv_telas/models/rol.dart';
-import 'package:inv_telas/models/menu_item.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/moduloAbms/roles/providers/rol_abm_provider.dart';
 import 'package:inv_telas/moduloAbms/menus/providers/menu_abm_provider.dart'; // Para obtener lista de menús

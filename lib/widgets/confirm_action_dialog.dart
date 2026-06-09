@@ -29,8 +29,9 @@ class _ConfirmActionDialogState extends State<ConfirmActionDialog> {
     setState(() => _isLoading = true);
     try {
       await widget.onConfirm();
-      if (mounted)
+      if (mounted) {
         Navigator.of(context).pop(true); // Devuelve true si fue exitoso
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -292,7 +292,7 @@ class _SucursalFormDialogState extends ConsumerState<SucursalFormDialog> {
                   const SizedBox(height: 16),
 
                   DropdownButtonFormField<String>(
-                    value: tipoPagoNit,
+                    initialValue: tipoPagoNit,
 
                     items: tiposPago
                         .map((e) => DropdownMenuItem(value: e, child: Text(e)))

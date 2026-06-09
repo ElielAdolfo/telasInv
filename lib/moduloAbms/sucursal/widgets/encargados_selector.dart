@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:inv_telas/models/empresa.dart';
-import 'package:inv_telas/models/usuario.dart';
 import 'package:inv_telas/providers/usuario_provider.dart';
 
 class EncargadosSelector extends ConsumerStatefulWidget {

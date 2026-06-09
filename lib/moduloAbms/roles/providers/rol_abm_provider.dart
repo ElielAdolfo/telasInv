@@ -2,7 +2,6 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/moduloAbms/roles/services/rol_abm_service.dart';
-import 'package:inv_telas/services/menu_service.dart';
 
 // 👇 IMPORTANTE: Importar el archivo donde está definido 'menuServiceProvider'
 import 'package:inv_telas/core/providers/session_provider.dart'; 

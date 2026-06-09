@@ -39,7 +39,7 @@ class _EmpresaSelectorState extends ConsumerState<EmpresaSelector> {
     }
 
     return DropdownButtonFormField<Empresa>(
-      value: empresa,
+      initialValue: empresa,
 
       decoration: const InputDecoration(
         labelText: 'Empresa',
