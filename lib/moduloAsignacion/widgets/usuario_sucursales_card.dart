@@ -6,6 +6,8 @@ import 'package:inv_telas/models/usuario.dart';
 
 import 'package:inv_telas/providers/sucursal_provider.dart';
 
+import 'package:inv_telas/moduloAsignacion/widgets/asignar_roles_dialog.dart';
+
 class UsuarioSucursalesCard extends ConsumerWidget {
   final Empresa empresa;
   final Usuario usuario;
@@ -46,10 +48,36 @@ class UsuarioSucursalesCard extends ConsumerWidget {
 
             final sucursal = encontradas.first;
 
-            return ListTile(
-              leading: const Icon(Icons.store),
-              title: Text(sucursal.nombre),
-              subtitle: Text('${sucursalRol.rolesIds.length} roles'),
+            return Card(
+              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: ListTile(
+                leading: const Icon(Icons.store),
+
+                title: Text(sucursal.nombre),
+
+                subtitle: Text(
+                  '${sucursalRol.rolesIds.length} roles asignados',
+                ),
+
+                trailing: Tooltip(
+                  message: 'Asignar Roles.',
+                  child: IconButton(
+                    icon: const Icon(Icons.security, color: Colors.blue),
+                    onPressed: () async {
+                      await showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (_) => AsignarRolesDialog(
+                          empresa: empresa,
+                          usuario: usuario,
+                          sucursalId: sucursal.id,
+                          sucursalNombre: sucursal.nombre,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
             );
           }).toList(),
         );

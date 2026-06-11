@@ -338,4 +338,39 @@ class AsignacionService {
 
     await batch.commit();
   }
+
+  // ============================================================
+  // OBTENER ROLES ASIGNADOS
+  // ============================================================
+  Future<List<String>> obtenerRolesAsignados({
+    required String empresaId,
+    required String usuarioId,
+    required String sucursalId,
+  }) async {
+    final usuarioDoc = await _usuariosRef.doc(usuarioId).get();
+
+    if (!usuarioDoc.exists) return [];
+
+    final usuarioData = usuarioDoc.data();
+    if (usuarioData == null) return [];
+
+    // Mapeamos las empresas asociadas al usuario usando tu estructura
+    final empresasUsuario = (usuarioData['empresas'] as List<dynamic>? ?? [])
+        .map((e) => UsuarioEmpresaRol.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+
+    // Buscamos la empresa y la sucursal solicitada
+    for (final empresaRol in empresasUsuario) {
+      if (empresaRol.empresaId == empresaId) {
+        for (final sucursalRol in empresaRol.sucursales) {
+          if (sucursalRol.sucursalId == sucursalId) {
+            return sucursalRol
+                .rolesIds; // Retorna los roles reales ("admin", etc.)
+          }
+        }
+      }
+    }
+
+    return []; // Si no encuentra coincidencia, retorna una lista vacía
+  }
 }

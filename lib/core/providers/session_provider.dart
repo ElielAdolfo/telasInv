@@ -4,6 +4,7 @@ import 'package:inv_telas/models/empresa.dart';
 import 'package:inv_telas/models/menu_item.dart';
 import 'package:inv_telas/models/rol.dart';
 import 'package:inv_telas/models/usuario.dart';
+import 'package:inv_telas/models/usuario_empresa_permiso.dart';
 import 'package:inv_telas/models/usuario_empresa_rol.dart';
 import 'package:inv_telas/providers/empresa_provider.dart';
 import 'package:inv_telas/services/menu_service.dart';
@@ -228,6 +229,40 @@ class SessionNotifier extends StateNotifier<SessionState> {
     }
 
     return rolesIds.toList();
+  }
+
+  UsuarioEmpresaPermiso? get permisoEmpresaActual {
+    final empresa = state.empresaActual;
+    final usuario = state.usuario;
+
+    if (empresa == null || usuario == null) {
+      return null;
+    }
+
+    try {
+      return empresa.usuariosPermitidos.firstWhere(
+        (p) => p.usuarioId == usuario.id && p.activo && !p.eliminado,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool get esPrincipalEmpresa {
+    return permisoEmpresaActual?.esPrincipal ?? false;
+  }
+
+  Set<String> get sucursalesPermitidas {
+    final permiso = permisoEmpresaActual;
+
+    if (permiso == null) {
+      return {};
+    }
+
+    return permiso.sucursales
+        .where((s) => s.activo && !s.eliminado)
+        .map((s) => s.sucursalId)
+        .toSet();
   }
 }
 

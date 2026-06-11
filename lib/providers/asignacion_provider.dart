@@ -16,8 +16,7 @@ class AsignacionNotifier {
 
   AsignacionNotifier(this.ref);
 
-  AsignacionService get _service =>
-      ref.read(asignacionServiceProvider);
+  AsignacionService get _service => ref.read(asignacionServiceProvider);
 
   Future<Usuario?> buscarUsuarioPorCorreo(String correo) {
     return _service.buscarUsuarioPorCorreo(correo);
@@ -27,8 +26,7 @@ class AsignacionNotifier {
     required Empresa empresa,
     required Usuario usuario,
   }) async {
-    final usuarioActual =
-        ref.read(sessionProvider).usuario;
+    final usuarioActual = ref.read(sessionProvider).usuario;
 
     if (usuarioActual == null) {
       throw Exception('Usuario no autenticado');
@@ -46,8 +44,7 @@ class AsignacionNotifier {
     required Usuario usuario,
     required String sucursalId,
   }) async {
-    final usuarioActual =
-        ref.read(sessionProvider).usuario;
+    final usuarioActual = ref.read(sessionProvider).usuario;
 
     if (usuarioActual == null) {
       throw Exception('Usuario no autenticado');
@@ -81,8 +78,7 @@ class AsignacionNotifier {
     required String usuarioId,
     required List<String> sucursalesSeleccionadas,
   }) async {
-    final usuarioActual =
-        ref.read(sessionProvider).usuario;
+    final usuarioActual = ref.read(sessionProvider).usuario;
 
     if (usuarioActual == null) {
       throw Exception('Usuario no autenticado');
@@ -95,9 +91,20 @@ class AsignacionNotifier {
       usuarioAccionId: usuarioActual.id,
     );
   }
+
+  Future<List<String>> obtenerRolesAsignados({
+    required String empresaId,
+    required String usuarioId,
+    required String sucursalId,
+  }) {
+    return _service.obtenerRolesAsignados(
+      empresaId: empresaId,
+      usuarioId: usuarioId,
+      sucursalId: sucursalId,
+    );
+  }
 }
 
-final asignacionProvider =
-    Provider<AsignacionNotifier>(
+final asignacionProvider = Provider<AsignacionNotifier>(
   (ref) => AsignacionNotifier(ref),
 );

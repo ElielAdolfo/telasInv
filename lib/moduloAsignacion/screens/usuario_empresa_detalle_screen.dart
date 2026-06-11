@@ -157,6 +157,7 @@ class UsuarioEmpresaDetalleScreen extends ConsumerWidget {
                                   empresa: empresa,
                                   usuario: usuario,
                                   sucursalId: sucursal.id,
+                                  sucursalNombre: sucursal.nombre,
                                 ),
                               );
                             },

@@ -37,8 +37,17 @@ class _SucursalesAbmScreenState extends ConsumerState<SucursalesAbmScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final sessionNotifier = ref.read(sessionProvider.notifier);
+    final session = ref.watch(sessionProvider);
+
     final width = MediaQuery.of(context).size.width;
     final isMobile = width < 900;
+
+    final esSuperAdmin = session.usuario?.esSuperAdmin ?? false;
+    final esPrincipal = sessionNotifier.esPrincipalEmpresa;
+
+    /// puede administrar sucursales
+    final puedeAdministrar = esSuperAdmin || esPrincipal;
 
     if (empresaId == null) {
       return const Scaffold(
@@ -49,19 +58,21 @@ class _SucursalesAbmScreenState extends ConsumerState<SucursalesAbmScreen> {
     final sucursalesAsync = ref.watch(sucursalesProvider(empresaId!));
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        icon: const Icon(Icons.add),
-        label: const Text('Nueva sucursal'),
-        onPressed: () async {
-          await showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (_) => const SucursalFormDialog(sucursal: null),
-          );
+      floatingActionButton: puedeAdministrar
+          ? FloatingActionButton.extended(
+              icon: const Icon(Icons.add),
+              label: const Text('Nueva sucursal'),
+              onPressed: () async {
+                await showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (_) => const SucursalFormDialog(sucursal: null),
+                );
 
-          ref.invalidate(sucursalesProvider(empresaId!));
-        },
-      ),
+                ref.invalidate(sucursalesProvider(empresaId!));
+              },
+            )
+          : null,
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -96,7 +107,17 @@ class _SucursalesAbmScreenState extends ConsumerState<SucursalesAbmScreen> {
                 ),
 
                 data: (sucursales) {
-                  if (sucursales.isEmpty) {
+                  /// usuario normal:
+                  /// solo ve sucursales asignadas
+                  final sucursalesFiltradas = puedeAdministrar
+                      ? sucursales
+                      : sucursales.where((s) {
+                          return sessionNotifier.sucursalesPermitidas.contains(
+                            s.id,
+                          );
+                        }).toList();
+
+                  if (sucursalesFiltradas.isEmpty) {
                     return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -108,7 +129,7 @@ class _SucursalesAbmScreenState extends ConsumerState<SucursalesAbmScreen> {
                           ),
                           SizedBox(height: 16),
                           Text(
-                            'No existen sucursales registradas',
+                            'No existen sucursales disponibles',
                             style: TextStyle(fontSize: 16),
                           ),
                         ],
@@ -117,14 +138,14 @@ class _SucursalesAbmScreenState extends ConsumerState<SucursalesAbmScreen> {
                   }
 
                   if (!isMobile) {
-                    return SucursalTable(sucursales: sucursales);
+                    return SucursalTable(sucursales: sucursalesFiltradas);
                   }
 
                   return ListView.separated(
-                    itemCount: sucursales.length,
+                    itemCount: sucursalesFiltradas.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 8),
                     itemBuilder: (_, index) {
-                      return SucursalCard(sucursal: sucursales[index]);
+                      return SucursalCard(sucursal: sucursalesFiltradas[index]);
                     },
                   );
                 },
