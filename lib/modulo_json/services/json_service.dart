@@ -17,7 +17,7 @@ class JsonService {
     'precios_venta',
     'catalog_colores',
     'catalog_monedas',
-    'catalog_tipos_tela',
+    'tiposTela',
   ];
 
   /// Obtener colecciones separadas
