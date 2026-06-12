@@ -1,29 +1,28 @@
-// archivo: models/abmTiposTelas/tipo_tela_variante.dart
+// archivo: models/proveedor.dart
 
-import 'campo_valor.dart';
-
-class TipoTelaVariante {
+class Proveedor {
   final String id;
-  // CAMBIO AQUÍ: De 'proveedor' a 'proveedorId'
-  final String proveedorId;
-  final double precioCompra;
-  final String monedaId;
-  final List<CampoValor> campos;
+  final String empresaId;
+  final String nombre;
+
+  // Campos de estado
   final bool activo;
   final bool eliminado;
+
+  // Campos de auditoría (Usuarios)
   final String? usuarioCreadorId;
   final String? usuarioModificadorId;
   final String? usuarioEliminadorId;
+
+  // Campos de auditoría (Fechas)
   final DateTime? fechaCreacion;
   final DateTime? fechaActualizacion;
   final DateTime? fechaEliminacion;
 
-  const TipoTelaVariante({
+  const Proveedor({
     required this.id,
-    required this.proveedorId, // Actualizado
-    required this.precioCompra,
-    required this.monedaId,
-    this.campos = const [],
+    required this.empresaId,
+    required this.nombre,
     this.activo = true,
     this.eliminado = false,
     this.usuarioCreadorId,
@@ -34,18 +33,11 @@ class TipoTelaVariante {
     this.fechaEliminacion,
   });
 
-  factory TipoTelaVariante.fromJson(Map<String, dynamic> json) {
-    return TipoTelaVariante(
+  factory Proveedor.fromJson(Map<String, dynamic> json) {
+    return Proveedor(
       id: json['id'] ?? '',
-      // Actualizado para leer 'proveedorId'
-      proveedorId: json['proveedorId'] ?? '',
-      precioCompra: (json['precioCompra'] ?? 0).toDouble(),
-      monedaId: json['monedaId'] ?? '',
-      campos: json['campos'] != null
-          ? (json['campos'] as List)
-                .map((e) => CampoValor.fromJson(Map<String, dynamic>.from(e)))
-                .toList()
-          : [],
+      empresaId: json['empresaId'] ?? '',
+      nombre: json['nombre'] ?? 'Sin Nombre',
       activo: json['activo'] ?? true,
       eliminado: json['eliminado'] ?? false,
       usuarioCreadorId: json['usuarioCreadorId'],
@@ -66,11 +58,8 @@ class TipoTelaVariante {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      // Actualizado para guardar 'proveedorId'
-      'proveedorId': proveedorId,
-      'precioCompra': precioCompra,
-      'monedaId': monedaId,
-      'campos': campos.map((e) => e.toJson()).toList(),
+      'empresaId': empresaId,
+      'nombre': nombre,
       'activo': activo,
       'eliminado': eliminado,
       'usuarioCreadorId': usuarioCreadorId,
@@ -80,5 +69,34 @@ class TipoTelaVariante {
       'fechaActualizacion': fechaActualizacion?.toIso8601String(),
       'fechaEliminacion': fechaEliminacion?.toIso8601String(),
     };
+  }
+
+  // Método copyWith útil para actualizar el estado del modelo de forma inmutable
+  Proveedor copyWith({
+    String? id,
+    String? empresaId,
+    String? nombre,
+    bool? activo,
+    bool? eliminado,
+    String? usuarioCreadorId,
+    String? usuarioModificadorId,
+    String? usuarioEliminadorId,
+    DateTime? fechaCreacion,
+    DateTime? fechaActualizacion,
+    DateTime? fechaEliminacion,
+  }) {
+    return Proveedor(
+      id: id ?? this.id,
+      empresaId: empresaId ?? this.empresaId,
+      nombre: nombre ?? this.nombre,
+      activo: activo ?? this.activo,
+      eliminado: eliminado ?? this.eliminado,
+      usuarioCreadorId: usuarioCreadorId ?? this.usuarioCreadorId,
+      usuarioModificadorId: usuarioModificadorId ?? this.usuarioModificadorId,
+      usuarioEliminadorId: usuarioEliminadorId ?? this.usuarioEliminadorId,
+      fechaCreacion: fechaCreacion ?? this.fechaCreacion,
+      fechaActualizacion: fechaActualizacion ?? this.fechaActualizacion,
+      fechaEliminacion: fechaEliminacion ?? this.fechaEliminacion,
+    );
   }
 }

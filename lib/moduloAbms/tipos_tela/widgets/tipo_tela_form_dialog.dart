@@ -44,10 +44,20 @@ class _TipoTelaFormDialogState extends ConsumerState<TipoTelaFormDialog> {
 
   bool get isEdit => widget.tipoTela != null;
 
+  // ==========================================================
+  // MÉTODO CORREGIDO
+  // ==========================================================
   Future<void> agregarVariante() async {
+    // 1. Obtenemos el ID de la empresa actual desde la sesión
+    final empresaId = ref.read(sessionProvider).empresaActual!.id;
+
     final variante = await showDialog<TipoTelaVariante>(
       context: context,
-      builder: (_) => const VarianteFormDialog(),
+      barrierDismissible: false, // Recomendado para formularios
+      builder: (_) => VarianteFormDialog(
+        // 2. Pasamos el empresaId requerido al constructor
+        empresaId: empresaId,
+      ),
     );
 
     if (variante == null) return;
@@ -193,10 +203,22 @@ class _TipoTelaFormDialogState extends ConsumerState<TipoTelaFormDialog> {
                       ? ListView.builder(
                           itemCount: variantes.length,
                           itemBuilder: (_, index) {
-                            return VarianteCard(variante: variantes[index]);
+                            return VarianteCard(
+                              variante: variantes[index],
+                              empresaId: ref
+                                  .read(sessionProvider)
+                                  .empresaActual!
+                                  .id,
+                            );
                           },
                         )
-                      : VarianteTable(variantes: variantes),
+                      : VarianteTable(
+                          variantes: variantes,
+                          empresaId: ref
+                              .read(sessionProvider)
+                              .empresaActual!
+                              .id,
+                        ),
                 ),
                 const SizedBox(height: 20),
                 Align(
@@ -261,7 +283,7 @@ class _TipoTelaFormDialogState extends ConsumerState<TipoTelaFormDialog> {
                     ),
                     const SizedBox(width: 10),
                     ElevatedButton(
-                      onPressed: solicitarGuardado, // <-- Actualizado aquí
+                      onPressed: solicitarGuardado,
                       child: const Text('Guardar'),
                     ),
                   ],
