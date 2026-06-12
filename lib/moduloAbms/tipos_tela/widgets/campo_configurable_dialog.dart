@@ -19,24 +19,22 @@ class CampoConfigurableDialog extends StatefulWidget {
 
 class _CampoConfigurableDialogState extends State<CampoConfigurableDialog> {
   final _formKey = GlobalKey<FormState>();
-
   final nombreCtrl = TextEditingController();
 
   TipoCampo tipo = TipoCampo.texto;
-
   bool requerido = false;
+  bool esDiferenciador = false; // 👈 NUEVO ESTADO
 
   @override
   void initState() {
     super.initState();
-
     final campo = widget.campo;
-
     if (campo == null) return;
 
     nombreCtrl.text = campo.nombre;
     tipo = campo.tipo;
     requerido = campo.requerido;
+    esDiferenciador = campo.esDiferenciador; // 👈 INICIALIZAR SI SE EDITA
   }
 
   @override
@@ -63,13 +61,10 @@ class _CampoConfigurableDialogState extends State<CampoConfigurableDialog> {
                   if (value == null || value.trim().isEmpty) {
                     return 'Ingrese nombre';
                   }
-
                   return null;
                 },
               ),
-
               const SizedBox(height: 15),
-
               DropdownButtonFormField<TipoCampo>(
                 value: tipo,
                 decoration: const InputDecoration(labelText: 'Tipo'),
@@ -93,15 +88,12 @@ class _CampoConfigurableDialogState extends State<CampoConfigurableDialog> {
                 ],
                 onChanged: (value) {
                   if (value == null) return;
-
                   setState(() {
                     tipo = value;
                   });
                 },
               ),
-
               const SizedBox(height: 15),
-
               CheckboxListTile(
                 value: requerido,
                 contentPadding: EdgeInsets.zero,
@@ -109,6 +101,20 @@ class _CampoConfigurableDialogState extends State<CampoConfigurableDialog> {
                 onChanged: (value) {
                   setState(() {
                     requerido = value ?? false;
+                  });
+                },
+              ),
+              // 👈 NUEVO WIDGET: CONTROL DE COMPORTAMIENTO VARIANTE
+              CheckboxListTile(
+                value: esDiferenciador,
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Es Diferenciador (Genera Variante)'),
+                subtitle: const Text(
+                  'Si se activa, este campo se definirá individualmente por cada variante.',
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    esDiferenciador = value ?? false;
                   });
                 },
               ),
@@ -123,37 +129,25 @@ class _CampoConfigurableDialogState extends State<CampoConfigurableDialog> {
         ),
         ElevatedButton(
           onPressed: () {
-            if (!_formKey.currentState!.validate()) {
-              return;
-            }
+            if (!_formKey.currentState!.validate()) return;
 
             Navigator.pop(
               context,
               CampoConfigurable(
                 id: widget.campo?.id ?? const Uuid().v4(),
-
                 empresaId: widget.empresaId,
-
                 nombre: nombreCtrl.text.trim(),
-
                 tipo: tipo,
-
                 requerido: requerido,
-
+                esDiferenciador:
+                    esDiferenciador, // 👈 PERSISTENCIA EN EL CONSTRUCTOR
                 activo: widget.campo?.activo ?? true,
-
                 eliminado: widget.campo?.eliminado ?? false,
-
                 usuarioCreadorId: widget.campo?.usuarioCreadorId,
-
                 usuarioModificadorId: widget.campo?.usuarioModificadorId,
-
                 usuarioEliminadorId: widget.campo?.usuarioEliminadorId,
-
                 fechaCreacion: widget.campo?.fechaCreacion ?? DateTime.now(),
-
                 fechaActualizacion: DateTime.now(),
-
                 fechaEliminacion: widget.campo?.fechaEliminacion,
               ),
             );

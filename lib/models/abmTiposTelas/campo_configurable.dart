@@ -2,16 +2,15 @@ enum TipoCampo { texto, entero, decimal, booleano }
 
 class CampoConfigurable {
   final String id;
-
   final String empresaId;
-
   final String nombre;
-
   final TipoCampo tipo;
 
-  /// Si es true aparecerá automáticamente
-  /// al crear variantes.
+  /// Si es true aparecerá automáticamente al crear variantes.
   final bool requerido;
+
+  /// 👈 NUEVO: Si es true, va a la tabla de variantes. Si es false, se queda abajo.
+  final bool esDiferenciador;
 
   final bool activo;
   final bool eliminado;
@@ -30,6 +29,7 @@ class CampoConfigurable {
     required this.nombre,
     required this.tipo,
     this.requerido = false,
+    this.esDiferenciador = false, // Por defecto en false
     this.activo = true,
     this.eliminado = false,
     this.usuarioCreadorId,
@@ -50,6 +50,8 @@ class CampoConfigurable {
         orElse: () => TipoCampo.texto,
       ),
       requerido: json['requerido'] ?? false,
+      esDiferenciador:
+          json['esDiferenciador'] ?? false, // Mapeo del nuevo campo
       activo: json['activo'] ?? true,
       eliminado: json['eliminado'] ?? false,
       usuarioCreadorId: json['usuarioCreadorId'],
@@ -74,6 +76,7 @@ class CampoConfigurable {
       'nombre': nombre,
       'tipo': tipo.name,
       'requerido': requerido,
+      'esDiferenciador': esDiferenciador, // Persistencia en Firestore
       'activo': activo,
       'eliminado': eliminado,
       'usuarioCreadorId': usuarioCreadorId,

@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart'; // CAMBIO 1: Importar Riverpod
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/models/abmTiposTelas/campo_configurable.dart'; // Asegurar importación de TipoCampo
 import 'package:inv_telas/models/abmTiposTelas/tipo_tela_variante.dart';
-import '../../../providers/proveedores_provider.dart'; // CAMBIO 2: Importar proveedores_provider
+import '../../../providers/proveedores_provider.dart';
 
 class VarianteTable extends ConsumerWidget {
-  // CAMBIO 3: ConsumerWidget
   final List<TipoTelaVariante> variantes;
-  final String empresaId; // CAMBIO 4: Requerimos empresaId
+  final List<CampoConfigurable>
+  camposConfigurables; // 👈 NUEVO: Esquema de campos configurados
+  final String empresaId;
 
   final Function(TipoTelaVariante)? onEdit;
   final Function(TipoTelaVariante)? onDelete;
@@ -14,26 +16,35 @@ class VarianteTable extends ConsumerWidget {
   const VarianteTable({
     super.key,
     required this.variantes,
-    required this.empresaId, // Actualizado
+    required this.camposConfigurables, // Requerido en constructor
+    required this.empresaId,
     this.onEdit,
     this.onDelete,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // CAMBIO 5: Escuchamos los proveedores
     final proveedoresAsync = ref.watch(proveedoresFutureProvider(empresaId));
 
+    // 👈 FILTRAR: Obtenemos solo los campos que actúan como columnas dinámicas
+    final columnasDiferenciadoras = camposConfigurables
+        .where((c) => c.esDiferenciador)
+        .toList();
+
     return DataTable(
-      columns: const [
-        DataColumn(label: Text('Proveedor')),
-        DataColumn(label: Text('Precio')),
-        DataColumn(label: Text('Moneda')),
-        DataColumn(label: Text('Campos')),
-        DataColumn(label: Text('Acciones')),
+      // COLUMNAS DINÁMICAS
+      columns: [
+        const DataColumn(label: Text('Proveedor')),
+        const DataColumn(label: Text('Precio')),
+        const DataColumn(label: Text('Moneda')),
+        // Generamos dinámicamente las columnas extras según los campos diferenciadores asignados
+        ...columnasDiferenciadoras.map(
+          (campo) => DataColumn(label: Text(campo.nombre)),
+        ),
+        const DataColumn(label: Text('Acciones')),
       ],
+      // FILAS DE DATOS
       rows: variantes.map((v) {
-        // CAMBIO 6: Buscamos el nombre del proveedor
         String nombreProveedor = 'Cargando...';
 
         proveedoresAsync.whenData((listaProveedores) {
@@ -45,10 +56,33 @@ class VarianteTable extends ConsumerWidget {
 
         return DataRow(
           cells: [
-            DataCell(Text(nombreProveedor)), // Usamos el nombre buscado
+            DataCell(Text(nombreProveedor)),
             DataCell(Text(v.precioCompra.toString())),
             DataCell(Text(v.monedaId)),
-            DataCell(Text(v.campos.length.toString())),
+
+            // 👈 CELDA DINÁMICA: Mapeamos el valor correspondiente a cada columna dinámica
+            ...columnasDiferenciadoras.map((columna) {
+              // Buscamos si la variante actual tiene un valor registrado para este campoId
+              final valorAsignado = v.campos
+                  .where((cVal) => cVal.campoId == columna.id)
+                  .firstOrNull;
+
+              if (valorAsignado == null || valorAsignado.valor == null) {
+                return const DataCell(
+                  Text('-'),
+                ); // Celda vacía si no se configuró aún
+              }
+
+              // Formateo visual rápido si es booleano
+              if (columna.tipo == TipoCampo.booleano) {
+                return DataCell(
+                  Text(valorAsignado.valor == true ? 'Sí' : 'No'),
+                );
+              }
+
+              return DataCell(Text(valorAsignado.valor.toString()));
+            }),
+
             DataCell(
               Row(
                 children: [

@@ -1,87 +1,92 @@
-// archivo: widgets/variante_form_dialog.dart (Totalmente refactorizado)
-
 import 'package:flutter/material.dart';
-// CAMBIO IMPORTANTE: Importar Riverpod
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/models/abmTiposTelas/campo_configurable.dart'; // Importación necesaria de los tipos de campo
+import 'package:inv_telas/models/abmTiposTelas/campo_valor.dart';
 import 'package:inv_telas/models/abmTiposTelas/proveedor.dart';
 import 'package:inv_telas/models/abmTiposTelas/tipo_tela_variante.dart';
 import 'package:uuid/uuid.dart';
 
-// TODO: Asegúrate de ajustar estas rutas según tu estructura de carpetas real
 import '../../../core/providers/session_provider.dart';
-import '../../../providers/proveedores_provider.dart'; // Need future/stream suppliers
-import 'proveedores_selector_dialog.dart'; // The selector complex dialog
+import '../../../providers/proveedores_provider.dart';
+import 'proveedores_selector_dialog.dart';
 
-// CAMBIO: Ahora extiende de ConsumerStatefulWidget
 class VarianteFormDialog extends ConsumerStatefulWidget {
   final TipoTelaVariante? variante;
-  // CAMBIO OBLIGATORIO: Necesitamos recibir el ID de la empresa para buscar proveedores
+  final List<CampoConfigurable>
+  camposConfigurables; // 👈 NUEVO: Esquema de atributos de la tela
   final String empresaId;
 
   const VarianteFormDialog({
     super.key,
     this.variante,
-    required this.empresaId, // Actualizado en constructor
+    required this.camposConfigurables, // Agregado obligatoriamente
+    required this.empresaId,
   });
 
   @override
-  // CAMBIO: ConsumerState
   ConsumerState<VarianteFormDialog> createState() => _VarianteFormDialogState();
 }
 
-// CAMBIO: Extiende ConsumerState
 class _VarianteFormDialogState extends ConsumerState<VarianteFormDialog> {
   final _formKey = GlobalKey<FormState>();
-
-  // CAMBIO: Eliminamos proveedorCtrl, ya no lo usaremos
-  // final proveedorCtrl = TextEditingController();
   final precioCtrl = TextEditingController();
 
-  // CAMBIO: Guardamos el OBJETO Proveedor completo seleccionado (o nulo inicial)
   Proveedor? proveedorSeleccionado;
   String monedaId = 'USD';
   bool _inicializado = false;
+
+  // 👈 DICCIONARIOS DE CONTROL: Administran dinámicamente inputs según el Tipo de Campo
+  final Map<String, TextEditingController> _dinamicosTextCtrls = {};
+  final Map<String, bool> _dinamicosBoolValues = {};
 
   @override
   void initState() {
     super.initState();
 
     final v = widget.variante;
-    if (v == null) return;
+    if (v != null) {
+      precioCtrl.text = v.precioCompra.toString();
+      monedaId = v.monedaId;
+    }
 
-    // precioCtrl y monedaId sin cambios
-    precioCtrl.text = v.precioCompra.toString();
-    monedaId = v.monedaId;
+    // 👈 PREPARAR FORMULARIO DINÁMICO
+    final diferenciadores = widget.camposConfigurables
+        .where((c) => c.esDiferenciador)
+        .toList();
+    for (var campo in diferenciadores) {
+      // Si estamos editando una variante, buscamos su valor existente en su lista 'campos'
+      final valorExistente = v?.campos
+          .where((vc) => vc.campoId == campo.id)
+          .firstOrNull;
 
-    // NOTA: v.proveedor ya no existe. selectedProveedorId = v.proveedorId;
-    // No podemos buscar el objeto completo aquí fácilmente porque initState no es asíncrono.
-    // Usaremos didChangeDependencies para buscarlo una vez.
+      if (campo.tipo == TipoCampo.booleano) {
+        _dinamicosBoolValues[campo.id] = valorExistente?.valor == true;
+      } else {
+        _dinamicosTextCtrls[campo.id] = TextEditingController(
+          text: valorExistente?.valor?.toString() ?? '',
+        );
+      }
+    }
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Lógica para inicializar el objeto proveedor si estamos editando
     if (!_inicializado && widget.variante != null) {
       _inicializarProveedorDesdeId(widget.variante!.proveedorId);
       _inicializado = true;
     }
   }
 
-  // Busca el objeto Proveedor en la lista cargada en Firebase usando el ID guardado
   Future<void> _inicializarProveedorDesdeId(String proveedorId) async {
     if (proveedorId.isEmpty) return;
-
-    // Obtenemos la lista (asumimos cargada o la cargamos)
     final proveedoresAsync = await ref.read(
       proveedoresFutureProvider(widget.empresaId).future,
     );
-
     final pEncontrado = proveedoresAsync.cast<Proveedor?>().firstWhere(
       (p) => p?.id == proveedorId,
       orElse: () => null,
     );
-
     if (mounted && pEncontrado != null) {
       setState(() {
         proveedorSeleccionado = pEncontrado;
@@ -91,20 +96,20 @@ class _VarianteFormDialogState extends ConsumerState<VarianteFormDialog> {
 
   @override
   void dispose() {
-    // CAMBIO: Ya no disponemos proveedorCtrl
-    // proveedorCtrl.dispose();
     precioCtrl.dispose();
+    // 👈 IMPORTANTE: Liberar memoria de controladores creados al vuelo
+    for (var ctrl in _dinamicosTextCtrls.values) {
+      ctrl.dispose();
+    }
     super.dispose();
   }
 
-  // Abre el Selector Complejo que discutimos antes y espera el objeto Proveedor? elegido
   Future<void> _abrirSelectorProveedor() async {
     final proveedorElegido = await showDialog<Proveedor>(
       context: context,
-      barrierDismissible: false, // Forzar uso de botones
+      barrierDismissible: false,
       builder: (_) => ProveedoresSelectorDialog(
         empresaId: widget.empresaId,
-        // Pasamos el ID actual para marcarlo en la lista
         proveedorIdInicial: proveedorSeleccionado?.id,
       ),
     );
@@ -118,6 +123,10 @@ class _VarianteFormDialogState extends ConsumerState<VarianteFormDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final diferenciadores = widget.camposConfigurables
+        .where((c) => c.esDiferenciador)
+        .toList();
+
     return AlertDialog(
       title: Text(
         widget.variante == null ? 'Nueva Variante' : 'Editar Variante',
@@ -126,71 +135,122 @@ class _VarianteFormDialogState extends ConsumerState<VarianteFormDialog> {
         width: 500,
         child: Form(
           key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // ==========================================================
-              // CAMBIO: Reemplazo total del TextFormField por el Selector
-              // ==========================================================
-              InkWell(
-                onTap: _abrirSelectorProveedor,
-                child: IgnorePointer(
-                  // Bloquea entrada de texto manual
-                  child: TextFormField(
-                    // Mostramos el NOMBRE del proveedor seleccionado o placeholder vacío
-                    controller: TextEditingController(
-                      text: proveedorSeleccionado?.nombre ?? '',
+          child: SingleChildScrollView(
+            // Añadido preventivo por crecimiento vertical dinámico
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                InkWell(
+                  onTap: _abrirSelectorProveedor,
+                  child: IgnorePointer(
+                    child: TextFormField(
+                      controller: TextEditingController(
+                        text: proveedorSeleccionado?.nombre ?? '',
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Proveedor (Obligatorio)',
+                        hintText: 'Toque para seleccionar/gestionar',
+                        prefixIcon: Icon(Icons.business_outlined),
+                        suffixIcon: Icon(Icons.arrow_drop_down_circle_outlined),
+                      ),
+                      validator: (_) => proveedorSeleccionado == null
+                          ? 'Seleccione proveedor'
+                          : null,
                     ),
-                    decoration: const InputDecoration(
-                      labelText: 'Proveedor (Obligatorio)',
-                      hintText: 'Toque para seleccionar/gestionar',
-                      prefixIcon: Icon(Icons.business_outlined),
-                      // Icono visual de Dropdown
-                      suffixIcon: Icon(Icons.arrow_drop_down_circle_outlined),
-                    ),
-                    validator: (_) {
-                      // Validación manual basada en el estado
-                      if (proveedorSeleccionado == null) {
-                        return 'Seleccione proveedor';
-                      }
-                      return null;
-                    },
                   ),
                 ),
-              ),
-
-              const SizedBox(height: 12),
-
-              TextFormField(
-                controller: precioCtrl,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: precioCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(labelText: 'Precio compra'),
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return null;
+                    if (double.tryParse(v) == null) return 'Número inválido';
+                    return null;
+                  },
                 ),
-                decoration: const InputDecoration(labelText: 'Precio compra'),
-                validator: (v) {
-                  if (v == null || v.isEmpty) return null; // Opcional
-                  if (double.tryParse(v) == null) return 'Número inválido';
-                  return null;
-                },
-              ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: monedaId,
+                  decoration: const InputDecoration(labelText: 'Moneda'),
+                  items: const [
+                    DropdownMenuItem(value: 'USD', child: Text('USD')),
+                    DropdownMenuItem(value: 'BOB', child: Text('BOB')),
+                  ],
+                  onChanged: (v) {
+                    if (v == null) return;
+                    setState(() {
+                      monedaId = v;
+                    });
+                  },
+                ),
 
-              const SizedBox(height: 12),
+                // ==========================================================
+                // 👈 RENDERIZADO COMPLEMENTARIO DE INPUTS DINÁMICOS
+                // ==========================================================
+                if (diferenciadores.isNotEmpty) ...[
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 10),
+                    child: Divider(),
+                  ),
+                  ...diferenciadores.map((campo) {
+                    // RAMA BOOLEANA
+                    if (campo.tipo == TipoCampo.booleano) {
+                      return CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(campo.nombre),
+                        value: _dinamicosBoolValues[campo.id] ?? false,
+                        onChanged: (val) {
+                          setState(() {
+                            _dinamicosBoolValues[campo.id] = val ?? false;
+                          });
+                        },
+                      );
+                    }
 
-              DropdownButtonFormField<String>(
-                value: monedaId,
-                decoration: const InputDecoration(labelText: 'Moneda'),
-                items: const [
-                  DropdownMenuItem(value: 'USD', child: Text('USD')),
-                  DropdownMenuItem(value: 'BOB', child: Text('BOB')),
+                    // RAMA TEXTO / NUMÉRICOS
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: TextFormField(
+                        controller: _dinamicosTextCtrls[campo.id],
+                        decoration: InputDecoration(
+                          labelText:
+                              campo.nombre +
+                              (campo.requerido ? ' (Obligatorio)' : ''),
+                        ),
+                        keyboardType: campo.tipo == TipoCampo.entero
+                            ? TextInputType.number
+                            : campo.tipo == TipoCampo.decimal
+                            ? const TextInputType.numberWithOptions(
+                                decimal: true,
+                              )
+                            : TextInputType.text,
+                        validator: (value) {
+                          if (campo.requerido &&
+                              (value == null || value.trim().isEmpty)) {
+                            return 'El campo "${campo.nombre}" es obligatorio';
+                          }
+                          if (value != null && value.trim().isNotEmpty) {
+                            if (campo.tipo == TipoCampo.entero &&
+                                int.tryParse(value) == null) {
+                              return 'Debe ser un número entero';
+                            }
+                            if (campo.tipo == TipoCampo.decimal &&
+                                double.tryParse(value) == null) {
+                              return 'Debe ser un número decimal';
+                            }
+                          }
+                          return null;
+                        },
+                      ),
+                    );
+                  }),
                 ],
-                onChanged: (v) {
-                  if (v == null) return;
-                  setState(() {
-                    monedaId = v;
-                  });
-                },
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -202,17 +262,46 @@ class _VarianteFormDialogState extends ConsumerState<VarianteFormDialog> {
         ElevatedButton(
           onPressed: () {
             if (!_formKey.currentState!.validate()) return;
-
-            // Validación extra de seguridad
             if (proveedorSeleccionado == null) return;
+
+            // 👈 CONSTRUCCIÓN DEL LISTADO DE VALORES ASIGNADOS A LA VARIANTE
+            final List<CampoValor> listadoValoresFinales = [];
+
+            for (var campo in diferenciadores) {
+              dynamic valorProcesado;
+
+              if (campo.tipo == TipoCampo.booleano) {
+                valorProcesado = _dinamicosBoolValues[campo.id] ?? false;
+              } else {
+                final stringRaw =
+                    _dinamicosTextCtrls[campo.id]?.text.trim() ?? '';
+                if (stringRaw.isNotEmpty) {
+                  if (campo.tipo == TipoCampo.entero)
+                    valorProcesado = int.tryParse(stringRaw);
+                  if (campo.tipo == TipoCampo.decimal)
+                    valorProcesado = double.tryParse(stringRaw);
+                  if (campo.tipo == TipoCampo.texto) valorProcesado = stringRaw;
+                }
+              }
+
+              listadoValoresFinales.add(
+                CampoValor(
+                  campoId: campo.id,
+                  campoNombre: campo.nombre,
+                  valor: valorProcesado,
+                ),
+              );
+            }
 
             final variante = TipoTelaVariante(
               id: widget.variante?.id ?? const Uuid().v4(),
-              // CAMBIO FIJADO: Usamos proveedorId del objeto seleccionado
               proveedorId: proveedorSeleccionado!.id,
               precioCompra: double.tryParse(precioCtrl.text) ?? 0,
               monedaId: monedaId,
-              // Campos de auditoría (asumimos nulos o gestionados al guardar TipoTela)
+              campos:
+                  listadoValoresFinales, // 👈 ENVIANDO CAMPOS VALOR DINÁMICOS COMPLETOS
+              activo: widget.variante?.activo ?? true,
+              eliminado: widget.variante?.eliminado ?? false,
             );
 
             Navigator.pop(context, variante);

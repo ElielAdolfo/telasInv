@@ -57,6 +57,7 @@ class _TipoTelaFormDialogState extends ConsumerState<TipoTelaFormDialog> {
       builder: (_) => VarianteFormDialog(
         // 2. Pasamos el empresaId requerido al constructor
         empresaId: empresaId,
+        camposConfigurables: campos,
       ),
     );
 
@@ -209,64 +210,103 @@ class _TipoTelaFormDialogState extends ConsumerState<TipoTelaFormDialog> {
                                   .read(sessionProvider)
                                   .empresaActual!
                                   .id,
+
+                              onEdit: () {
+                                editarVariante(index);
+                              },
+
+                              onDelete: () {
+                                eliminarVariante(index);
+                              },
                             );
                           },
                         )
                       : VarianteTable(
                           variantes: variantes,
+                          camposConfigurables: campos,
                           empresaId: ref
                               .read(sessionProvider)
                               .empresaActual!
                               .id,
+
+                          onEdit: (variante) {
+                            final index = variantes.indexWhere(
+                              (v) => v.id == variante.id,
+                            );
+
+                            if (index != -1) {
+                              editarVariante(index);
+                            }
+                          },
+
+                          onDelete: (variante) {
+                            final index = variantes.indexWhere(
+                              (v) => v.id == variante.id,
+                            );
+
+                            if (index != -1) {
+                              eliminarVariante(index);
+                            }
+                          },
                         ),
                 ),
                 const SizedBox(height: 20),
+                // ... dentro del Column de tu TipoTelaFormDialog, abajo:
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Campos configurables',
+                    'Campos configurables (Informativos)',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
                 const SizedBox(height: 10),
                 Expanded(
-                  child: ListView.builder(
-                    itemCount: campos.length,
-                    itemBuilder: (_, index) {
-                      final campo = campos[index];
+                  child: Builder(
+                    builder: (context) {
+                      // 👈 FILTRAMOS: Solo mostramos los campos que NO son diferenciadores
+                      final camposInformativos = campos
+                          .where((c) => !c.esDiferenciador)
+                          .toList();
 
-                      return ListTile(
-                        leading: const Icon(Icons.tune),
-                        title: Text(campo.nombre),
-                        subtitle: Text(_tipoCampoTexto(campo.tipo)),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () async {
-                            // Uso del diálogo para confirmar la eliminación de la lista local
-                            final confirmar = await showDialog<bool>(
-                              context: context,
-                              builder: (_) => ConfirmActionDialog(
-                                title: 'Quitar campo',
-                                message: '¿Desea quitar el campo de la lista?',
-                                icon: Icons.delete,
-                                iconColor: Colors.red,
-                                confirmText: 'Quitar',
-                                onConfirm: () async {
-                                  // No es necesario llamar a BD aquí, solo aceptamos
-                                  await Future.delayed(
-                                    const Duration(milliseconds: 200),
-                                  );
-                                },
-                              ),
-                            );
+                      return ListView.builder(
+                        itemCount: camposInformativos.length,
+                        itemBuilder: (_, index) {
+                          final campo = camposInformativos[index];
 
-                            if (confirmar == true) {
-                              setState(() {
-                                campos.removeAt(index);
-                              });
-                            }
-                          },
-                        ),
+                          return ListTile(
+                            leading: const Icon(Icons.tune),
+                            title: Text(campo.nombre),
+                            subtitle: Text(_tipoCampoTexto(campo.tipo)),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () async {
+                                final confirmar = await showDialog<bool>(
+                                  context: context,
+                                  builder: (_) => ConfirmActionDialog(
+                                    title: 'Quitar campo',
+                                    message:
+                                        '¿Desea quitar el campo de la lista?',
+                                    icon: Icons.delete,
+                                    iconColor: Colors.red,
+                                    confirmText: 'Quitar',
+                                    onConfirm: () async {
+                                      await Future.delayed(
+                                        const Duration(milliseconds: 200),
+                                      );
+                                    },
+                                  ),
+                                );
+
+                                if (confirmar == true) {
+                                  setState(() {
+                                    // Para eliminarlo correctamente, buscamos su ID original en la lista principal
+                                    campos.removeWhere((c) => c.id == campo.id);
+                                  });
+                                }
+                              },
+                            ),
+                          );
+                        },
                       );
                     },
                   ),
@@ -307,5 +347,45 @@ class _TipoTelaFormDialogState extends ConsumerState<TipoTelaFormDialog> {
       case TipoCampo.booleano:
         return 'Sí / No';
     }
+  }
+
+  Future<void> editarVariante(int index) async {
+    final empresaId = ref.read(sessionProvider).empresaActual!.id;
+
+    final varianteEditada = await showDialog<TipoTelaVariante>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => VarianteFormDialog(
+        empresaId: empresaId,
+        variante: variantes[index],
+        camposConfigurables: campos,
+      ),
+    );
+
+    if (varianteEditada == null) return;
+
+    setState(() {
+      variantes[index] = varianteEditada;
+    });
+  }
+
+  Future<void> eliminarVariante(int index) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (_) => ConfirmActionDialog(
+        title: 'Eliminar Variante',
+        message: '¿Desea eliminar esta variante?',
+        icon: Icons.delete,
+        iconColor: Colors.red,
+        confirmText: 'Eliminar',
+        onConfirm: () async {},
+      ),
+    );
+
+    if (confirmar != true) return;
+
+    setState(() {
+      variantes.removeAt(index);
+    });
   }
 }
