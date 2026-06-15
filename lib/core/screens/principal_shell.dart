@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:inv_telas/core/providers/session_provider.dart';
 import 'package:inv_telas/models/rol.dart';
+import 'package:inv_telas/moduloAbms/colores/screens/colores_abm_screen.dart';
 import 'package:inv_telas/moduloAbms/menus/screens/menus_abm_screen.dart';
 import 'package:inv_telas/moduloAbms/roles/screens/roles_abm_screen.dart';
 import 'package:inv_telas/moduloAbms/sucursal/screens/sucursales_abm_screen.dart';
@@ -47,6 +48,7 @@ class _PrincipalShellState extends ConsumerState<PrincipalShell> {
     //'/empresa': const empr
     '/asignaciones': const UsuariosEmpresaScreen(),
     '/tipos-telas': const TiposTelaAbmScreen(),
+    '/colores': const ColoresAbmScreen(),
   };
 
   /// Navegación

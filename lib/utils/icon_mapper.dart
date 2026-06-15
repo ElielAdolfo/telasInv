@@ -244,6 +244,7 @@ class IconMapper {
     'computer': Icons.computer,
     'laptop': Icons.laptop,
     'tablet': Icons.tablet,
+    'format_color_fill': Icons.format_color_fill,
   };
 
   static IconData getIcon(String? iconName) {
