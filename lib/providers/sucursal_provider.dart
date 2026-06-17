@@ -6,9 +6,7 @@ final sucursalServiceProvider = Provider<SucursalService>(
   (ref) => SucursalService(),
 );
 
-final sucursalesProvider = FutureProvider.family<List<Sucursal>, String>((
-  ref,
-  empresaId,
-) async {
-  return ref.read(sucursalServiceProvider).getSucursales(empresaId);
-});
+final sucursalesProvider = FutureProvider.autoDispose
+    .family<List<Sucursal>, String>((ref, empresaId) async {
+      return ref.read(sucursalServiceProvider).getSucursales(empresaId);
+    });

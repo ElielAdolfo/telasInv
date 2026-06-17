@@ -23,7 +23,7 @@ class _CampoConfigurableDialogState extends State<CampoConfigurableDialog> {
 
   TipoCampo tipo = TipoCampo.texto;
   bool requerido = false;
-  bool esDiferenciador = false; // 👈 NUEVO ESTADO
+  bool esDiferenciador = false;
 
   @override
   void initState() {
@@ -34,7 +34,7 @@ class _CampoConfigurableDialogState extends State<CampoConfigurableDialog> {
     nombreCtrl.text = campo.nombre;
     tipo = campo.tipo;
     requerido = campo.requerido;
-    esDiferenciador = campo.esDiferenciador; // 👈 INICIALIZAR SI SE EDITA
+    esDiferenciador = campo.esDiferenciador;
   }
 
   @override
@@ -43,10 +43,35 @@ class _CampoConfigurableDialogState extends State<CampoConfigurableDialog> {
     super.dispose();
   }
 
+  // 👈 FUNCIÓN AUTOMÁTICA PARA CONFIGURAR "METRAJE"
+  void _cargarPlantillaMetraje() {
+    setState(() {
+      nombreCtrl.text = 'Metraje';
+      tipo = TipoCampo.decimal;
+      requerido = true;
+      esDiferenciador = true;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.campo == null ? 'Nuevo Campo' : 'Editar Campo'),
+      // 👈 AGREGAMOS EL BOTÓN DE AUTO-RELLENADO EN LA BARRA DE TÍTULO
+      title: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(widget.campo == null ? 'Nuevo Campo' : 'Editar Campo'),
+          if (widget.campo == null) // Solo mostrar si es un campo nuevo
+            TextButton.icon(
+              onPressed: _cargarPlantillaMetraje,
+              icon: const Icon(Icons.flash_on, color: Colors.orange),
+              label: const Text(
+                'Usar Metraje',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+        ],
+      ),
       content: SizedBox(
         width: 500,
         child: Form(
@@ -104,7 +129,6 @@ class _CampoConfigurableDialogState extends State<CampoConfigurableDialog> {
                   });
                 },
               ),
-              // 👈 NUEVO WIDGET: CONTROL DE COMPORTAMIENTO VARIANTE
               CheckboxListTile(
                 value: esDiferenciador,
                 contentPadding: EdgeInsets.zero,
@@ -139,8 +163,7 @@ class _CampoConfigurableDialogState extends State<CampoConfigurableDialog> {
                 nombre: nombreCtrl.text.trim(),
                 tipo: tipo,
                 requerido: requerido,
-                esDiferenciador:
-                    esDiferenciador, // 👈 PERSISTENCIA EN EL CONSTRUCTOR
+                esDiferenciador: esDiferenciador,
                 activo: widget.campo?.activo ?? true,
                 eliminado: widget.campo?.eliminado ?? false,
                 usuarioCreadorId: widget.campo?.usuarioCreadorId,

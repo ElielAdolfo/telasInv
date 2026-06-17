@@ -66,17 +66,17 @@ class MonedaNotifier extends StateNotifier<AsyncValue<List<Moneda>>> {
   }
 }
 
-final monedasProvider =
-    StateNotifierProvider.family<
-      MonedaNotifier,
-      AsyncValue<List<Moneda>>,
-      String
-    >((ref, empresaId) {
+final monedasProvider = StateNotifierProvider.autoDispose
+    .family<MonedaNotifier, AsyncValue<List<Moneda>>, String>((ref, empresaId) {
       final service = ref.watch(monedaServiceProvider);
 
       final notifier = MonedaNotifier(service: service, empresaId: empresaId);
 
       notifier.cargarMonedas();
+
+      ref.onDispose(() {
+        print('🗑️ MONEDAS PROVIDER ELIMINADO');
+      });
 
       return notifier;
     });

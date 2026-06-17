@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:inv_telas/models/base_entity.dart';
+import 'package:inv_telas/models/base/base_entity.dart';
 
 class Moneda extends BaseEntity {
   final String empresaId;

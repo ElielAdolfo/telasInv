@@ -22,12 +22,10 @@ final proveedorServiceProvider = Provider<ProveedorService>(
 /// Obtiene la lista de proveedores por empresa de forma puntual.
 /// Este es el que usarás para cargar los Dropdowns al abrir un formulario.
 /// ==========================================================
-final proveedoresFutureProvider =
-    FutureProvider.family<List<Proveedor>, String>((ref, empresaId) async {
-      // Leemos la instancia del servicio expuesta arriba
+final proveedoresFutureProvider = FutureProvider.autoDispose
+    .family<List<Proveedor>, String>((ref, empresaId) async {
       final service = ref.read(proveedorServiceProvider);
 
-      // Llamamos al método que hace el GET único a Firestore
       return service.getByEmpresa(empresaId);
     });
 
