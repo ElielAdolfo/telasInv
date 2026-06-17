@@ -6,19 +6,19 @@ import 'lote_tipo.dart';
 
 class Lote extends BaseEntity {
   final String empresaId;
-  final String sucursalId;
-  final String proveedorId;
   final String monedaId;
   final String numeroLote;
   final String? observacion;
+
   final LoteTipo tipo;
   final LoteEstado estado;
-  final double tipoCambioRegistro;
-  final double? tipoCambioFinal;
+
   final double subtotalMonedaOrigen;
   final double subtotalMonedaBase;
+
   final double totalGastos;
   final double totalFinal;
+
   final bool stockGenerado;
 
   const Lote({
@@ -32,15 +32,11 @@ class Lote extends BaseEntity {
     super.fechaModificacion,
     super.fechaEliminacion,
     required this.empresaId,
-    required this.sucursalId,
-    required this.proveedorId,
     required this.monedaId,
     required this.numeroLote,
     this.observacion,
     required this.tipo,
     required this.estado,
-    required this.tipoCambioRegistro,
-    this.tipoCambioFinal,
     required this.subtotalMonedaOrigen,
     required this.subtotalMonedaBase,
     required this.totalGastos,
@@ -70,17 +66,11 @@ class Lote extends BaseEntity {
       fechaModificacion: parse(map['fechaModificacion']),
       fechaEliminacion: parse(map['fechaEliminacion']),
       empresaId: map['empresaId'] ?? '',
-      sucursalId: map['sucursalId'] ?? '',
-      proveedorId: map['proveedorId'] ?? '',
       monedaId: map['monedaId'] ?? '',
       numeroLote: map['numeroLote'] ?? '',
       observacion: map['observacion'],
       tipo: LoteTipoExtension.fromString(map['tipo'] ?? 'LOCAL'),
       estado: LoteEstadoExtension.fromString(map['estado'] ?? 'BORRADOR'),
-      tipoCambioRegistro: (map['tipoCambioRegistro'] ?? 1).toDouble(),
-      tipoCambioFinal: map['tipoCambioFinal'] != null
-          ? (map['tipoCambioFinal']).toDouble()
-          : null,
       subtotalMonedaOrigen: (map['subtotalMonedaOrigen'] ?? 0).toDouble(),
       subtotalMonedaBase: (map['subtotalMonedaBase'] ?? 0).toDouble(),
       totalGastos: (map['totalGastos'] ?? 0).toDouble(),
@@ -105,15 +95,11 @@ class Lote extends BaseEntity {
           ? Timestamp.fromDate(fechaEliminacion!)
           : null,
       'empresaId': empresaId,
-      'sucursalId': sucursalId,
-      'proveedorId': proveedorId,
       'monedaId': monedaId,
       'numeroLote': numeroLote,
       'observacion': observacion,
       'tipo': tipo.nombre,
       'estado': estado.nombre,
-      'tipoCambioRegistro': tipoCambioRegistro,
-      'tipoCambioFinal': tipoCambioFinal,
       'subtotalMonedaOrigen': subtotalMonedaOrigen,
       'subtotalMonedaBase': subtotalMonedaBase,
       'totalGastos': totalGastos,
@@ -133,15 +119,11 @@ class Lote extends BaseEntity {
     DateTime? fechaModificacion,
     DateTime? fechaEliminacion,
     String? empresaId,
-    String? sucursalId,
-    String? proveedorId,
     String? monedaId,
     String? numeroLote,
     String? observacion,
     LoteTipo? tipo,
     LoteEstado? estado,
-    double? tipoCambioRegistro,
-    double? tipoCambioFinal,
     double? subtotalMonedaOrigen,
     double? subtotalMonedaBase,
     double? totalGastos,
@@ -159,15 +141,11 @@ class Lote extends BaseEntity {
       fechaModificacion: fechaModificacion ?? this.fechaModificacion,
       fechaEliminacion: fechaEliminacion ?? this.fechaEliminacion,
       empresaId: empresaId ?? this.empresaId,
-      sucursalId: sucursalId ?? this.sucursalId,
-      proveedorId: proveedorId ?? this.proveedorId,
       monedaId: monedaId ?? this.monedaId,
       numeroLote: numeroLote ?? this.numeroLote,
       observacion: observacion ?? this.observacion,
       tipo: tipo ?? this.tipo,
       estado: estado ?? this.estado,
-      tipoCambioRegistro: tipoCambioRegistro ?? this.tipoCambioRegistro,
-      tipoCambioFinal: tipoCambioFinal ?? this.tipoCambioFinal,
       subtotalMonedaOrigen: subtotalMonedaOrigen ?? this.subtotalMonedaOrigen,
       subtotalMonedaBase: subtotalMonedaBase ?? this.subtotalMonedaBase,
       totalGastos: totalGastos ?? this.totalGastos,

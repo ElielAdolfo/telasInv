@@ -32,7 +32,6 @@ class LoteTable extends StatelessWidget {
           DataColumn(label: Text('Lote')),
           DataColumn(label: Text('Tipo')),
           DataColumn(label: Text('Estado')),
-          DataColumn(label: Text('Tipo Cambio')),
           DataColumn(label: Text('Total Gastos')),
           DataColumn(label: Text('Total Final')),
           DataColumn(label: Text('Stock')),
@@ -46,8 +45,6 @@ class LoteTable extends StatelessWidget {
               DataCell(Text(lote.tipo.nombre)),
 
               DataCell(Text(lote.estado.nombre)),
-
-              DataCell(Text(lote.tipoCambioRegistro.toStringAsFixed(2))),
 
               DataCell(Text(lote.totalGastos.toStringAsFixed(2))),
 

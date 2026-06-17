@@ -7,17 +7,17 @@ class JsonService {
 
   /// Colecciones disponibles
   final List<String> collections = [
-    'usuarios',
-    'roles',
-    'menus',
+    'codigoTelaProveedor',
+    'colores',
     'empresas',
-    'sucursales',
     'lotes',
-    'rollos',
-    'precios_venta',
-    'catalog_colores',
-    'catalog_monedas',
+    'menus',
+    'monedas',
+    'proveedores',
+    'roles',
+    'sucursales',
     'tiposTela',
+    'usuarios',
   ];
 
   /// Obtener colecciones separadas

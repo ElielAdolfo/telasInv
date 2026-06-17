@@ -3,7 +3,6 @@ import 'package:inv_telas/models/lotes/lote_costeo.dart';
 import 'package:inv_telas/models/lotes/lote_detalle.dart';
 import 'package:inv_telas/models/lotes/lote_estado.dart';
 import 'package:inv_telas/models/lotes/lote_gasto.dart';
-import 'package:inv_telas/models/lotes/lote_tipo.dart';
 
 class LoteValidator {
   // ==========================================================
@@ -56,24 +55,12 @@ class LoteValidator {
       errores.add('La empresa es obligatoria.');
     }
 
-    if (lote.sucursalId.trim().isEmpty) {
-      errores.add('La sucursal es obligatoria.');
-    }
-
-    if (lote.proveedorId.trim().isEmpty) {
-      errores.add('El proveedor es obligatorio.');
-    }
-
     if (lote.monedaId.trim().isEmpty) {
       errores.add('La moneda es obligatoria.');
     }
 
     if (lote.numeroLote.trim().isEmpty) {
       errores.add('El número de lote es obligatorio.');
-    }
-
-    if (lote.tipoCambioRegistro <= 0) {
-      errores.add('El tipo de cambio debe ser mayor a cero.');
     }
   }
 
@@ -87,7 +74,6 @@ class LoteValidator {
   ) {
     if (detalles.isEmpty) {
       errores.add('Debe existir al menos un detalle.');
-
       return;
     }
 
@@ -195,7 +181,6 @@ class LoteValidator {
 
     if (costeo == null) {
       errores.add('Debe existir un costeo final.');
-
       return;
     }
 
@@ -209,18 +194,6 @@ class LoteValidator {
 
     if (costeo.costoRolloFinal <= 0) {
       errores.add('El costo por rollo final debe ser mayor a cero.');
-    }
-
-    if (lote.tipo == LoteTipo.importacion) {
-      if (lote.tipoCambioFinal == null) {
-        errores.add('Las importaciones requieren tipo de cambio final.');
-      }
-
-      if (gastos.isEmpty) {
-        errores.add(
-          'Una importación debería tener al menos un gasto adicional.',
-        );
-      }
     }
   }
 
