@@ -18,6 +18,7 @@ class JsonService {
     'sucursales',
     'tiposTela',
     'usuarios',
+    'codigoUnicoTelaProveedor',
   ];
 
   /// Obtener colecciones separadas

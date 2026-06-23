@@ -6,6 +6,7 @@ import 'lote_tipo.dart';
 
 class Lote extends BaseEntity {
   final String empresaId;
+  final String? sucursalId; // <- Corregido: Ahora se mapea correctamente
   final String monedaId;
   final String numeroLote;
   final String? observacion;
@@ -18,7 +19,6 @@ class Lote extends BaseEntity {
 
   final double totalGastos;
   final double totalFinal;
-
   final bool stockGenerado;
 
   const Lote({
@@ -32,6 +32,7 @@ class Lote extends BaseEntity {
     super.fechaModificacion,
     super.fechaEliminacion,
     required this.empresaId,
+    this.sucursalId,
     required this.monedaId,
     required this.numeroLote,
     this.observacion,
@@ -45,13 +46,11 @@ class Lote extends BaseEntity {
   });
 
   factory Lote.fromMap(Map<String, dynamic> map) {
-    DateTime? parse(dynamic value) {
+    DateTime? parseDate(dynamic value) {
       if (value == null) return null;
-
       if (value is Timestamp) {
         return value.toDate();
       }
-
       return DateTime.tryParse(value.toString());
     }
 
@@ -62,19 +61,22 @@ class Lote extends BaseEntity {
       usuarioCreacion: map['usuarioCreacion'] ?? '',
       usuarioModificacion: map['usuarioModificacion'],
       usuarioEliminacion: map['usuarioEliminacion'],
-      fechaCreacion: parse(map['fechaCreacion']) ?? DateTime.now(),
-      fechaModificacion: parse(map['fechaModificacion']),
-      fechaEliminacion: parse(map['fechaEliminacion']),
+      fechaCreacion: parseDate(map['fechaCreacion']) ?? DateTime.now(),
+      fechaModificacion: parseDate(map['fechaModificacion']),
+      fechaEliminacion: parseDate(map['fechaEliminacion']),
       empresaId: map['empresaId'] ?? '',
+      sucursalId: map['sucursalId'], // <- Agregado
       monedaId: map['monedaId'] ?? '',
       numeroLote: map['numeroLote'] ?? '',
       observacion: map['observacion'],
       tipo: LoteTipoExtension.fromString(map['tipo'] ?? 'LOCAL'),
       estado: LoteEstadoExtension.fromString(map['estado'] ?? 'BORRADOR'),
-      subtotalMonedaOrigen: (map['subtotalMonedaOrigen'] ?? 0).toDouble(),
-      subtotalMonedaBase: (map['subtotalMonedaBase'] ?? 0).toDouble(),
-      totalGastos: (map['totalGastos'] ?? 0).toDouble(),
-      totalFinal: (map['totalFinal'] ?? 0).toDouble(),
+      subtotalMonedaOrigen:
+          (map['subtotalMonedaOrigen'] as num?)?.toDouble() ?? 0.0,
+      subtotalMonedaBase:
+          (map['subtotalMonedaBase'] as num?)?.toDouble() ?? 0.0,
+      totalGastos: (map['totalGastos'] as num?)?.toDouble() ?? 0.0,
+      totalFinal: (map['totalFinal'] as num?)?.toDouble() ?? 0.0,
       stockGenerado: map['stockGenerado'] ?? false,
     );
   }
@@ -95,6 +97,7 @@ class Lote extends BaseEntity {
           ? Timestamp.fromDate(fechaEliminacion!)
           : null,
       'empresaId': empresaId,
+      'sucursalId': sucursalId, // <- Agregado
       'monedaId': monedaId,
       'numeroLote': numeroLote,
       'observacion': observacion,
@@ -119,6 +122,7 @@ class Lote extends BaseEntity {
     DateTime? fechaModificacion,
     DateTime? fechaEliminacion,
     String? empresaId,
+    String? sucursalId, // <- Agregado
     String? monedaId,
     String? numeroLote,
     String? observacion,
@@ -141,6 +145,7 @@ class Lote extends BaseEntity {
       fechaModificacion: fechaModificacion ?? this.fechaModificacion,
       fechaEliminacion: fechaEliminacion ?? this.fechaEliminacion,
       empresaId: empresaId ?? this.empresaId,
+      sucursalId: sucursalId ?? this.sucursalId, // <- Agregado
       monedaId: monedaId ?? this.monedaId,
       numeroLote: numeroLote ?? this.numeroLote,
       observacion: observacion ?? this.observacion,

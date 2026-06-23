@@ -116,7 +116,7 @@ class LotesAbmScreen extends ConsumerWidget {
   static Future<void> _abrirDetalle(BuildContext context, Lote lote) async {
     await showDialog(
       context: context,
-      builder: (_) => LoteDetalleDialog(loteId: lote.id),
+      builder: (_) => LoteDetalleDialog(loteId: lote.id, lote: lote),
     );
   }
 

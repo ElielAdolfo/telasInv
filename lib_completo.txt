@@ -801,6 +801,7 @@ import 'package:inv_telas/moduloAbms/roles/screens/roles_abm_screen.dart';
 import 'package:inv_telas/moduloAbms/sucursal/screens/sucursales_abm_screen.dart';
 import 'package:inv_telas/moduloAbms/tipos_tela/screens/tipos_tela_abm_screen.dart';
 import 'package:inv_telas/moduloAsignacion/screens/usuarios_empresa_screen.dart';
+import 'package:inv_telas/moduloLotes/screens/lotes_abm_screen.dart';
 import 'package:inv_telas/modulo_json/screens/json_view_screen.dart';
 import 'package:inv_telas/providers/auth_provider.dart';
 import 'package:inv_telas/screens/auth_screen.dart';
@@ -842,6 +843,7 @@ class _PrincipalShellState extends ConsumerState<PrincipalShell> {
     '/tipos-telas': const TiposTelaAbmScreen(),
     '/colores': const ColoresAbmScreen(),
     '/moneda': const MonedasAbmScreen(),
+    '/lote': const LotesAbmScreen(),
   };
 
   /// NavegaciÃ³n
@@ -1375,36 +1377,6 @@ class FirebaseService {
 }
 
 
-===== D:\inv\inventario_telas\lib\models\base_entity.dart =====
-
-abstract class BaseEntity {
-  final String id;
-
-  final bool activo;
-  final bool eliminado;
-
-  final String usuarioCreacion;
-  final String? usuarioModificacion;
-  final String? usuarioEliminacion;
-
-  final DateTime fechaCreacion;
-  final DateTime? fechaModificacion;
-  final DateTime? fechaEliminacion;
-
-  const BaseEntity({
-    required this.id,
-    required this.activo,
-    required this.eliminado,
-    required this.usuarioCreacion,
-    this.usuarioModificacion,
-    this.usuarioEliminacion,
-    required this.fechaCreacion,
-    this.fechaModificacion,
-    this.fechaEliminacion,
-  });
-}
-
-
 ===== D:\inv\inventario_telas\lib\models\empresa.dart =====
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -1774,7 +1746,7 @@ class MenuApp {
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:inv_telas/models/base_entity.dart';
+import 'package:inv_telas/models/base/base_entity.dart';
 
 class Moneda extends BaseEntity {
   final String empresaId;
@@ -3348,6 +3320,1093 @@ class TipoTelaVariante {
       'fechaActualizacion': fechaActualizacion?.toIso8601String(),
       'fechaEliminacion': fechaEliminacion?.toIso8601String(),
     };
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\models\base\base_entity.dart =====
+
+abstract class BaseEntity {
+  final String id;
+
+  final bool activo;
+  final bool eliminado;
+
+  final String usuarioCreacion;
+  final String? usuarioModificacion;
+  final String? usuarioEliminacion;
+
+  final DateTime fechaCreacion;
+  final DateTime? fechaModificacion;
+  final DateTime? fechaEliminacion;
+
+  const BaseEntity({
+    required this.id,
+    required this.activo,
+    required this.eliminado,
+    required this.usuarioCreacion,
+    this.usuarioModificacion,
+    this.usuarioEliminacion,
+    required this.fechaCreacion,
+    this.fechaModificacion,
+    this.fechaEliminacion,
+  });
+}
+
+
+===== D:\inv\inventario_telas\lib\models\lotes\codigo_tela_proveedor.dart =====
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../base/base_entity.dart';
+import 'precio_config.dart';
+import 'precio_sucursal_config.dart';
+import 'lote_tipo.dart'; // Tu enum con LOCAL e IMPORTACION
+
+class CodigoTelaProveedor extends BaseEntity {
+  final String empresaId;
+  final String proveedorId;
+  final String tipoTelaId;
+
+  // NUEVOS CAMPOS ESTRUCTURALES DE PRECIOS
+  final PrecioConfig
+  precioImportacion; // Ãšnico y global para todas las sucursales
+  final PrecioConfig
+  precioLocalGeneral; // Fallback local si la sucursal no tiene precio propio
+  final List<PrecioSucursalConfig>
+  preciosLocalPorSucursal; // Precios locales especÃ­ficos
+
+  const CodigoTelaProveedor({
+    required super.id,
+    required super.activo,
+    required super.eliminado,
+    required super.usuarioCreacion,
+    super.usuarioModificacion,
+    super.usuarioEliminacion,
+    required super.fechaCreacion,
+    super.fechaModificacion,
+    super.fechaEliminacion,
+    required this.empresaId,
+    required this.proveedorId,
+    required this.tipoTelaId,
+    required this.precioImportacion,
+    required this.precioLocalGeneral,
+    this.preciosLocalPorSucursal = const [],
+  });
+
+  /// MÃ‰TODO CLAVE: Resuelve automÃ¡ticamente quÃ© precio usar en caliente
+  PrecioConfig obtenerPrecioAutomatizado({
+    required LoteTipo tipoLote,
+    required String sucursalId,
+  }) {
+    // Regla 1: Si es importaciÃ³n, es el mismo para todos sin importar la sucursal
+    if (tipoLote == LoteTipo.importacion) {
+      return precioImportacion;
+    }
+
+    // Regla 2: Si es local, buscar primero si existe una configuraciÃ³n especÃ­fica para esta sucursal
+    final precioEspecifico = preciosLocalPorSucursal.firstWhere(
+      (element) => element.sucursalId == sucursalId,
+      orElse: () => const PrecioSucursalConfig(
+        sucursalId: '',
+        precio: PrecioConfig(monedaId: '', precioMetro: 0, precioRollo: 0),
+      ),
+    );
+
+    if (precioEspecifico.sucursalId.isNotEmpty) {
+      return precioEspecifico.precio;
+    }
+
+    // Regla 3: Si no tiene asignado un precio por sucursal, usar el precio local general
+    return precioLocalGeneral;
+  }
+
+  factory CodigoTelaProveedor.fromMap(Map<String, dynamic> map) {
+    DateTime? parseDate(dynamic value) {
+      if (value == null) return null;
+      if (value is Timestamp) return value.toDate();
+      return DateTime.tryParse(value.toString());
+    }
+
+    return CodigoTelaProveedor(
+      id: map['id'] ?? '',
+      activo: map['activo'] ?? true,
+      eliminado: map['eliminado'] ?? false,
+      usuarioCreacion: map['usuarioCreacion'] ?? '',
+      usuarioModificacion: map['usuarioModificacion'],
+      usuarioEliminacion: map['usuarioEliminacion'],
+      fechaCreacion: parseDate(map['fechaCreacion']) ?? DateTime.now(),
+      fechaModificacion: parseDate(map['fechaModificacion']),
+      fechaEliminacion: parseDate(map['fechaEliminacion']),
+      empresaId: map['empresaId'] ?? '',
+      proveedorId: map['proveedorId'] ?? '',
+      tipoTelaId: map['tipoTelaId'] ?? '',
+
+      // Mapeo de nuevas estructuras de precios
+      precioImportacion: PrecioConfig.fromMap(
+        Map<String, dynamic>.from(map['precioImportacion'] ?? {}),
+      ),
+      precioLocalGeneral: PrecioConfig.fromMap(
+        Map<String, dynamic>.from(map['precioLocalGeneral'] ?? {}),
+      ),
+      preciosLocalPorSucursal: map['preciosLocalPorSucursal'] != null
+          ? (map['preciosLocalPorSucursal'] as List)
+                .map(
+                  (e) => PrecioSucursalConfig.fromMap(
+                    Map<String, dynamic>.from(e),
+                  ),
+                )
+                .toList()
+          : const [],
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'activo': activo,
+      'eliminado': eliminado,
+      'usuarioCreacion': usuarioCreacion,
+      'usuarioModificacion': usuarioModificacion,
+      'usuarioEliminacion': usuarioEliminacion,
+      'fechaCreacion': Timestamp.fromDate(fechaCreacion),
+      'fechaModificacion': fechaModificacion != null
+          ? Timestamp.fromDate(fechaModificacion!)
+          : null,
+      'fechaEliminacion': fechaEliminacion != null
+          ? Timestamp.fromDate(fechaEliminacion!)
+          : null,
+      'empresaId': empresaId,
+      'proveedorId': proveedorId,
+      'tipoTelaId': tipoTelaId,
+
+      // SerializaciÃ³n nativa para Firestore de los sub-objetos
+      'precioImportacion': precioImportacion.toMap(),
+      'precioLocalGeneral': precioLocalGeneral.toMap(),
+      'preciosLocalPorSucursal': preciosLocalPorSucursal
+          .map((e) => e.toMap())
+          .toList(),
+    };
+  }
+
+  CodigoTelaProveedor copyWith({
+    String? id,
+    bool? activo,
+    bool? eliminado,
+    String? usuarioCreacion,
+    String? usuarioModificacion,
+    String? usuarioEliminacion,
+    DateTime? fechaCreacion,
+    DateTime? fechaModificacion,
+    DateTime? fechaEliminacion,
+    String? empresaId,
+    String? proveedorId,
+    String? tipoTelaId,
+    String? colorId,
+    String? codigoColor,
+    PrecioConfig? precioImportacion,
+    PrecioConfig? precioLocalGeneral,
+    List<PrecioSucursalConfig>? preciosLocalPorSucursal,
+  }) {
+    return CodigoTelaProveedor(
+      id: id ?? this.id,
+      activo: activo ?? this.activo,
+      eliminado: eliminado ?? this.eliminado,
+      usuarioCreacion: usuarioCreacion ?? this.usuarioCreacion,
+      usuarioModificacion: usuarioModificacion ?? this.usuarioModificacion,
+      usuarioEliminacion: usuarioEliminacion ?? this.usuarioEliminacion,
+      fechaCreacion: fechaCreacion ?? this.fechaCreacion,
+      fechaModificacion: fechaModificacion ?? this.fechaModificacion,
+      fechaEliminacion: fechaEliminacion ?? this.fechaEliminacion,
+      empresaId: empresaId ?? this.empresaId,
+      proveedorId: proveedorId ?? this.proveedorId,
+      tipoTelaId: tipoTelaId ?? this.tipoTelaId,
+      precioImportacion: precioImportacion ?? this.precioImportacion,
+      precioLocalGeneral: precioLocalGeneral ?? this.precioLocalGeneral,
+      preciosLocalPorSucursal:
+          preciosLocalPorSucursal ?? this.preciosLocalPorSucursal,
+    );
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\models\lotes\lote.dart =====
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:inv_telas/models/base/base_entity.dart';
+
+import 'lote_estado.dart';
+import 'lote_tipo.dart';
+
+class Lote extends BaseEntity {
+  final String empresaId;
+  final String? sucursalId; // <- Corregido: Ahora se mapea correctamente
+  final String monedaId;
+  final String numeroLote;
+  final String? observacion;
+
+  final LoteTipo tipo;
+  final LoteEstado estado;
+
+  final double subtotalMonedaOrigen;
+  final double subtotalMonedaBase;
+
+  final double totalGastos;
+  final double totalFinal;
+  final bool stockGenerado;
+
+  const Lote({
+    required super.id,
+    required super.activo,
+    required super.eliminado,
+    required super.usuarioCreacion,
+    super.usuarioModificacion,
+    super.usuarioEliminacion,
+    required super.fechaCreacion,
+    super.fechaModificacion,
+    super.fechaEliminacion,
+    required this.empresaId,
+    this.sucursalId,
+    required this.monedaId,
+    required this.numeroLote,
+    this.observacion,
+    required this.tipo,
+    required this.estado,
+    required this.subtotalMonedaOrigen,
+    required this.subtotalMonedaBase,
+    required this.totalGastos,
+    required this.totalFinal,
+    this.stockGenerado = false,
+  });
+
+  factory Lote.fromMap(Map<String, dynamic> map) {
+    DateTime? parseDate(dynamic value) {
+      if (value == null) return null;
+      if (value is Timestamp) {
+        return value.toDate();
+      }
+      return DateTime.tryParse(value.toString());
+    }
+
+    return Lote(
+      id: map['id'] ?? '',
+      activo: map['activo'] ?? true,
+      eliminado: map['eliminado'] ?? false,
+      usuarioCreacion: map['usuarioCreacion'] ?? '',
+      usuarioModificacion: map['usuarioModificacion'],
+      usuarioEliminacion: map['usuarioEliminacion'],
+      fechaCreacion: parseDate(map['fechaCreacion']) ?? DateTime.now(),
+      fechaModificacion: parseDate(map['fechaModificacion']),
+      fechaEliminacion: parseDate(map['fechaEliminacion']),
+      empresaId: map['empresaId'] ?? '',
+      sucursalId: map['sucursalId'], // <- Agregado
+      monedaId: map['monedaId'] ?? '',
+      numeroLote: map['numeroLote'] ?? '',
+      observacion: map['observacion'],
+      tipo: LoteTipoExtension.fromString(map['tipo'] ?? 'LOCAL'),
+      estado: LoteEstadoExtension.fromString(map['estado'] ?? 'BORRADOR'),
+      subtotalMonedaOrigen:
+          (map['subtotalMonedaOrigen'] as num?)?.toDouble() ?? 0.0,
+      subtotalMonedaBase:
+          (map['subtotalMonedaBase'] as num?)?.toDouble() ?? 0.0,
+      totalGastos: (map['totalGastos'] as num?)?.toDouble() ?? 0.0,
+      totalFinal: (map['totalFinal'] as num?)?.toDouble() ?? 0.0,
+      stockGenerado: map['stockGenerado'] ?? false,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'activo': activo,
+      'eliminado': eliminado,
+      'usuarioCreacion': usuarioCreacion,
+      'usuarioModificacion': usuarioModificacion,
+      'usuarioEliminacion': usuarioEliminacion,
+      'fechaCreacion': Timestamp.fromDate(fechaCreacion),
+      'fechaModificacion': fechaModificacion != null
+          ? Timestamp.fromDate(fechaModificacion!)
+          : null,
+      'fechaEliminacion': fechaEliminacion != null
+          ? Timestamp.fromDate(fechaEliminacion!)
+          : null,
+      'empresaId': empresaId,
+      'sucursalId': sucursalId, // <- Agregado
+      'monedaId': monedaId,
+      'numeroLote': numeroLote,
+      'observacion': observacion,
+      'tipo': tipo.nombre,
+      'estado': estado.nombre,
+      'subtotalMonedaOrigen': subtotalMonedaOrigen,
+      'subtotalMonedaBase': subtotalMonedaBase,
+      'totalGastos': totalGastos,
+      'totalFinal': totalFinal,
+      'stockGenerado': stockGenerado,
+    };
+  }
+
+  Lote copyWith({
+    String? id,
+    bool? activo,
+    bool? eliminado,
+    String? usuarioCreacion,
+    String? usuarioModificacion,
+    String? usuarioEliminacion,
+    DateTime? fechaCreacion,
+    DateTime? fechaModificacion,
+    DateTime? fechaEliminacion,
+    String? empresaId,
+    String? sucursalId, // <- Agregado
+    String? monedaId,
+    String? numeroLote,
+    String? observacion,
+    LoteTipo? tipo,
+    LoteEstado? estado,
+    double? subtotalMonedaOrigen,
+    double? subtotalMonedaBase,
+    double? totalGastos,
+    double? totalFinal,
+    bool? stockGenerado,
+  }) {
+    return Lote(
+      id: id ?? this.id,
+      activo: activo ?? this.activo,
+      eliminado: eliminado ?? this.eliminado,
+      usuarioCreacion: usuarioCreacion ?? this.usuarioCreacion,
+      usuarioModificacion: usuarioModificacion ?? this.usuarioModificacion,
+      usuarioEliminacion: usuarioEliminacion ?? this.usuarioEliminacion,
+      fechaCreacion: fechaCreacion ?? this.fechaCreacion,
+      fechaModificacion: fechaModificacion ?? this.fechaModificacion,
+      fechaEliminacion: fechaEliminacion ?? this.fechaEliminacion,
+      empresaId: empresaId ?? this.empresaId,
+      sucursalId: sucursalId ?? this.sucursalId, // <- Agregado
+      monedaId: monedaId ?? this.monedaId,
+      numeroLote: numeroLote ?? this.numeroLote,
+      observacion: observacion ?? this.observacion,
+      tipo: tipo ?? this.tipo,
+      estado: estado ?? this.estado,
+      subtotalMonedaOrigen: subtotalMonedaOrigen ?? this.subtotalMonedaOrigen,
+      subtotalMonedaBase: subtotalMonedaBase ?? this.subtotalMonedaBase,
+      totalGastos: totalGastos ?? this.totalGastos,
+      totalFinal: totalFinal ?? this.totalFinal,
+      stockGenerado: stockGenerado ?? this.stockGenerado,
+    );
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\models\lotes\lote_costeo.dart =====
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:inv_telas/models/base/base_entity.dart';
+
+class LoteCosteo extends BaseEntity {
+  final String loteId;
+
+  final double subtotalCompra;
+  final double subtotalGastos;
+
+  final double costoFinal;
+
+  final double costoMetroFinal;
+  final double costoRolloFinal;
+
+  final String jsonDesglose;
+
+  const LoteCosteo({
+    required super.id,
+    required super.activo,
+    required super.eliminado,
+    required super.usuarioCreacion,
+    super.usuarioModificacion,
+    super.usuarioEliminacion,
+    required super.fechaCreacion,
+    super.fechaModificacion,
+    super.fechaEliminacion,
+    required this.loteId,
+    required this.subtotalCompra,
+    required this.subtotalGastos,
+    required this.costoFinal,
+    required this.costoMetroFinal,
+    required this.costoRolloFinal,
+    required this.jsonDesglose,
+  });
+
+  factory LoteCosteo.fromMap(Map<String, dynamic> map) {
+    DateTime? parse(dynamic value) {
+      if (value == null) return null;
+
+      if (value is Timestamp) {
+        return value.toDate();
+      }
+
+      return DateTime.tryParse(value.toString());
+    }
+
+    return LoteCosteo(
+      id: map['id'] ?? '',
+      activo: map['activo'] ?? true,
+      eliminado: map['eliminado'] ?? false,
+      usuarioCreacion: map['usuarioCreacion'] ?? '',
+      usuarioModificacion: map['usuarioModificacion'],
+      usuarioEliminacion: map['usuarioEliminacion'],
+      fechaCreacion: parse(map['fechaCreacion']) ?? DateTime.now(),
+      fechaModificacion: parse(map['fechaModificacion']),
+      fechaEliminacion: parse(map['fechaEliminacion']),
+      loteId: map['loteId'] ?? '',
+      subtotalCompra: (map['subtotalCompra'] ?? 0).toDouble(),
+      subtotalGastos: (map['subtotalGastos'] ?? 0).toDouble(),
+      costoFinal: (map['costoFinal'] ?? 0).toDouble(),
+      costoMetroFinal: (map['costoMetroFinal'] ?? 0).toDouble(),
+      costoRolloFinal: (map['costoRolloFinal'] ?? 0).toDouble(),
+      jsonDesglose: map['jsonDesglose'] ?? '',
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'activo': activo,
+      'eliminado': eliminado,
+      'usuarioCreacion': usuarioCreacion,
+      'usuarioModificacion': usuarioModificacion,
+      'usuarioEliminacion': usuarioEliminacion,
+      'fechaCreacion': Timestamp.fromDate(fechaCreacion),
+      'fechaModificacion': fechaModificacion != null
+          ? Timestamp.fromDate(fechaModificacion!)
+          : null,
+      'fechaEliminacion': fechaEliminacion != null
+          ? Timestamp.fromDate(fechaEliminacion!)
+          : null,
+      'loteId': loteId,
+      'subtotalCompra': subtotalCompra,
+      'subtotalGastos': subtotalGastos,
+      'costoFinal': costoFinal,
+      'costoMetroFinal': costoMetroFinal,
+      'costoRolloFinal': costoRolloFinal,
+      'jsonDesglose': jsonDesglose,
+    };
+  }
+
+  LoteCosteo copyWith({
+    String? id,
+    bool? activo,
+    bool? eliminado,
+    String? usuarioCreacion,
+    String? usuarioModificacion,
+    String? usuarioEliminacion,
+    DateTime? fechaCreacion,
+    DateTime? fechaModificacion,
+    DateTime? fechaEliminacion,
+    String? loteId,
+    double? subtotalCompra,
+    double? subtotalGastos,
+    double? costoFinal,
+    double? costoMetroFinal,
+    double? costoRolloFinal,
+    String? jsonDesglose,
+  }) {
+    return LoteCosteo(
+      id: id ?? this.id,
+      activo: activo ?? this.activo,
+      eliminado: eliminado ?? this.eliminado,
+      usuarioCreacion: usuarioCreacion ?? this.usuarioCreacion,
+      usuarioModificacion: usuarioModificacion ?? this.usuarioModificacion,
+      usuarioEliminacion: usuarioEliminacion ?? this.usuarioEliminacion,
+      fechaCreacion: fechaCreacion ?? this.fechaCreacion,
+      fechaModificacion: fechaModificacion ?? this.fechaModificacion,
+      fechaEliminacion: fechaEliminacion ?? this.fechaEliminacion,
+      loteId: loteId ?? this.loteId,
+      subtotalCompra: subtotalCompra ?? this.subtotalCompra,
+      subtotalGastos: subtotalGastos ?? this.subtotalGastos,
+      costoFinal: costoFinal ?? this.costoFinal,
+      costoMetroFinal: costoMetroFinal ?? this.costoMetroFinal,
+      costoRolloFinal: costoRolloFinal ?? this.costoRolloFinal,
+      jsonDesglose: jsonDesglose ?? this.jsonDesglose,
+    );
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\models\lotes\lote_detalle.dart =====
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:inv_telas/models/base/base_entity.dart';
+
+class LoteDetalle extends BaseEntity {
+  final String loteId;
+  final String tipoTelaId;
+  final String? varianteId;
+  final String? colorId;
+  final int cantidadRollos;
+  final double metrosPorRollo;
+  final double totalMetros;
+  final double costoMetroOrigen;
+  final double costoMetroBase;
+  final double costoRolloOrigen;
+  final double costoRolloBase;
+
+  const LoteDetalle({
+    required super.id,
+    required super.activo,
+    required super.eliminado,
+    required super.usuarioCreacion,
+    super.usuarioModificacion,
+    super.usuarioEliminacion,
+    required super.fechaCreacion,
+    super.fechaModificacion,
+    super.fechaEliminacion,
+    required this.loteId,
+    required this.tipoTelaId,
+    this.varianteId,
+    this.colorId,
+    required this.cantidadRollos,
+    required this.metrosPorRollo,
+    required this.totalMetros,
+    required this.costoMetroOrigen,
+    required this.costoMetroBase,
+    required this.costoRolloOrigen,
+    required this.costoRolloBase,
+  });
+
+  factory LoteDetalle.fromMap(Map<String, dynamic> map) {
+    DateTime? parse(dynamic value) {
+      if (value == null) return null;
+
+      if (value is Timestamp) {
+        return value.toDate();
+      }
+
+      return DateTime.tryParse(value.toString());
+    }
+
+    return LoteDetalle(
+      id: map['id'] ?? '',
+      activo: map['activo'] ?? true,
+      eliminado: map['eliminado'] ?? false,
+      usuarioCreacion: map['usuarioCreacion'] ?? '',
+      usuarioModificacion: map['usuarioModificacion'],
+      usuarioEliminacion: map['usuarioEliminacion'],
+      fechaCreacion: parse(map['fechaCreacion']) ?? DateTime.now(),
+      fechaModificacion: parse(map['fechaModificacion']),
+      fechaEliminacion: parse(map['fechaEliminacion']),
+      loteId: map['loteId'] ?? '',
+      tipoTelaId: map['tipoTelaId'] ?? '',
+      varianteId: map['varianteId'],
+      colorId: map['colorId'],
+      cantidadRollos: map['cantidadRollos'] ?? 0,
+      metrosPorRollo: (map['metrosPorRollo'] ?? 0).toDouble(),
+      totalMetros: (map['totalMetros'] ?? 0).toDouble(),
+      costoMetroOrigen: (map['costoMetroOrigen'] ?? 0).toDouble(),
+      costoMetroBase: (map['costoMetroBase'] ?? 0).toDouble(),
+      costoRolloOrigen: (map['costoRolloOrigen'] ?? 0).toDouble(),
+      costoRolloBase: (map['costoRolloBase'] ?? 0).toDouble(),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'activo': activo,
+      'eliminado': eliminado,
+      'usuarioCreacion': usuarioCreacion,
+      'usuarioModificacion': usuarioModificacion,
+      'usuarioEliminacion': usuarioEliminacion,
+      'fechaCreacion': Timestamp.fromDate(fechaCreacion),
+      'fechaModificacion': fechaModificacion != null
+          ? Timestamp.fromDate(fechaModificacion!)
+          : null,
+      'fechaEliminacion': fechaEliminacion != null
+          ? Timestamp.fromDate(fechaEliminacion!)
+          : null,
+      'loteId': loteId,
+      'tipoTelaId': tipoTelaId,
+      'varianteId': varianteId,
+      'colorId': colorId,
+      'cantidadRollos': cantidadRollos,
+      'metrosPorRollo': metrosPorRollo,
+      'totalMetros': totalMetros,
+      'costoMetroOrigen': costoMetroOrigen,
+      'costoMetroBase': costoMetroBase,
+      'costoRolloOrigen': costoRolloOrigen,
+      'costoRolloBase': costoRolloBase,
+    };
+  }
+
+  LoteDetalle copyWith({
+    String? id,
+    bool? activo,
+    bool? eliminado,
+    String? usuarioCreacion,
+    String? usuarioModificacion,
+    String? usuarioEliminacion,
+    DateTime? fechaCreacion,
+    DateTime? fechaModificacion,
+    DateTime? fechaEliminacion,
+    String? loteId,
+    String? tipoTelaId,
+    String? varianteId,
+    String? colorId,
+    int? cantidadRollos,
+    double? metrosPorRollo,
+    double? totalMetros,
+    double? costoMetroOrigen,
+    double? costoMetroBase,
+    double? costoRolloOrigen,
+    double? costoRolloBase,
+  }) {
+    return LoteDetalle(
+      id: id ?? this.id,
+      activo: activo ?? this.activo,
+      eliminado: eliminado ?? this.eliminado,
+      usuarioCreacion: usuarioCreacion ?? this.usuarioCreacion,
+      usuarioModificacion: usuarioModificacion ?? this.usuarioModificacion,
+      usuarioEliminacion: usuarioEliminacion ?? this.usuarioEliminacion,
+      fechaCreacion: fechaCreacion ?? this.fechaCreacion,
+      fechaModificacion: fechaModificacion ?? this.fechaModificacion,
+      fechaEliminacion: fechaEliminacion ?? this.fechaEliminacion,
+      loteId: loteId ?? this.loteId,
+      tipoTelaId: tipoTelaId ?? this.tipoTelaId,
+      varianteId: varianteId ?? this.varianteId,
+      colorId: colorId ?? this.colorId,
+      cantidadRollos: cantidadRollos ?? this.cantidadRollos,
+      metrosPorRollo: metrosPorRollo ?? this.metrosPorRollo,
+      totalMetros: totalMetros ?? this.totalMetros,
+      costoMetroOrigen: costoMetroOrigen ?? this.costoMetroOrigen,
+      costoMetroBase: costoMetroBase ?? this.costoMetroBase,
+      costoRolloOrigen: costoRolloOrigen ?? this.costoRolloOrigen,
+      costoRolloBase: costoRolloBase ?? this.costoRolloBase,
+    );
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\models\lotes\lote_estado.dart =====
+
+enum LoteEstado { borrador, enTransito, revision, finalizado, cancelado }
+
+extension LoteEstadoExtension on LoteEstado {
+  String get nombre {
+    switch (this) {
+      case LoteEstado.borrador:
+        return 'BORRADOR';
+
+      case LoteEstado.enTransito:
+        return 'EN_TRANSITO';
+
+      case LoteEstado.revision:
+        return 'REVISION';
+
+      case LoteEstado.finalizado:
+        return 'FINALIZADO';
+
+      case LoteEstado.cancelado:
+        return 'CANCELADO';
+    }
+  }
+
+  static LoteEstado fromString(String value) {
+    return LoteEstado.values.firstWhere(
+      (e) => e.nombre == value,
+      orElse: () => LoteEstado.borrador,
+    );
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\models\lotes\lote_gasto.dart =====
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:inv_telas/models/base/base_entity.dart';
+
+class LoteGasto extends BaseEntity {
+  final String loteId;
+  final String descripcion;
+  final String monedaId;
+  final double monto;
+  final double tipoCambio;
+  final double montoBase;
+
+  const LoteGasto({
+    required super.id,
+    required super.activo,
+    required super.eliminado,
+    required super.usuarioCreacion,
+    super.usuarioModificacion,
+    super.usuarioEliminacion,
+    required super.fechaCreacion,
+    super.fechaModificacion,
+    super.fechaEliminacion,
+    required this.loteId,
+    required this.descripcion,
+    required this.monedaId,
+    required this.monto,
+    required this.tipoCambio,
+    required this.montoBase,
+  });
+
+  factory LoteGasto.fromMap(Map<String, dynamic> map) {
+    DateTime? parse(dynamic value) {
+      if (value == null) return null;
+
+      if (value is Timestamp) {
+        return value.toDate();
+      }
+
+      return DateTime.tryParse(value.toString());
+    }
+
+    return LoteGasto(
+      id: map['id'] ?? '',
+      activo: map['activo'] ?? true,
+      eliminado: map['eliminado'] ?? false,
+      usuarioCreacion: map['usuarioCreacion'] ?? '',
+      usuarioModificacion: map['usuarioModificacion'],
+      usuarioEliminacion: map['usuarioEliminacion'],
+      fechaCreacion: parse(map['fechaCreacion']) ?? DateTime.now(),
+      fechaModificacion: parse(map['fechaModificacion']),
+      fechaEliminacion: parse(map['fechaEliminacion']),
+      loteId: map['loteId'] ?? '',
+      descripcion: map['descripcion'] ?? '',
+      monedaId: map['monedaId'] ?? '',
+      monto: (map['monto'] ?? 0).toDouble(),
+      tipoCambio: (map['tipoCambio'] ?? 1).toDouble(),
+      montoBase: (map['montoBase'] ?? 0).toDouble(),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'activo': activo,
+      'eliminado': eliminado,
+      'usuarioCreacion': usuarioCreacion,
+      'usuarioModificacion': usuarioModificacion,
+      'usuarioEliminacion': usuarioEliminacion,
+      'fechaCreacion': Timestamp.fromDate(fechaCreacion),
+      'fechaModificacion': fechaModificacion != null
+          ? Timestamp.fromDate(fechaModificacion!)
+          : null,
+      'fechaEliminacion': fechaEliminacion != null
+          ? Timestamp.fromDate(fechaEliminacion!)
+          : null,
+      'loteId': loteId,
+      'descripcion': descripcion,
+      'monedaId': monedaId,
+      'monto': monto,
+      'tipoCambio': tipoCambio,
+      'montoBase': montoBase,
+    };
+  }
+
+  LoteGasto copyWith({
+    String? id,
+    bool? activo,
+    bool? eliminado,
+    String? usuarioCreacion,
+    String? usuarioModificacion,
+    String? usuarioEliminacion,
+    DateTime? fechaCreacion,
+    DateTime? fechaModificacion,
+    DateTime? fechaEliminacion,
+    String? loteId,
+    String? descripcion,
+    String? monedaId,
+    double? monto,
+    double? tipoCambio,
+    double? montoBase,
+  }) {
+    return LoteGasto(
+      id: id ?? this.id,
+      activo: activo ?? this.activo,
+      eliminado: eliminado ?? this.eliminado,
+      usuarioCreacion: usuarioCreacion ?? this.usuarioCreacion,
+      usuarioModificacion: usuarioModificacion ?? this.usuarioModificacion,
+      usuarioEliminacion: usuarioEliminacion ?? this.usuarioEliminacion,
+      fechaCreacion: fechaCreacion ?? this.fechaCreacion,
+      fechaModificacion: fechaModificacion ?? this.fechaModificacion,
+      fechaEliminacion: fechaEliminacion ?? this.fechaEliminacion,
+      loteId: loteId ?? this.loteId,
+      descripcion: descripcion ?? this.descripcion,
+      monedaId: monedaId ?? this.monedaId,
+      monto: monto ?? this.monto,
+      tipoCambio: tipoCambio ?? this.tipoCambio,
+      montoBase: montoBase ?? this.montoBase,
+    );
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\models\lotes\lote_historial_estado.dart =====
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:inv_telas/models/base/base_entity.dart';
+
+import 'lote_estado.dart';
+
+class LoteHistorialEstado extends BaseEntity {
+  final String loteId;
+
+  /// Estado anterior
+  final LoteEstado estadoAnterior;
+
+  /// Estado nuevo
+  final LoteEstado estadoNuevo;
+
+  /// Comentario opcional del usuario
+  final String? observacion;
+
+  /// Snapshot opcional del lote antes del cambio
+  final Map<String, dynamic>? datosAntes;
+
+  /// Snapshot opcional del lote despuÃ©s del cambio
+  final Map<String, dynamic>? datosDespues;
+
+  const LoteHistorialEstado({
+    required super.id,
+    required super.activo,
+    required super.eliminado,
+    required super.usuarioCreacion,
+    super.usuarioModificacion,
+    super.usuarioEliminacion,
+    required super.fechaCreacion,
+    super.fechaModificacion,
+    super.fechaEliminacion,
+    required this.loteId,
+    required this.estadoAnterior,
+    required this.estadoNuevo,
+    this.observacion,
+    this.datosAntes,
+    this.datosDespues,
+  });
+
+  factory LoteHistorialEstado.fromMap(Map<String, dynamic> map) {
+    DateTime? parseDate(dynamic value) {
+      if (value == null) return null;
+
+      if (value is Timestamp) {
+        return value.toDate();
+      }
+
+      if (value is String) {
+        return DateTime.tryParse(value);
+      }
+
+      return null;
+    }
+
+    return LoteHistorialEstado(
+      id: map['id'] ?? '',
+      activo: map['activo'] ?? true,
+      eliminado: map['eliminado'] ?? false,
+      usuarioCreacion: map['usuarioCreacion'] ?? '',
+      usuarioModificacion: map['usuarioModificacion'],
+      usuarioEliminacion: map['usuarioEliminacion'],
+      fechaCreacion: parseDate(map['fechaCreacion']) ?? DateTime.now(),
+      fechaModificacion: parseDate(map['fechaModificacion']),
+      fechaEliminacion: parseDate(map['fechaEliminacion']),
+      loteId: map['loteId'] ?? '',
+      estadoAnterior: LoteEstadoExtension.fromString(
+        map['estadoAnterior'] ?? 'BORRADOR',
+      ),
+      estadoNuevo: LoteEstadoExtension.fromString(
+        map['estadoNuevo'] ?? 'BORRADOR',
+      ),
+      observacion: map['observacion'],
+      datosAntes: map['datosAntes'] != null
+          ? Map<String, dynamic>.from(map['datosAntes'])
+          : null,
+      datosDespues: map['datosDespues'] != null
+          ? Map<String, dynamic>.from(map['datosDespues'])
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+
+      'activo': activo,
+      'eliminado': eliminado,
+
+      'usuarioCreacion': usuarioCreacion,
+      'usuarioModificacion': usuarioModificacion,
+      'usuarioEliminacion': usuarioEliminacion,
+
+      'fechaCreacion': Timestamp.fromDate(fechaCreacion),
+
+      'fechaModificacion': fechaModificacion != null
+          ? Timestamp.fromDate(fechaModificacion!)
+          : null,
+
+      'fechaEliminacion': fechaEliminacion != null
+          ? Timestamp.fromDate(fechaEliminacion!)
+          : null,
+
+      'loteId': loteId,
+
+      'estadoAnterior': estadoAnterior.nombre,
+      'estadoNuevo': estadoNuevo.nombre,
+
+      'observacion': observacion,
+
+      'datosAntes': datosAntes,
+      'datosDespues': datosDespues,
+    };
+  }
+
+  LoteHistorialEstado copyWith({
+    String? id,
+    bool? activo,
+    bool? eliminado,
+    String? usuarioCreacion,
+    String? usuarioModificacion,
+    String? usuarioEliminacion,
+    DateTime? fechaCreacion,
+    DateTime? fechaModificacion,
+    DateTime? fechaEliminacion,
+    String? loteId,
+    LoteEstado? estadoAnterior,
+    LoteEstado? estadoNuevo,
+    String? observacion,
+    Map<String, dynamic>? datosAntes,
+    Map<String, dynamic>? datosDespues,
+  }) {
+    return LoteHistorialEstado(
+      id: id ?? this.id,
+      activo: activo ?? this.activo,
+      eliminado: eliminado ?? this.eliminado,
+      usuarioCreacion: usuarioCreacion ?? this.usuarioCreacion,
+      usuarioModificacion: usuarioModificacion ?? this.usuarioModificacion,
+      usuarioEliminacion: usuarioEliminacion ?? this.usuarioEliminacion,
+      fechaCreacion: fechaCreacion ?? this.fechaCreacion,
+      fechaModificacion: fechaModificacion ?? this.fechaModificacion,
+      fechaEliminacion: fechaEliminacion ?? this.fechaEliminacion,
+      loteId: loteId ?? this.loteId,
+      estadoAnterior: estadoAnterior ?? this.estadoAnterior,
+      estadoNuevo: estadoNuevo ?? this.estadoNuevo,
+      observacion: observacion ?? this.observacion,
+      datosAntes: datosAntes ?? this.datosAntes,
+      datosDespues: datosDespues ?? this.datosDespues,
+    );
+  }
+
+  @override
+  String toString() {
+    return '''
+LoteHistorialEstado(
+  id: $id,
+  loteId: $loteId,
+  estadoAnterior: ${estadoAnterior.nombre},
+  estadoNuevo: ${estadoNuevo.nombre},
+  usuarioCreacion: $usuarioCreacion,
+  fechaCreacion: $fechaCreacion
+)
+''';
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\models\lotes\lote_tipo.dart =====
+
+enum LoteTipo { local, importacion }
+
+extension LoteTipoExtension on LoteTipo {
+  String get nombre {
+    switch (this) {
+      case LoteTipo.local:
+        return 'LOCAL';
+
+      case LoteTipo.importacion:
+        return 'IMPORTACION';
+    }
+  }
+
+  static LoteTipo fromString(String value) {
+    return LoteTipo.values.firstWhere(
+      (e) => e.nombre == value,
+      orElse: () => LoteTipo.local,
+    );
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\models\lotes\precio_config.dart =====
+
+class PrecioConfig {
+  final String monedaId;
+  final double precioMetro; // Caso 1: Precio directo por metro lineal
+  final double precioRollo; // Caso 2: Precio por rollo cerrado de metraje fijo
+  final double metrajeFijo; // Por defecto 50.0 (Ãºtil para el Caso 2)
+
+  const PrecioConfig({
+    required this.monedaId,
+    required this.precioMetro,
+    required this.precioRollo,
+    this.metrajeFijo = 50.0,
+  });
+
+  factory PrecioConfig.fromMap(Map<String, dynamic> map) {
+    return PrecioConfig(
+      monedaId: map['monedaId'] ?? '',
+      precioMetro: (map['precioMetro'] ?? 0.0).toDouble(),
+      precioRollo: (map['precioRollo'] ?? 0.0).toDouble(),
+      metrajeFijo: (map['metrajeFijo'] ?? 50.0).toDouble(),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'monedaId': monedaId,
+      'precioMetro': precioMetro,
+      'precioRollo': precioRollo,
+      'metrajeFijo': metrajeFijo,
+    };
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\models\lotes\precio_sucursal_config.dart =====
+
+import 'package:inv_telas/models/lotes/precio_config.dart';
+
+class PrecioSucursalConfig {
+  final String sucursalId;
+  final PrecioConfig precio;
+
+  const PrecioSucursalConfig({required this.sucursalId, required this.precio});
+
+  factory PrecioSucursalConfig.fromMap(Map<String, dynamic> map) {
+    return PrecioSucursalConfig(
+      sucursalId: map['sucursalId'] ?? '',
+      precio: PrecioConfig.fromMap(
+        Map<String, dynamic>.from(map['precio'] ?? {}),
+      ),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {'sucursalId': sucursalId, 'precio': precio.toMap()};
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\models\lotes\rollo_info.dart =====
+
+class RolloInfo {
+  final String? numeroRollo; // Para el caso de Milenium ('32', '33', etc.)
+  final double metros; // El metraje real de ese rollo especÃ­fico (50, 43, 103)
+
+  const RolloInfo({this.numeroRollo, required this.metros});
+
+  factory RolloInfo.fromMap(Map<String, dynamic> map) {
+    return RolloInfo(
+      numeroRollo: map['numeroRollo'],
+      metros: (map['metros'] ?? 0).toDouble(),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {'numeroRollo': numeroRollo, 'metros': metros};
   }
 }
 
@@ -8602,7 +9661,7 @@ class _CampoConfigurableDialogState extends State<CampoConfigurableDialog> {
 
   TipoCampo tipo = TipoCampo.texto;
   bool requerido = false;
-  bool esDiferenciador = false; // ðŸ‘ˆ NUEVO ESTADO
+  bool esDiferenciador = false;
 
   @override
   void initState() {
@@ -8613,7 +9672,7 @@ class _CampoConfigurableDialogState extends State<CampoConfigurableDialog> {
     nombreCtrl.text = campo.nombre;
     tipo = campo.tipo;
     requerido = campo.requerido;
-    esDiferenciador = campo.esDiferenciador; // ðŸ‘ˆ INICIALIZAR SI SE EDITA
+    esDiferenciador = campo.esDiferenciador;
   }
 
   @override
@@ -8622,10 +9681,35 @@ class _CampoConfigurableDialogState extends State<CampoConfigurableDialog> {
     super.dispose();
   }
 
+  // ðŸ‘ˆ FUNCIÃ“N AUTOMÃTICA PARA CONFIGURAR "METRAJE"
+  void _cargarPlantillaMetraje() {
+    setState(() {
+      nombreCtrl.text = 'Metraje';
+      tipo = TipoCampo.decimal;
+      requerido = true;
+      esDiferenciador = true;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.campo == null ? 'Nuevo Campo' : 'Editar Campo'),
+      // ðŸ‘ˆ AGREGAMOS EL BOTÃ“N DE AUTO-RELLENADO EN LA BARRA DE TÃTULO
+      title: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(widget.campo == null ? 'Nuevo Campo' : 'Editar Campo'),
+          if (widget.campo == null) // Solo mostrar si es un campo nuevo
+            TextButton.icon(
+              onPressed: _cargarPlantillaMetraje,
+              icon: const Icon(Icons.flash_on, color: Colors.orange),
+              label: const Text(
+                'Usar Metraje',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+        ],
+      ),
       content: SizedBox(
         width: 500,
         child: Form(
@@ -8683,7 +9767,6 @@ class _CampoConfigurableDialogState extends State<CampoConfigurableDialog> {
                   });
                 },
               ),
-              // ðŸ‘ˆ NUEVO WIDGET: CONTROL DE COMPORTAMIENTO VARIANTE
               CheckboxListTile(
                 value: esDiferenciador,
                 contentPadding: EdgeInsets.zero,
@@ -8718,8 +9801,7 @@ class _CampoConfigurableDialogState extends State<CampoConfigurableDialog> {
                 nombre: nombreCtrl.text.trim(),
                 tipo: tipo,
                 requerido: requerido,
-                esDiferenciador:
-                    esDiferenciador, // ðŸ‘ˆ PERSISTENCIA EN EL CONSTRUCTOR
+                esDiferenciador: esDiferenciador,
                 activo: widget.campo?.activo ?? true,
                 eliminado: widget.campo?.eliminado ?? false,
                 usuarioCreadorId: widget.campo?.usuarioCreadorId,
@@ -11963,6 +13045,2921 @@ class UsuarioSucursalesCard extends ConsumerWidget {
 }
 
 
+===== D:\inv\inventario_telas\lib\moduloLotes\screens\lotes_abm_screen.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/moduloLotes/widgets/lote_costeo_dialog.dart';
+import 'package:inv_telas/moduloLotes/widgets/lote_gastos_dialog.dart';
+
+import '../../../core/providers/session_provider.dart';
+
+import '../../../models/lotes/lote.dart';
+
+import '../../../providers/lote_provider.dart';
+
+import '../widgets/lote_card.dart';
+import '../widgets/lote_table.dart';
+import '../widgets/lote_form_dialog.dart';
+import '../widgets/lote_detalle_dialog.dart';
+import '../widgets/cambio_estado_dialog.dart';
+
+class LotesAbmScreen extends ConsumerWidget {
+  const LotesAbmScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final empresaId = ref.watch(sessionProvider).empresaActual!.id;
+
+    final usuarioId = ref.watch(sessionProvider).usuario!.id;
+
+    final lotesAsync = ref.watch(lotesProvider(empresaId));
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('AdministraciÃ³n de Lotes'),
+
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              ref.read(lotesProvider(empresaId).notifier).recargar();
+            },
+          ),
+        ],
+      ),
+
+      floatingActionButton: FloatingActionButton.extended(
+        icon: const Icon(Icons.add),
+        label: const Text('Nuevo Lote'),
+        onPressed: () async {
+          await showDialog(
+            context: context,
+            builder: (_) => const LoteFormDialog(),
+          );
+        },
+      ),
+
+      body: lotesAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+
+        error: (e, _) => Center(child: Text(e.toString())),
+
+        data: (lotes) {
+          if (lotes.isEmpty) {
+            return const Center(child: Text('No existen lotes registrados'));
+          }
+
+          final isMobile = MediaQuery.of(context).size.width < 900;
+
+          if (isMobile) {
+            return ListView.builder(
+              itemCount: lotes.length,
+              itemBuilder: (_, index) {
+                final lote = lotes[index];
+
+                return LoteCard(
+                  lote: lote,
+
+                  onDetalle: () => _abrirDetalle(context, lote),
+
+                  onEditar: () => _editar(context, lote),
+
+                  onGastos: () => _abrirGastos(context, lote),
+
+                  onCosteo: () => _abrirCosteo(context, lote),
+
+                  onEliminar: () =>
+                      _eliminar(context, ref, empresaId, usuarioId, lote),
+                );
+              },
+            );
+          }
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: LoteTable(
+              lotes: lotes,
+
+              onDetalle: (lote) => _abrirDetalle(context, lote),
+
+              onEditar: (lote) => _editar(context, lote),
+
+              onGastos: (lote) => _abrirGastos(context, lote),
+
+              onCosteo: (lote) => _abrirCosteo(context, lote),
+
+              onEliminar: (lote) =>
+                  _eliminar(context, ref, empresaId, usuarioId, lote),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  //==================================================
+  // DETALLE
+  //==================================================
+
+  static Future<void> _abrirDetalle(BuildContext context, Lote lote) async {
+    await showDialog(
+      context: context,
+      builder: (_) => LoteDetalleDialog(loteId: lote.id, lote: lote),
+    );
+  }
+
+  //==================================================
+  // EDITAR
+  //==================================================
+
+  static Future<void> _editar(BuildContext context, Lote lote) async {
+    await showDialog(
+      context: context,
+      builder: (_) => LoteFormDialog(lote: lote),
+    );
+  }
+
+  //==================================================
+  // GASTOS
+  //==================================================
+
+  static Future<void> _abrirGastos(BuildContext context, Lote lote) async {
+    await showDialog(
+      context: context,
+      builder: (_) => LoteGastosDialog(loteId: lote.id),
+    );
+  }
+
+  //==================================================
+  // COSTEO
+  //==================================================
+
+  static Future<void> _abrirCosteo(BuildContext context, Lote lote) async {
+    await showDialog(
+      context: context,
+      builder: (_) => LoteCosteoDialog(loteId: lote.id),
+    );
+  }
+
+  //==================================================
+  // ELIMINAR
+  //==================================================
+
+  static Future<void> _eliminar(
+    BuildContext context,
+    WidgetRef ref,
+    String empresaId,
+    String usuarioId,
+    Lote lote,
+  ) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (_) {
+        return AlertDialog(
+          title: const Text('Eliminar lote'),
+
+          content: Text('Â¿Desea eliminar el lote ${lote.numeroLote}?'),
+
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context, false);
+              },
+              child: const Text('Cancelar'),
+            ),
+
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context, true);
+              },
+              child: const Text('Eliminar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmar != true) {
+      return;
+    }
+
+    await ref
+        .read(lotesProvider(empresaId).notifier)
+        .eliminarLote(loteId: lote.id, usuarioId: usuarioId);
+  }
+
+  //==================================================
+  // CAMBIO ESTADO
+  //==================================================
+
+  static Future<void> abrirCambioEstado(BuildContext context, Lote lote) async {
+    await showDialog(
+      context: context,
+      builder: (_) => CambioEstadoDialog(
+        lote: lote,
+        onConfirmar: (nuevoEstado, observacion) {
+          debugPrint('Nuevo estado: $nuevoEstado - $observacion');
+        },
+      ),
+    );
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\moduloLotes\validators\lote_validator.dart =====
+
+import 'package:inv_telas/models/lotes/lote.dart';
+import 'package:inv_telas/models/lotes/lote_costeo.dart';
+import 'package:inv_telas/models/lotes/lote_detalle.dart';
+import 'package:inv_telas/models/lotes/lote_estado.dart';
+import 'package:inv_telas/models/lotes/lote_gasto.dart';
+
+class LoteValidator {
+  // ==========================================================
+  // VALIDACIÃ“N GENERAL
+  // ==========================================================
+
+  static List<String> validar({
+    required Lote lote,
+    required List<LoteDetalle> detalles,
+    List<LoteGasto> gastos = const [],
+    LoteCosteo? costeo,
+  }) {
+    final errores = <String>[];
+
+    _validarCabecera(lote, errores);
+
+    _validarDetalles(detalles, errores);
+
+    _validarGastos(gastos, errores);
+
+    _validarEstado(lote, detalles, gastos, costeo, errores);
+
+    return errores;
+  }
+
+  static void validarOError({
+    required Lote lote,
+    required List<LoteDetalle> detalles,
+    List<LoteGasto> gastos = const [],
+    LoteCosteo? costeo,
+  }) {
+    final errores = validar(
+      lote: lote,
+      detalles: detalles,
+      gastos: gastos,
+      costeo: costeo,
+    );
+
+    if (errores.isNotEmpty) {
+      throw Exception(errores.join('\n'));
+    }
+  }
+
+  // ==========================================================
+  // CABECERA
+  // ==========================================================
+
+  static void _validarCabecera(Lote lote, List<String> errores) {
+    if (lote.empresaId.trim().isEmpty) {
+      errores.add('La empresa es obligatoria.');
+    }
+
+    if (lote.monedaId.trim().isEmpty) {
+      errores.add('La moneda es obligatoria.');
+    }
+
+    if (lote.numeroLote.trim().isEmpty) {
+      errores.add('El nÃºmero de lote es obligatorio.');
+    }
+  }
+
+  // ==========================================================
+  // DETALLES
+  // ==========================================================
+
+  static void _validarDetalles(
+    List<LoteDetalle> detalles,
+    List<String> errores,
+  ) {
+    if (detalles.isEmpty) {
+      errores.add('Debe existir al menos un detalle.');
+      return;
+    }
+
+    for (final detalle in detalles) {
+      if (detalle.tipoTelaId.trim().isEmpty) {
+        errores.add('Existe un detalle sin tipo de tela.');
+      }
+
+      if (detalle.cantidadRollos <= 0) {
+        errores.add('La cantidad de rollos debe ser mayor a cero.');
+      }
+
+      if (detalle.metrosPorRollo <= 0) {
+        errores.add('Los metros por rollo deben ser mayores a cero.');
+      }
+
+      if (detalle.totalMetros <= 0) {
+        errores.add('El total de metros debe ser mayor a cero.');
+      }
+
+      if (detalle.costoMetroOrigen < 0) {
+        errores.add('El costo por metro origen no puede ser negativo.');
+      }
+
+      if (detalle.costoMetroBase < 0) {
+        errores.add('El costo por metro base no puede ser negativo.');
+      }
+    }
+  }
+
+  // ==========================================================
+  // GASTOS
+  // ==========================================================
+
+  static void _validarGastos(List<LoteGasto> gastos, List<String> errores) {
+    for (final gasto in gastos) {
+      if (gasto.descripcion.trim().isEmpty) {
+        errores.add('Existe un gasto sin descripciÃ³n.');
+      }
+
+      if (gasto.monedaId.trim().isEmpty) {
+        errores.add('Existe un gasto sin moneda.');
+      }
+
+      if (gasto.monto <= 0) {
+        errores.add('Todos los gastos deben ser mayores a cero.');
+      }
+
+      if (gasto.tipoCambio <= 0) {
+        errores.add('El tipo de cambio del gasto debe ser mayor a cero.');
+      }
+    }
+  }
+
+  // ==========================================================
+  // ESTADOS
+  // ==========================================================
+
+  static void _validarEstado(
+    Lote lote,
+    List<LoteDetalle> detalles,
+    List<LoteGasto> gastos,
+    LoteCosteo? costeo,
+    List<String> errores,
+  ) {
+    switch (lote.estado) {
+      case LoteEstado.borrador:
+        break;
+
+      case LoteEstado.enTransito:
+        if (detalles.isEmpty) {
+          errores.add('No puede enviarse a trÃ¡nsito sin detalles.');
+        }
+        break;
+
+      case LoteEstado.revision:
+        if (detalles.isEmpty) {
+          errores.add('No puede pasar a revisiÃ³n sin detalles.');
+        }
+        break;
+
+      case LoteEstado.finalizado:
+        _validarFinalizacion(lote, detalles, gastos, costeo, errores);
+        break;
+
+      case LoteEstado.cancelado:
+        break;
+    }
+  }
+
+  // ==========================================================
+  // FINALIZACIÃ“N
+  // ==========================================================
+
+  static void _validarFinalizacion(
+    Lote lote,
+    List<LoteDetalle> detalles,
+    List<LoteGasto> gastos,
+    LoteCosteo? costeo,
+    List<String> errores,
+  ) {
+    if (detalles.isEmpty) {
+      errores.add('No puede finalizar un lote sin detalles.');
+    }
+
+    if (costeo == null) {
+      errores.add('Debe existir un costeo final.');
+      return;
+    }
+
+    if (costeo.costoFinal <= 0) {
+      errores.add('El costo final debe ser mayor a cero.');
+    }
+
+    if (costeo.costoMetroFinal <= 0) {
+      errores.add('El costo por metro final debe ser mayor a cero.');
+    }
+
+    if (costeo.costoRolloFinal <= 0) {
+      errores.add('El costo por rollo final debe ser mayor a cero.');
+    }
+  }
+
+  // ==========================================================
+  // CAMBIOS DE ESTADO
+  // ==========================================================
+
+  static bool puedeCambiarEstado({
+    required LoteEstado actual,
+    required LoteEstado nuevo,
+  }) {
+    switch (actual) {
+      case LoteEstado.borrador:
+        return nuevo == LoteEstado.enTransito || nuevo == LoteEstado.cancelado;
+
+      case LoteEstado.enTransito:
+        return nuevo == LoteEstado.revision || nuevo == LoteEstado.cancelado;
+
+      case LoteEstado.revision:
+        return nuevo == LoteEstado.finalizado || nuevo == LoteEstado.cancelado;
+
+      case LoteEstado.finalizado:
+        return false;
+
+      case LoteEstado.cancelado:
+        return false;
+    }
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\moduloLotes\widgets\cambio_estado_dialog.dart =====
+
+import 'package:flutter/material.dart';
+
+import '../../../models/lotes/lote.dart';
+import '../../../models/lotes/lote_estado.dart';
+
+class CambioEstadoDialog extends StatefulWidget {
+  final Lote lote;
+  final Function(LoteEstado nuevoEstado, String observacion) onConfirmar;
+
+  const CambioEstadoDialog({
+    super.key,
+    required this.lote,
+    required this.onConfirmar,
+  });
+
+  @override
+  State<CambioEstadoDialog> createState() => _CambioEstadoDialogState();
+}
+
+class _CambioEstadoDialogState extends State<CambioEstadoDialog> {
+  final observacionCtrl = TextEditingController();
+
+  late LoteEstado nuevoEstado;
+
+  @override
+  void initState() {
+    super.initState();
+
+    nuevoEstado = widget.lote.estado;
+  }
+
+  @override
+  void dispose() {
+    observacionCtrl.dispose();
+    super.dispose();
+  }
+
+  List<LoteEstado> estadosDisponibles() {
+    return LoteEstado.values.where((e) => e != widget.lote.estado).toList();
+  }
+
+  String nombreEstado(LoteEstado estado) {
+    switch (estado) {
+      case LoteEstado.borrador:
+        return 'Borrador';
+
+      case LoteEstado.enTransito:
+        return 'En TrÃ¡nsito';
+
+      case LoteEstado.revision:
+        return 'RevisiÃ³n';
+
+      case LoteEstado.finalizado:
+        return 'Finalizado';
+
+      case LoteEstado.cancelado:
+        return 'Cancelado';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Cambiar Estado'),
+
+      content: SizedBox(
+        width: 500,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DropdownButtonFormField<LoteEstado>(
+              value: nuevoEstado,
+              decoration: const InputDecoration(labelText: 'Nuevo Estado'),
+              items: estadosDisponibles()
+                  .map(
+                    (e) => DropdownMenuItem(
+                      value: e,
+                      child: Text(nombreEstado(e)),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value == null) return;
+
+                setState(() {
+                  nuevoEstado = value;
+                });
+              },
+            ),
+
+            const SizedBox(height: 20),
+
+            TextField(
+              controller: observacionCtrl,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'ObservaciÃ³n',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+      ),
+
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.pop(context);
+          },
+          child: const Text('Cancelar'),
+        ),
+
+        ElevatedButton(
+          onPressed: () {
+            widget.onConfirmar(nuevoEstado, observacionCtrl.text.trim());
+
+            Navigator.pop(context);
+          },
+          child: const Text('Confirmar'),
+        ),
+      ],
+    );
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\moduloLotes\widgets\codigo_tela_proveedor_dialog.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/core/providers/session_provider.dart';
+import 'package:inv_telas/models/lotes/codigo_tela_proveedor.dart';
+import 'package:inv_telas/models/lotes/precio_config.dart';
+import 'package:inv_telas/models/lotes/precio_sucursal_config.dart';
+import 'package:inv_telas/models/sucursal.dart';
+import 'package:inv_telas/models/moneda.dart';
+import 'package:inv_telas/providers/codigo_tela_proveedor_provider.dart';
+import 'package:inv_telas/providers/sucursal_provider.dart';
+import 'package:inv_telas/providers/moneda_provider.dart';
+import 'package:inv_telas/widgets/confirm_action_dialog.dart';
+import 'package:uuid/uuid.dart';
+
+class CodigoTelaProveedorDialog extends ConsumerStatefulWidget {
+  final String empresaId;
+  final String proveedorId;
+  final String tipoTelaId;
+  final String proveedorNombre;
+  final String tipoTelaNombre;
+
+  final CodigoTelaProveedor? relacion;
+
+  const CodigoTelaProveedorDialog({
+    super.key,
+    required this.empresaId,
+    required this.proveedorId,
+    required this.tipoTelaId,
+    required this.proveedorNombre,
+    required this.tipoTelaNombre,
+    this.relacion,
+  });
+
+  @override
+  ConsumerState<CodigoTelaProveedorDialog> createState() =>
+      _CodigoTelaProveedorDialogState();
+}
+
+class _CodigoTelaProveedorDialogState
+    extends ConsumerState<CodigoTelaProveedorDialog> {
+  final _formKey = GlobalKey<FormState>();
+
+  bool _datosCargados = false;
+
+  // ---- ESTADO DE VINCULACIÃ“N DE METRAJES ----
+  bool _metrajesVinculados = true;
+  bool _isSyncingMetraje = false;
+
+  // ---- CONTROLES GLOBAL IMPORTACIÃ“N ----
+  String? monedaImpId;
+  final impMetroCtrl = TextEditingController();
+  final impRolloCtrl = TextEditingController();
+  final impMetrajeFijoCtrl = TextEditingController(text: '50.0');
+
+  // ---- CONTROLES GLOBAL LOCAL ----
+  String? monedaLocGenId;
+  final locGenMetroCtrl = TextEditingController();
+  final locGenRolloCtrl = TextEditingController();
+  final locGenMetrajeFijoCtrl = TextEditingController(text: '50.0');
+
+  // ---- CONTROLES DINÃMICOS POR SUCURSAL ----
+  final Map<String, bool> _usaPrecioEspecifico = {};
+  final Map<String, String> _sucursalMonedaIds = {};
+  final Map<String, TextEditingController> _sucursalMetroCtrls = {};
+  final Map<String, TextEditingController> _sucursalRolloCtrls = {};
+  final Map<String, TextEditingController> _sucursalMetrajeCtrls = {};
+
+  @override
+  void initState() {
+    super.initState();
+    // Escuchamos los cambios en ambos controladores para la sincronizaciÃ³n en tiempo real
+    impMetrajeFijoCtrl.addListener(_onImpMetrajeChanged);
+    locGenMetrajeFijoCtrl.addListener(_onLocGenMetrajeChanged);
+  }
+
+  void _onImpMetrajeChanged() {
+    if (!_metrajesVinculados || _isSyncingMetraje) return;
+    _isSyncingMetraje = true;
+    locGenMetrajeFijoCtrl.text = impMetrajeFijoCtrl.text;
+    _isSyncingMetraje = false;
+  }
+
+  void _onLocGenMetrajeChanged() {
+    if (!_metrajesVinculados || _isSyncingMetraje) return;
+    _isSyncingMetraje = true;
+    impMetrajeFijoCtrl.text = locGenMetrajeFijoCtrl.text;
+    _isSyncingMetraje = false;
+  }
+
+  void _toggleVinculacion() {
+    setState(() {
+      _metrajesVinculados = !_metrajesVinculados;
+      if (_metrajesVinculados) {
+        // Al volver a vincular, igualamos el costo local al de importaciÃ³n por defecto
+        locGenMetrajeFijoCtrl.text = impMetrajeFijoCtrl.text;
+      }
+    });
+  }
+
+  // MÃ©todo unificado para inicializar los estados base usando los datos reales de la DB
+  void _inicializarControles(List<Sucursal> sucursales, List<Moneda> monedas) {
+    if (_datosCargados || monedas.isEmpty) return;
+
+    final monedaBase = monedas.firstWhere(
+      (m) => m.esMonedaBase,
+      orElse: () => monedas.first,
+    );
+
+    final monedaUsd = monedas.firstWhere(
+      (m) => m.codigo.toUpperCase() == 'USD',
+      orElse: () => monedaBase,
+    );
+
+    // Inicializar estructuras de sucursales una sola vez
+    for (final suc in sucursales) {
+      _usaPrecioEspecifico[suc.id] = false;
+
+      _sucursalMonedaIds[suc.id] = monedaBase.id;
+
+      _sucursalMetroCtrls[suc.id] = TextEditingController();
+
+      _sucursalRolloCtrls[suc.id] = TextEditingController();
+
+      _sucursalMetrajeCtrls[suc.id] = TextEditingController(text: '50.0');
+    }
+
+    final relacion = widget.relacion;
+
+    if (relacion != null) {
+      // ================= IMPORTACIÃ“N =================
+
+      monedaImpId = relacion.precioImportacion.monedaId;
+
+      impMetroCtrl.text = relacion.precioImportacion.precioMetro.toString();
+
+      impRolloCtrl.text = relacion.precioImportacion.precioRollo.toString();
+
+      impMetrajeFijoCtrl.text = relacion.precioImportacion.metrajeFijo
+          .toString();
+
+      // ================= LOCAL GENERAL =================
+
+      monedaLocGenId = relacion.precioLocalGeneral.monedaId;
+
+      locGenMetroCtrl.text = relacion.precioLocalGeneral.precioMetro.toString();
+
+      locGenRolloCtrl.text = relacion.precioLocalGeneral.precioRollo.toString();
+
+      locGenMetrajeFijoCtrl.text = relacion.precioLocalGeneral.metrajeFijo
+          .toString();
+
+      // ================= SUCURSALES PERSONALIZADAS =================
+
+      for (final precioSuc in relacion.preciosLocalPorSucursal) {
+        _usaPrecioEspecifico[precioSuc.sucursalId] = true;
+
+        _sucursalMonedaIds[precioSuc.sucursalId] = precioSuc.precio.monedaId;
+
+        _sucursalMetroCtrls[precioSuc.sucursalId]?.text = precioSuc
+            .precio
+            .precioMetro
+            .toString();
+
+        _sucursalRolloCtrls[precioSuc.sucursalId]?.text = precioSuc
+            .precio
+            .precioRollo
+            .toString();
+
+        _sucursalMetrajeCtrls[precioSuc.sucursalId]?.text = precioSuc
+            .precio
+            .metrajeFijo
+            .toString();
+      }
+    } else {
+      // ================= NUEVO REGISTRO =================
+
+      monedaImpId = monedaUsd.id;
+
+      monedaLocGenId = monedaBase.id;
+    }
+
+    _datosCargados = true;
+  }
+
+  void _sincronizarPrecios({
+    required String valor,
+    required bool esPorMetro,
+    required TextEditingController metroCtrl,
+    required TextEditingController rolloCtrl,
+    required TextEditingController fijoCtrl,
+  }) {
+    final double input = double.tryParse(valor) ?? 0.0;
+    final double metrajeFijo = double.tryParse(fijoCtrl.text) ?? 50.0;
+
+    if (input == 0.0 || metrajeFijo == 0.0) return;
+
+    if (esPorMetro) {
+      rolloCtrl.text = (input * metrajeFijo).toStringAsFixed(2);
+    } else {
+      metroCtrl.text = (input / metrajeFijo).toStringAsFixed(4);
+    }
+  }
+
+  @override
+  void dispose() {
+    impMetrajeFijoCtrl.removeListener(_onImpMetrajeChanged);
+    locGenMetrajeFijoCtrl.removeListener(_onLocGenMetrajeChanged);
+
+    impMetroCtrl.dispose();
+    impRolloCtrl.dispose();
+    impMetrajeFijoCtrl.dispose();
+    locGenMetroCtrl.dispose();
+    locGenRolloCtrl.dispose();
+    locGenMetrajeFijoCtrl.dispose();
+    for (var c in _sucursalMetroCtrls.values) {
+      c.dispose();
+    }
+    for (var c in _sucursalRolloCtrls.values) {
+      c.dispose();
+    }
+    for (var c in _sucursalMetrajeCtrls.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sucursalesAsync = ref.watch(sucursalesProvider(widget.empresaId));
+    final monedasAsync = ref.watch(monedasProvider(widget.empresaId));
+
+    return PopScope(
+      canPop: false,
+      child: Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.9,
+          height: MediaQuery.of(context).size.height * 0.8,
+          padding: const EdgeInsets.all(16),
+          child: sucursalesAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (err, _) =>
+                Center(child: Text("Error al cargar sucursales: $err")),
+            data: (sucursales) {
+              return monedasAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (err, _) =>
+                    Center(child: Text("Error al cargar monedas: $err")),
+                data: (monedas) {
+                  _inicializarControles(sucursales, monedas);
+
+                  return DefaultTabController(
+                    length: 1 + sucursales.length,
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        children: [
+                          _buildHeader(),
+                          const SizedBox(height: 10),
+                          TabBar(
+                            isScrollable: true,
+                            tabAlignment: TabAlignment.start,
+                            labelColor: Theme.of(context).primaryColor,
+                            unselectedLabelColor: Colors.grey,
+                            tabs: [
+                              const Tab(text: "ðŸŒŽ Global (Base)"),
+                              ...sucursales.map(
+                                (s) => Tab(text: "ðŸ¢ ${s.nombre}"),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 15),
+                          Expanded(
+                            child: TabBarView(
+                              children: [
+                                _buildGlobalTab(monedas),
+                                ...sucursales.map(
+                                  (s) => _buildSucursalTab(s, monedas),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Divider(),
+                          _buildActionButtons(monedas),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "ConfiguraciÃ³n Avanzada de Costos",
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          "Proveedor: ${widget.proveedorNombre}",
+          style: const TextStyle(color: Colors.grey),
+        ),
+        Text(
+          "Tipo Tela: ${widget.tipoTelaNombre}",
+          style: const TextStyle(color: Colors.grey),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGlobalTab(List<Moneda> monedas) {
+    // Construimos el botÃ³n de vinculaciÃ³n reutilizable con los iconos correspondientes
+    final Widget botonVinculo = IconButton(
+      icon: Icon(
+        _metrajesVinculados ? Icons.link : Icons.link_off,
+        color: _metrajesVinculados
+            ? Theme.of(context).primaryColor
+            : Colors.grey,
+      ),
+      onPressed: _toggleVinculacion,
+      tooltip: _metrajesVinculados
+          ? "Desvincular Metrajes"
+          : "Vincular Metrajes",
+    );
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSeccionTitulo(
+            "ðŸš¢ COSTO DE IMPORTACIÃ“N (Aplica a todas las sucursales)",
+          ),
+          _buildFormularioPrecios(
+            monedaSeleccionada: monedaImpId!,
+            monedas: monedas,
+            metroCtrl: impMetroCtrl,
+            rolloCtrl: impRolloCtrl,
+            fijoCtrl: impMetrajeFijoCtrl,
+            onMonedaChanged: (v) => setState(() => monedaImpId = v!),
+            suffixIconMetraje: botonVinculo,
+          ),
+          const SizedBox(height: 25),
+          _buildSeccionTitulo(
+            "ðŸ  COSTO LOCAL GENERAL (Fallback de sucursales)",
+          ),
+          _buildFormularioPrecios(
+            monedaSeleccionada: monedaLocGenId!,
+            monedas: monedas,
+            metroCtrl: locGenMetroCtrl,
+            rolloCtrl: locGenRolloCtrl,
+            fijoCtrl: locGenMetrajeFijoCtrl,
+            onMonedaChanged: (v) => setState(() => monedaLocGenId = v!),
+            suffixIconMetraje: botonVinculo,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSucursalTab(Sucursal sucursal, List<Moneda> monedas) {
+    final bool usaEspecifico = _usaPrecioEspecifico[sucursal.id] ?? false;
+
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          CheckboxListTile(
+            title: Text(
+              "Â¿Fijar precio local personalizado para ${sucursal.nombre}?",
+            ),
+            subtitle: const Text(
+              "Si se desmarca, heredarÃ¡ los valores del costo Local General.",
+            ),
+            value: usaEspecifico,
+            activeColor: Theme.of(context).primaryColor,
+            onChanged: (value) {
+              setState(() {
+                _usaPrecioEspecifico[sucursal.id] = value ?? false;
+              });
+            },
+          ),
+          const SizedBox(height: 10),
+          AnimatedOpacity(
+            opacity: usaEspecifico ? 1.0 : 0.4,
+            duration: const Duration(milliseconds: 200),
+            child: IgnorePointer(
+              ignoring: !usaEspecifico,
+              child: _buildFormularioPrecios(
+                monedaSeleccionada: _sucursalMonedaIds[sucursal.id]!,
+                monedas: monedas,
+                metroCtrl: _sucursalMetroCtrls[sucursal.id]!,
+                rolloCtrl: _sucursalRolloCtrls[sucursal.id]!,
+                fijoCtrl: _sucursalMetrajeCtrls[sucursal.id]!,
+                onMonedaChanged: (v) =>
+                    setState(() => _sucursalMonedaIds[sucursal.id] = v!),
+                validarCampos: usaEspecifico,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFormularioPrecios({
+    required String monedaSeleccionada,
+    required List<Moneda> monedas,
+    required TextEditingController metroCtrl,
+    required TextEditingController rolloCtrl,
+    required TextEditingController fijoCtrl,
+    required ValueChanged<String?> onMonedaChanged,
+    bool validarCampos = true,
+    Widget? suffixIconMetraje, // Nuevo parÃ¡metro opcional
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: DropdownButtonFormField<String>(
+                  value: monedaSeleccionada,
+                  decoration: const InputDecoration(
+                    labelText: "Moneda",
+                    border: OutlineInputBorder(),
+                  ),
+                  items: monedas.map((m) {
+                    return DropdownMenuItem<String>(
+                      value: m.id,
+                      child: Text("${m.simbolo} (${m.codigo})"),
+                    );
+                  }).toList(),
+                  onChanged: onMonedaChanged,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 3,
+                child: TextFormField(
+                  controller: fijoCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: "Mts por Rollo",
+                    border: const OutlineInputBorder(),
+                    suffixIcon:
+                        suffixIconMetraje, // Asignamos el botÃ³n de vÃ­nculo aquÃ­
+                  ),
+                  validator: (v) => validarCampos && (v == null || v.isEmpty)
+                      ? "Obligatorio"
+                      : null,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: metroCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: "Caso 1: Precio x Metro",
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (v) => _sincronizarPrecios(
+                    valor: v,
+                    esPorMetro: true,
+                    metroCtrl: metroCtrl,
+                    rolloCtrl: rolloCtrl,
+                    fijoCtrl: fijoCtrl,
+                  ),
+                  validator: (v) => validarCampos && (v == null || v.isEmpty)
+                      ? "Requerido"
+                      : null,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextFormField(
+                  controller: rolloCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: "Caso 2: Precio x Rollo",
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (v) => _sincronizarPrecios(
+                    valor: v,
+                    esPorMetro: false,
+                    metroCtrl: metroCtrl,
+                    rolloCtrl: rolloCtrl,
+                    fijoCtrl: fijoCtrl,
+                  ),
+                  validator: (v) => validarCampos && (v == null || v.isEmpty)
+                      ? "Requerido"
+                      : null,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSeccionTitulo(String titulo) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Text(
+        titulo,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.bold,
+          color: Colors.blueGrey,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButtons(List<Moneda> monedas) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        TextButton(
+          child: const Text("Cancelar"),
+          onPressed: () => Navigator.pop(context, false),
+        ),
+        const SizedBox(width: 10),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          ),
+          child: Text(
+            widget.relacion == null ? "Crear RelaciÃ³n" : "Actualizar RelaciÃ³n",
+          ),
+          onPressed: () async {
+            if (!_formKey.currentState!.validate()) return;
+
+            final confirmed = await showDialog<bool>(
+              context: context,
+              barrierDismissible: false,
+              builder: (_) => ConfirmActionDialog(
+                title: "Confirmar Cambios",
+                message:
+                    "Â¿Deseas salvar la estructura transaccional de costos mapeada?",
+                icon: Icons.save_as_rounded,
+                iconColor: Colors.blue,
+                confirmText: "Escribir en DB",
+                onConfirm: () async {
+                  final notifier = ref.read(
+                    codigoTelaProveedorNotifierProvider.notifier,
+                  );
+
+                  final List<PrecioSucursalConfig> listadoSucursalesDB = [];
+                  _usaPrecioEspecifico.forEach((sucId, usaPrecio) {
+                    if (usaPrecio) {
+                      listadoSucursalesDB.add(
+                        PrecioSucursalConfig(
+                          sucursalId: sucId,
+                          precio: PrecioConfig(
+                            monedaId: _sucursalMonedaIds[sucId]!,
+                            precioMetro: double.parse(
+                              _sucursalMetroCtrls[sucId]!.text,
+                            ),
+                            precioRollo: double.parse(
+                              _sucursalRolloCtrls[sucId]!.text,
+                            ),
+                            metrajeFijo: double.parse(
+                              _sucursalMetrajeCtrls[sucId]!.text,
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                  });
+                  final usuario = ref.read(sessionProvider).usuario;
+                  if (usuario == null) {
+                    throw Exception('Usuario no autenticado');
+                  }
+                  final entidad = CodigoTelaProveedor(
+                    id: widget.relacion?.id ?? const Uuid().v4(),
+
+                    activo: widget.relacion?.activo ?? true,
+                    eliminado: widget.relacion?.eliminado ?? false,
+
+                    usuarioCreacion:
+                        widget.relacion?.usuarioCreacion ?? usuario.id,
+
+                    fechaCreacion:
+                        widget.relacion?.fechaCreacion ?? DateTime.now(),
+
+                    usuarioModificacion: widget.relacion == null
+                        ? null
+                        : usuario.id,
+
+                    fechaModificacion: widget.relacion == null
+                        ? null
+                        : DateTime.now(),
+
+                    empresaId: widget.empresaId,
+                    proveedorId: widget.proveedorId,
+                    tipoTelaId: widget.tipoTelaId,
+
+                    precioImportacion: PrecioConfig(
+                      monedaId: monedaImpId!,
+                      precioMetro: double.tryParse(impMetroCtrl.text) ?? 0,
+                      precioRollo: double.tryParse(impRolloCtrl.text) ?? 0,
+                      metrajeFijo:
+                          double.tryParse(impMetrajeFijoCtrl.text) ?? 50,
+                    ),
+
+                    precioLocalGeneral: PrecioConfig(
+                      monedaId: monedaLocGenId!,
+                      precioMetro: double.tryParse(locGenMetroCtrl.text) ?? 0,
+                      precioRollo: double.tryParse(locGenRolloCtrl.text) ?? 0,
+                      metrajeFijo:
+                          double.tryParse(locGenMetrajeFijoCtrl.text) ?? 50,
+                    ),
+
+                    preciosLocalPorSucursal: listadoSucursalesDB,
+                  );
+
+                  if (widget.relacion == null) {
+                    await notifier.create(entidad);
+                  } else {
+                    await notifier.update(entidad);
+                  }
+                },
+              ),
+            );
+
+            if (confirmed != true) return;
+            if (mounted) Navigator.pop(context, true);
+          },
+        ),
+      ],
+    );
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\moduloLotes\widgets\lote_card.dart =====
+
+import 'package:flutter/material.dart';
+import '../../../models/lotes/lote.dart';
+import '../../../models/lotes/lote_estado.dart';
+import '../../../models/lotes/lote_tipo.dart';
+
+class LoteCard extends StatelessWidget {
+  final Lote lote;
+
+  final VoidCallback? onDetalle;
+  final VoidCallback? onEditar;
+  final VoidCallback? onCosteo;
+  final VoidCallback? onGastos;
+  final VoidCallback? onEliminar;
+
+  const LoteCard({
+    super.key,
+    required this.lote,
+    this.onDetalle,
+    this.onEditar,
+    this.onCosteo,
+    this.onGastos,
+    this.onEliminar,
+  });
+
+  Color _estadoColor() {
+    switch (lote.estado) {
+      case LoteEstado.borrador:
+        return Colors.grey;
+
+      case LoteEstado.enTransito:
+        return Colors.orange;
+
+      case LoteEstado.revision:
+        return Colors.blue;
+
+      case LoteEstado.finalizado:
+        return Colors.green;
+
+      case LoteEstado.cancelado:
+        return Colors.red;
+    }
+  }
+
+  String _estadoTexto() {
+    switch (lote.estado) {
+      case LoteEstado.borrador:
+        return 'Borrador';
+
+      case LoteEstado.enTransito:
+        return 'En TrÃ¡nsito';
+
+      case LoteEstado.revision:
+        return 'RevisiÃ³n';
+
+      case LoteEstado.finalizado:
+        return 'Finalizado';
+
+      case LoteEstado.cancelado:
+        return 'Cancelado';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    lote.numeroLote,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Chip(
+                  label: Text(_estadoTexto()),
+                  backgroundColor: _estadoColor().withValues(alpha: .15),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            Text('Tipo: ${lote.tipo.nombre}'),
+
+            const SizedBox(height: 5),
+
+            Text('Total Final: ${lote.totalFinal.toStringAsFixed(2)}'),
+
+            const SizedBox(height: 5),
+
+            Text(
+              'Fecha: ${lote.fechaCreacion.day}/${lote.fechaCreacion.month}/${lote.fechaCreacion.year}',
+            ),
+
+            const Divider(height: 25),
+
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                IconButton(
+                  tooltip: 'Detalle',
+                  icon: const Icon(Icons.visibility),
+                  onPressed: onDetalle,
+                ),
+
+                IconButton(
+                  tooltip: 'Editar',
+                  icon: const Icon(Icons.edit),
+                  onPressed: onEditar,
+                ),
+
+                IconButton(
+                  tooltip: 'Gastos',
+                  icon: const Icon(Icons.receipt_long),
+                  onPressed: onGastos,
+                ),
+
+                IconButton(
+                  tooltip: 'Costeo',
+                  icon: const Icon(Icons.calculate),
+                  onPressed: onCosteo,
+                ),
+
+                IconButton(
+                  tooltip: 'Eliminar',
+                  icon: const Icon(Icons.delete),
+                  onPressed: onEliminar,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\moduloLotes\widgets\lote_costeo_dialog.dart =====
+
+import 'package:flutter/material.dart';
+
+import '../../../models/lotes/lote_costeo.dart';
+
+class LoteCosteoDialog extends StatelessWidget {
+  final String loteId;
+
+  final LoteCosteo? costeo;
+
+  const LoteCosteoDialog({super.key, required this.loteId, this.costeo});
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: SizedBox(
+        width: 800,
+        height: 550,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.calculate),
+
+                  const SizedBox(width: 10),
+
+                  Text(
+                    'Costeo del Lote',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 25),
+
+              if (costeo == null)
+                const Expanded(
+                  child: Center(child: Text('No existe costeo generado')),
+                )
+              else
+                Expanded(
+                  child: ListView(
+                    children: [
+                      Card(
+                        child: ListTile(
+                          title: const Text('Subtotal Compra'),
+                          trailing: Text(
+                            costeo!.subtotalCompra.toStringAsFixed(2),
+                          ),
+                        ),
+                      ),
+
+                      Card(
+                        child: ListTile(
+                          title: const Text('Subtotal Gastos'),
+                          trailing: Text(
+                            costeo!.subtotalGastos.toStringAsFixed(2),
+                          ),
+                        ),
+                      ),
+
+                      Card(
+                        child: ListTile(
+                          title: const Text('Costo Final'),
+                          trailing: Text(costeo!.costoFinal.toStringAsFixed(2)),
+                        ),
+                      ),
+
+                      Card(
+                        child: ListTile(
+                          title: const Text('Costo Metro Final'),
+                          trailing: Text(
+                            costeo!.costoMetroFinal.toStringAsFixed(2),
+                          ),
+                        ),
+                      ),
+
+                      Card(
+                        child: ListTile(
+                          title: const Text('Costo Rollo Final'),
+                          trailing: Text(
+                            costeo!.costoRolloFinal.toStringAsFixed(2),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      const Text(
+                        'Desglose',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: SelectableText(costeo!.jsonDesglose),
+                      ),
+                    ],
+                  ),
+                ),
+
+              const SizedBox(height: 20),
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                    },
+                    child: const Text('Cerrar'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\moduloLotes\widgets\lote_detalle_card.dart =====
+
+import 'package:flutter/material.dart';
+import '../../../models/lotes/lote_detalle.dart';
+
+class LoteDetalleCard extends StatelessWidget {
+  final LoteDetalle detalle;
+
+  final String tipoTelaNombre;
+  final String? varianteNombre;
+  final String? colorNombre;
+
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+
+  const LoteDetalleCard({
+    super.key,
+    required this.detalle,
+    required this.tipoTelaNombre,
+    this.varianteNombre,
+    this.colorNombre,
+    this.onEdit,
+    this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              tipoTelaNombre,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+
+            if (varianteNombre != null) Text("Variante: $varianteNombre"),
+
+            if (colorNombre != null) Text("Color: $colorNombre"),
+
+            const SizedBox(height: 8),
+
+            Text("Rollos: ${detalle.cantidadRollos}"),
+            Text("Mts/Rollo: ${detalle.metrosPorRollo}"),
+            Text("Total Mts: ${detalle.totalMetros}"),
+
+            const Divider(),
+
+            Text(
+              "Costo Mt Origen: ${detalle.costoMetroOrigen.toStringAsFixed(2)}",
+            ),
+
+            Text("Costo Mt Base: ${detalle.costoMetroBase.toStringAsFixed(2)}"),
+
+            Text(
+              "Costo Rollo Origen: ${detalle.costoRolloOrigen.toStringAsFixed(2)}",
+            ),
+
+            Text(
+              "Costo Rollo Base: ${detalle.costoRolloBase.toStringAsFixed(2)}",
+            ),
+
+            const SizedBox(height: 10),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                IconButton(onPressed: onEdit, icon: const Icon(Icons.edit)),
+                IconButton(onPressed: onDelete, icon: const Icon(Icons.delete)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\moduloLotes\widgets\lote_detalle_dialog.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/models/abmTiposTelas/proveedor.dart';
+import 'package:inv_telas/models/abmTiposTelas/tipo_tela.dart';
+import 'package:inv_telas/models/lotes/lote.dart';
+import 'package:inv_telas/models/lotes/lote_estado.dart';
+import 'package:inv_telas/models/lotes/lote_tipo.dart';
+import 'package:inv_telas/providers/moneda_provider.dart';
+import 'package:uuid/uuid.dart';
+
+import '../../../core/providers/session_provider.dart';
+import '../../../models/lotes/lote_detalle.dart';
+import '../../../models/lotes/codigo_tela_proveedor.dart';
+
+import '../../../providers/tipo_tela_provider.dart';
+import '../../../providers/proveedores_provider.dart';
+import '../../../providers/codigo_tela_proveedor_provider.dart';
+
+import 'codigo_tela_proveedor_dialog.dart';
+
+class LoteDetalleDialog extends ConsumerStatefulWidget {
+  final String loteId;
+  final LoteDetalle? detalle;
+  final Lote lote;
+
+  const LoteDetalleDialog({
+    super.key,
+    required this.loteId,
+    required this.lote,
+    this.detalle,
+  });
+
+  @override
+  ConsumerState<LoteDetalleDialog> createState() => _LoteDetalleDialogState();
+}
+
+class _LoteDetalleDialogState extends ConsumerState<LoteDetalleDialog> {
+  final _formKey = GlobalKey<FormState>();
+
+  String? proveedorId;
+  String? tipoTelaId;
+
+  Proveedor? proveedorSeleccionado;
+  TipoTela? tipoTelaSeleccionado;
+
+  CodigoTelaProveedor? relacionActual;
+
+  final cantidadRollosCtrl = TextEditingController();
+  final metrosPorRolloCtrl = TextEditingController();
+  final costoMetroOrigenCtrl = TextEditingController();
+  final costoMetroBaseCtrl = TextEditingController();
+
+  String? monedaIdSeleccionada;
+
+  @override
+  Widget build(BuildContext context) {
+    final empresaId = ref.read(sessionProvider).empresaActual!.id;
+
+    final proveedoresAsync = ref.watch(proveedoresFutureProvider(empresaId));
+    final tiposAsync = ref.watch(tiposTelaProvider(empresaId));
+
+    final service = ref.read(codigoTelaProveedorServiceProvider);
+    final monedasAsync = ref.watch(monedasProvider(empresaId));
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: SizedBox(
+        width: 720,
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
+          padding: const EdgeInsets.all(20),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // === TÃTULO FIJO ===
+                Center(
+                  child: Text(
+                    widget.detalle != null
+                        ? 'Editar Detalle de Lote'
+                        : 'Nuevo Detalle de Lote',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // === CONTENIDO DEL FORMULARIO CON SCROLL ===
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // ================= PROVEEDOR =================
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: proveedoresAsync.when(
+                              loading: () => const Row(
+                                children: [
+                                  SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                  SizedBox(width: 10),
+                                  Text("Cargando proveedores..."),
+                                ],
+                              ),
+                              error: (_, __) =>
+                                  const Text("Error al cargar proveedores"),
+                              data: (proveedores) {
+                                return DropdownButtonFormField<String>(
+                                  value: proveedorId,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Proveedor',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  items: proveedores.map((p) {
+                                    return DropdownMenuItem(
+                                      value: p.id,
+                                      child: Text(p.nombre),
+                                    );
+                                  }).toList(),
+                                  onChanged: (v) {
+                                    setState(() {
+                                      proveedorId = v;
+                                      proveedorSeleccionado = proveedores
+                                          .firstWhere((p) => p.id == v);
+
+                                      tipoTelaId = null;
+                                      tipoTelaSeleccionado = null;
+                                      relacionActual = null;
+                                      monedaIdSeleccionada = null;
+
+                                      cantidadRollosCtrl.clear();
+                                      metrosPorRolloCtrl.clear();
+                                      costoMetroOrigenCtrl.clear();
+                                      costoMetroBaseCtrl.clear();
+                                    });
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+
+                        // ================= TIPO TELA =================
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: tiposAsync.when(
+                              loading: () => const Row(
+                                children: [
+                                  SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                  SizedBox(width: 10),
+                                  Text("Cargando tipos de tela..."),
+                                ],
+                              ),
+                              error: (_, __) =>
+                                  const Text("Error al cargar tipos"),
+                              data: (tipos) {
+                                if (proveedorId == null) {
+                                  return const Text(
+                                    "âš ï¸ Selecciona un proveedor primero",
+                                    style: TextStyle(color: Colors.grey),
+                                  );
+                                }
+
+                                final tiposFiltrados = tipos
+                                    .where(
+                                      (t) => t.variantes.any(
+                                        (v) => v.proveedorId == proveedorId,
+                                      ),
+                                    )
+                                    .toList();
+
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    DropdownButtonFormField<String>(
+                                      value: tipoTelaId,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Tipo De Tela',
+                                        border: OutlineInputBorder(),
+                                      ),
+                                      items: tiposFiltrados.map((t) {
+                                        return DropdownMenuItem(
+                                          value: t.id,
+                                          child: Text(t.nombre),
+                                        );
+                                      }).toList(),
+                                      onChanged: (v) async {
+                                        if (v == null || proveedorId == null)
+                                          return;
+
+                                        setState(() {
+                                          tipoTelaId = v;
+                                          tipoTelaSeleccionado = tiposFiltrados
+                                              .firstWhere((t) => t.id == v);
+                                          relacionActual = null;
+                                        });
+
+                                        final existe = await service.existe(
+                                          empresaId: empresaId,
+                                          proveedorId: proveedorId!,
+                                          tipoTelaId: v,
+                                        );
+
+                                        if (existe) {
+                                          final data = await service
+                                              .getByProveedorTipo(
+                                                empresaId: empresaId,
+                                                proveedorId: proveedorId!,
+                                                tipoTelaId: v,
+                                              );
+
+                                          if (data == null) {
+                                            print(
+                                              'ERROR: existe=true pero getByProveedorTipo retornÃ³ null',
+                                            );
+                                            return;
+                                          }
+                                          print(
+                                            '====================================',
+                                          );
+                                          print(
+                                            'LOTE TIPO: ${widget.lote.tipo.nombre}',
+                                          );
+                                          print('RELACION ENCONTRADA');
+                                          print('ID: ${data.id}');
+                                          print('EMPRESA: ${data.empresaId}');
+                                          print(
+                                            'PROVEEDOR: ${data.proveedorId}',
+                                          );
+                                          print(
+                                            'TIPO TELA: ${data.tipoTelaId}',
+                                          );
+
+                                          print(
+                                            '---------- IMPORTACION ----------',
+                                          );
+                                          print(
+                                            'MONEDA: ${data.precioImportacion.monedaId}',
+                                          );
+                                          print(
+                                            'PRECIO METRO: ${data.precioImportacion.precioMetro}',
+                                          );
+                                          print(
+                                            'PRECIO ROLLO: ${data.precioImportacion.precioRollo}',
+                                          );
+                                          print(
+                                            'METRAJE FIJO: ${data.precioImportacion.metrajeFijo}',
+                                          );
+
+                                          print(
+                                            '---------- LOCAL GENERAL ----------',
+                                          );
+                                          print(
+                                            'MONEDA: ${data.precioLocalGeneral.monedaId}',
+                                          );
+                                          print(
+                                            'PRECIO METRO: ${data.precioLocalGeneral.precioMetro}',
+                                          );
+                                          print(
+                                            'PRECIO ROLLO: ${data.precioLocalGeneral.precioRollo}',
+                                          );
+                                          print(
+                                            'METRAJE FIJO: ${data.precioLocalGeneral.metrajeFijo}',
+                                          );
+
+                                          print(
+                                            '---------- SUCURSALES ----------',
+                                          );
+
+                                          for (final suc
+                                              in data.preciosLocalPorSucursal) {
+                                            print(
+                                              'SUCURSAL: ${suc.sucursalId}',
+                                            );
+                                            print(
+                                              'MONEDA: ${suc.precio.monedaId}',
+                                            );
+                                            print(
+                                              'PRECIO METRO: ${suc.precio.precioMetro}',
+                                            );
+                                            print(
+                                              'PRECIO ROLLO: ${suc.precio.precioRollo}',
+                                            );
+                                            print(
+                                              'METRAJE FIJO: ${suc.precio.metrajeFijo}',
+                                            );
+                                            print(
+                                              '-----------------------------',
+                                            );
+                                          }
+
+                                          print(
+                                            '====================================',
+                                          );
+                                          print(data.toMap());
+
+                                          setState(() {
+                                            relacionActual = data;
+                                          });
+
+                                          _cargarConfiguracionCosto();
+                                          return;
+                                        }
+
+                                        final result = await showDialog(
+                                          context: context,
+                                          barrierDismissible: false,
+                                          builder: (_) =>
+                                              CodigoTelaProveedorDialog(
+                                                empresaId: empresaId,
+                                                proveedorId: proveedorId!,
+                                                tipoTelaId: v,
+                                                proveedorNombre:
+                                                    proveedorSeleccionado
+                                                        ?.nombre ??
+                                                    '',
+                                                tipoTelaNombre:
+                                                    tipoTelaSeleccionado
+                                                        ?.nombre ??
+                                                    '',
+                                              ),
+                                        );
+
+                                        if (result == true) {
+                                          final data = await service
+                                              .getByProveedorTipo(
+                                                empresaId: empresaId,
+                                                proveedorId: proveedorId!,
+                                                tipoTelaId: v,
+                                              );
+
+                                          setState(() {
+                                            relacionActual = data;
+                                          });
+
+                                          _cargarConfiguracionCosto();
+                                        } else {
+                                          setState(() {
+                                            tipoTelaId = null;
+                                            tipoTelaSeleccionado = null;
+                                          });
+                                        }
+                                      },
+                                    ),
+                                    if (relacionActual != null)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 10),
+                                        child: Align(
+                                          alignment: Alignment.centerRight,
+                                          child: TextButton.icon(
+                                            icon: const Icon(Icons.edit),
+                                            label: const Text(
+                                              "Editar relaciÃ³n",
+                                            ),
+                                            onPressed: () async {
+                                              final result = await showDialog(
+                                                context: context,
+                                                barrierDismissible: false,
+                                                builder: (_) =>
+                                                    CodigoTelaProveedorDialog(
+                                                      empresaId: empresaId,
+                                                      proveedorId: proveedorId!,
+                                                      tipoTelaId: tipoTelaId!,
+                                                      proveedorNombre:
+                                                          proveedorSeleccionado
+                                                              ?.nombre ??
+                                                          '',
+                                                      tipoTelaNombre:
+                                                          tipoTelaSeleccionado
+                                                              ?.nombre ??
+                                                          '',
+                                                      relacion: relacionActual,
+                                                    ),
+                                              );
+
+                                              if (result == true) {
+                                                final data = await service
+                                                    .getByProveedorTipo(
+                                                      empresaId: empresaId,
+                                                      proveedorId: proveedorId!,
+                                                      tipoTelaId: tipoTelaId!,
+                                                    );
+
+                                                setState(() {
+                                                  relacionActual = data;
+                                                });
+
+                                                _cargarConfiguracionCosto();
+                                              }
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        // ================= MONEDAS Y CAMPOS RESTANTES =================
+                        monedasAsync.when(
+                          loading: () => const Padding(
+                            padding: EdgeInsets.all(8),
+                            child: CircularProgressIndicator(),
+                          ),
+                          error: (_, __) =>
+                              const Text('Error cargando monedas'),
+                          data: (monedas) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: DropdownButtonFormField<String>(
+                                value: monedaIdSeleccionada,
+                                decoration: const InputDecoration(
+                                  labelText: 'Moneda',
+                                  border: OutlineInputBorder(),
+                                ),
+                                items: monedas.map((m) {
+                                  return DropdownMenuItem(
+                                    value: m.id,
+                                    child: Text('${m.simbolo} (${m.codigo})'),
+                                  );
+                                }).toList(),
+                                onChanged: (v) {
+                                  setState(() {
+                                    monedaIdSeleccionada = v;
+                                  });
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                        _input("Cantidad Rollos", cantidadRollosCtrl),
+                        _input("Metros por Rollo", metrosPorRolloCtrl),
+                        _input("Precio por Metro", costoMetroOrigenCtrl),
+                        _input("Precio por Rollo", costoMetroBaseCtrl),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 25),
+
+                // === BOTONES DE ACCIÃ“N FIJOS ===
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancelar'),
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton(
+                      onPressed: () {
+                        if (!_formKey.currentState!.validate()) return;
+                        if (tipoTelaId == null) return;
+
+                        final detalle = LoteDetalle(
+                          id: widget.detalle?.id ?? const Uuid().v4(),
+                          loteId: widget.loteId,
+                          tipoTelaId: tipoTelaId!,
+                          varianteId: widget.detalle?.varianteId,
+                          colorId: widget.detalle?.colorId,
+                          cantidadRollos:
+                              int.tryParse(cantidadRollosCtrl.text) ?? 0,
+                          metrosPorRollo:
+                              double.tryParse(metrosPorRolloCtrl.text) ?? 0,
+                          totalMetros: 0,
+                          costoMetroOrigen:
+                              double.tryParse(costoMetroOrigenCtrl.text) ?? 0,
+                          costoMetroBase:
+                              double.tryParse(costoMetroBaseCtrl.text) ?? 0,
+                          costoRolloOrigen: 0,
+                          costoRolloBase: 0,
+                          activo: true,
+                          eliminado: false,
+                          usuarioCreacion:
+                              widget.detalle?.usuarioCreacion ?? '',
+                          fechaCreacion:
+                              widget.detalle?.fechaCreacion ?? DateTime.now(),
+                        );
+
+                        Navigator.pop(context, detalle);
+                      },
+                      child: const Text('Guardar'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _input(String label, TextEditingController controller) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: TextInputType.number,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
+      ),
+    );
+  }
+
+  void _cargarConfiguracionCosto() {
+    if (relacionActual == null) return;
+
+    // ================= IMPORTACION =================
+    if (widget.lote.tipo == LoteTipo.importacion) {
+      setState(() {
+        monedaIdSeleccionada = relacionActual!.precioImportacion.monedaId;
+
+        // Metros por rollo carga Metraje Fijo
+        metrosPorRolloCtrl.text = relacionActual!.precioImportacion.metrajeFijo
+            .toString();
+        // Precio por metro carga Precio Metro
+        costoMetroOrigenCtrl.text = relacionActual!
+            .precioImportacion
+            .precioMetro
+            .toString();
+        // Precio por rollo carga Precio Rollo
+        costoMetroBaseCtrl.text = relacionActual!.precioImportacion.precioRollo
+            .toString();
+      });
+      return;
+    }
+
+    // ================= LOCAL POR SUCURSAL =================
+    final sucursalId = widget.lote.sucursalId;
+
+    if (sucursalId != null) {
+      final listaSucursal = relacionActual!.preciosLocalPorSucursal
+          .where((e) => e.sucursalId == sucursalId)
+          .toList();
+
+      if (listaSucursal.isNotEmpty) {
+        final precioSucursal = listaSucursal.first;
+
+        setState(() {
+          monedaIdSeleccionada = precioSucursal.precio.monedaId;
+
+          metrosPorRolloCtrl.text = precioSucursal.precio.metrajeFijo
+              .toString();
+          costoMetroOrigenCtrl.text = precioSucursal.precio.precioMetro
+              .toString();
+          costoMetroBaseCtrl.text = precioSucursal.precio.precioRollo
+              .toString();
+        });
+        return;
+      }
+    }
+
+    // ================= FALLBACK LOCAL GENERAL =================
+    setState(() {
+      monedaIdSeleccionada = relacionActual!.precioLocalGeneral.monedaId;
+
+      metrosPorRolloCtrl.text = relacionActual!.precioLocalGeneral.metrajeFijo
+          .toString();
+      costoMetroOrigenCtrl.text = relacionActual!.precioLocalGeneral.precioMetro
+          .toString();
+      costoMetroBaseCtrl.text = relacionActual!.precioLocalGeneral.precioRollo
+          .toString();
+    });
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\moduloLotes\widgets\lote_detalle_table.dart =====
+
+import 'package:flutter/material.dart';
+import '../../../models/lotes/lote_detalle.dart';
+
+class LoteDetalleTable extends StatelessWidget {
+  final List<LoteDetalle> detalles;
+
+  final String Function(String id) getTipoTelaNombre;
+
+  const LoteDetalleTable({
+    super.key,
+    required this.detalles,
+    required this.getTipoTelaNombre,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
+        columns: const [
+          DataColumn(label: Text('Tela')),
+          DataColumn(label: Text('Rollos')),
+          DataColumn(label: Text('Mt/Rollo')),
+          DataColumn(label: Text('Total Mt')),
+          DataColumn(label: Text('Costo Mt')),
+          DataColumn(label: Text('Costo Rollo')),
+        ],
+        rows: detalles.map((detalle) {
+          return DataRow(
+            cells: [
+              DataCell(Text(getTipoTelaNombre(detalle.tipoTelaId))),
+
+              DataCell(Text(detalle.cantidadRollos.toString())),
+
+              DataCell(Text(detalle.metrosPorRollo.toStringAsFixed(2))),
+
+              DataCell(Text(detalle.totalMetros.toStringAsFixed(2))),
+
+              DataCell(Text(detalle.costoMetroBase.toStringAsFixed(2))),
+
+              DataCell(Text(detalle.costoRolloBase.toStringAsFixed(2))),
+            ],
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\moduloLotes\widgets\lote_form_dialog.dart =====
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/providers/sucursal_provider.dart';
+import 'package:uuid/uuid.dart';
+
+import '../../../core/providers/session_provider.dart';
+
+import '../../../models/lotes/lote.dart';
+import '../../../models/lotes/lote_estado.dart';
+import '../../../models/lotes/lote_tipo.dart';
+
+import '../../../providers/moneda_provider.dart';
+import '../../../providers/lote_provider.dart';
+
+import '../../../widgets/confirm_action_dialog.dart';
+
+class LoteFormDialog extends ConsumerStatefulWidget {
+  final Lote? lote;
+
+  const LoteFormDialog({super.key, this.lote});
+
+  @override
+  ConsumerState<LoteFormDialog> createState() => _LoteFormDialogState();
+}
+
+class _LoteFormDialogState extends ConsumerState<LoteFormDialog> {
+  final _formKey = GlobalKey<FormState>();
+
+  final numeroLoteCtrl = TextEditingController();
+  final observacionCtrl = TextEditingController();
+
+  String? monedaId;
+
+  LoteTipo tipo = LoteTipo.local;
+  String? sucursalId;
+
+  bool get isEdit => widget.lote != null;
+
+  @override
+  void initState() {
+    super.initState();
+
+    final lote = widget.lote;
+
+    if (lote == null) return;
+
+    numeroLoteCtrl.text = lote.numeroLote;
+    observacionCtrl.text = lote.observacion ?? '';
+
+    monedaId = lote.monedaId;
+    tipo = lote.tipo;
+    sucursalId = lote.sucursalId;
+  }
+
+  @override
+  void dispose() {
+    numeroLoteCtrl.dispose();
+    observacionCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> solicitarGuardado() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    final fueExitoso = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ConfirmActionDialog(
+        title: isEdit ? 'Actualizar Lote' : 'Crear Lote',
+        message: isEdit
+            ? 'Â¿Desea actualizar este lote?'
+            : 'Â¿Desea crear este lote?',
+        icon: isEdit ? Icons.edit : Icons.save,
+        iconColor: Colors.blue,
+        confirmText: isEdit ? 'Actualizar' : 'Guardar',
+        onConfirm: ejecutarGuardado,
+      ),
+    );
+
+    if (fueExitoso == true && mounted) {
+      Navigator.pop(context, true);
+    }
+  }
+
+  Future<void> ejecutarGuardado() async {
+    final session = ref.read(sessionProvider);
+    final empresa = session.empresaActual!;
+    final usuario = session.usuario!;
+
+    final lote = Lote(
+      id: widget.lote?.id ?? const Uuid().v4(),
+      empresaId: empresa.id,
+      sucursalId: sucursalId,
+      monedaId: monedaId!,
+      numeroLote: numeroLoteCtrl.text.trim(),
+      observacion: observacionCtrl.text.trim(),
+      tipo: tipo,
+      estado: widget.lote?.estado ?? LoteEstado.borrador,
+
+      subtotalMonedaOrigen: widget.lote?.subtotalMonedaOrigen ?? 0,
+
+      subtotalMonedaBase: widget.lote?.subtotalMonedaBase ?? 0,
+
+      totalGastos: widget.lote?.totalGastos ?? 0,
+      totalFinal: widget.lote?.totalFinal ?? 0,
+
+      stockGenerado: widget.lote?.stockGenerado ?? false,
+
+      activo: true,
+      eliminado: false,
+
+      usuarioCreacion: widget.lote?.usuarioCreacion ?? usuario.id,
+
+      usuarioModificacion: usuario.id,
+
+      fechaCreacion: widget.lote?.fechaCreacion ?? DateTime.now(),
+
+      fechaModificacion: DateTime.now(),
+    );
+
+    try {
+      await ref
+          .read(lotesProvider(empresa.id).notifier)
+          .guardarLote(lote, isEdit: isEdit);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al guardar: $error'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final empresaId = ref.read(sessionProvider).empresaActual!.id;
+
+    final monedasAsync = ref.watch(monedasProvider(empresaId));
+    final sucursalesAsync = ref.watch(sucursalesProvider(empresaId));
+
+    return Dialog(
+      child: SizedBox(
+        width: 900,
+        height: 700,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                Text(
+                  isEdit ? 'Editar Lote' : 'Nuevo Lote',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+
+                const SizedBox(height: 20),
+
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        TextFormField(
+                          controller: numeroLoteCtrl,
+                          decoration: const InputDecoration(
+                            labelText: 'NÃºmero Lote',
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Ingrese nÃºmero lote';
+                            }
+                            return null;
+                          },
+                        ),
+
+                        const SizedBox(height: 15),
+
+                        DropdownButtonFormField<LoteTipo>(
+                          value: tipo,
+                          decoration: const InputDecoration(labelText: 'Tipo'),
+                          items: const [
+                            DropdownMenuItem(
+                              value: LoteTipo.local,
+                              child: Text('Local'),
+                            ),
+                            DropdownMenuItem(
+                              value: LoteTipo.importacion,
+                              child: Text('ImportaciÃ³n'),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            if (value == null) return;
+
+                            setState(() {
+                              tipo = value;
+                            });
+                          },
+                        ),
+
+                        const SizedBox(height: 15),
+
+                        sucursalesAsync.when(
+                          loading: () => const CircularProgressIndicator(),
+                          error: (_, __) =>
+                              const Text('Error cargando sucursales'),
+                          data: (sucursales) {
+                            return DropdownButtonFormField<String?>(
+                              value: sucursalId,
+                              decoration: const InputDecoration(
+                                labelText: 'Sucursal',
+                              ),
+                              items: [
+                                const DropdownMenuItem<String?>(
+                                  value: null,
+                                  child: Text('S/S (Sin sucursal)'),
+                                ),
+
+                                ...sucursales.map(
+                                  (s) => DropdownMenuItem<String?>(
+                                    value: s.id,
+                                    child: Text(s.nombre),
+                                  ),
+                                ),
+                              ],
+                              onChanged: (value) {
+                                setState(() {
+                                  sucursalId = value;
+                                });
+                              },
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 15),
+
+                        monedasAsync.when(
+                          loading: () => DropdownButtonFormField<String>(
+                            decoration: const InputDecoration(
+                              labelText: 'Moneda',
+                            ),
+                            items: const [],
+                            onChanged: null,
+                            disabledHint: Row(
+                              children: const [
+                                SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                                SizedBox(width: 10),
+                                Text('Cargando monedas...'),
+                              ],
+                            ),
+                          ),
+                          error: (_, __) => DropdownButtonFormField<String>(
+                            decoration: const InputDecoration(
+                              labelText: 'Moneda',
+                            ),
+                            items: const [],
+                            onChanged: null,
+                            disabledHint: const Text('Error al cargar monedas'),
+                          ),
+                          data: (monedas) {
+                            if (!isEdit &&
+                                monedaId == null &&
+                                monedas.isNotEmpty) {
+                              monedaId = monedas.first.id;
+                            }
+
+                            if (monedaId != null &&
+                                !monedas.any((m) => m.id == monedaId)) {
+                              monedaId = null;
+                            }
+
+                            return DropdownButtonFormField<String>(
+                              value: monedaId,
+                              decoration: const InputDecoration(
+                                labelText: 'Moneda',
+                                hintText: 'Seleccione moneda',
+                              ),
+                              items: monedas.map((m) {
+                                return DropdownMenuItem<String>(
+                                  value: m.id,
+                                  child: Text('${m.codigo} - ${m.nombre}'),
+                                );
+                              }).toList(),
+                              validator: (v) {
+                                if (v == null) {
+                                  return 'Seleccione moneda';
+                                }
+                                return null;
+                              },
+                              onChanged: (value) {
+                                setState(() {
+                                  monedaId = value;
+                                });
+                              },
+                            );
+                          },
+                        ),
+
+                        const SizedBox(height: 15),
+
+                        TextFormField(
+                          controller: observacionCtrl,
+                          maxLines: 3,
+                          decoration: const InputDecoration(
+                            labelText: 'ObservaciÃ³n',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                      },
+                      child: const Text('Cancelar'),
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton(
+                      onPressed: solicitarGuardado,
+                      child: const Text('Guardar'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\moduloLotes\widgets\lote_gastos_dialog.dart =====
+
+import 'package:flutter/material.dart';
+
+import '../../../models/lotes/lote_gasto.dart';
+
+class LoteGastosDialog extends StatelessWidget {
+  final String loteId;
+
+  final List<LoteGasto> gastos;
+
+  const LoteGastosDialog({
+    super.key,
+    required this.loteId,
+    this.gastos = const [],
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: SizedBox(
+        width: 900,
+        height: 600,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.receipt_long),
+
+                  const SizedBox(width: 10),
+
+                  Text(
+                    'Gastos del Lote',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+
+                  const Spacer(),
+
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      // TODO
+                      // abrir formulario gasto
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('Agregar'),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 20),
+
+              Expanded(
+                child: gastos.isEmpty
+                    ? const Center(child: Text('No existen gastos registrados'))
+                    : SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: DataTable(
+                          columns: const [
+                            DataColumn(label: Text('DescripciÃ³n')),
+                            DataColumn(label: Text('Moneda')),
+                            DataColumn(label: Text('Monto')),
+                            DataColumn(label: Text('Tipo Cambio')),
+                            DataColumn(label: Text('Monto Base')),
+                          ],
+                          rows: gastos.map((gasto) {
+                            return DataRow(
+                              cells: [
+                                DataCell(Text(gasto.descripcion)),
+
+                                DataCell(Text(gasto.monedaId)),
+
+                                DataCell(Text(gasto.monto.toStringAsFixed(2))),
+
+                                DataCell(
+                                  Text(gasto.tipoCambio.toStringAsFixed(2)),
+                                ),
+
+                                DataCell(
+                                  Text(gasto.montoBase.toStringAsFixed(2)),
+                                ),
+                              ],
+                            );
+                          }).toList(),
+                        ),
+                      ),
+              ),
+
+              const SizedBox(height: 20),
+
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Cerrar'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\moduloLotes\widgets\lote_historial_widget.dart =====
+
+import 'package:flutter/material.dart';
+
+import '../../../models/lotes/lote_historial_estado.dart';
+import '../../../models/lotes/lote_estado.dart';
+
+class LoteHistorialWidget extends StatelessWidget {
+  final List<LoteHistorialEstado> historial;
+
+  const LoteHistorialWidget({super.key, required this.historial});
+
+  String estadoTexto(LoteEstado estado) {
+    switch (estado) {
+      case LoteEstado.borrador:
+        return 'Borrador';
+
+      case LoteEstado.enTransito:
+        return 'En TrÃ¡nsito';
+
+      case LoteEstado.revision:
+        return 'RevisiÃ³n';
+
+      case LoteEstado.finalizado:
+        return 'Finalizado';
+
+      case LoteEstado.cancelado:
+        return 'Cancelado';
+    }
+  }
+
+  Color estadoColor(LoteEstado estado) {
+    switch (estado) {
+      case LoteEstado.borrador:
+        return Colors.grey;
+
+      case LoteEstado.enTransito:
+        return Colors.orange;
+
+      case LoteEstado.revision:
+        return Colors.blue;
+
+      case LoteEstado.finalizado:
+        return Colors.green;
+
+      case LoteEstado.cancelado:
+        return Colors.red;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (historial.isEmpty) {
+      return const Center(child: Text('Sin historial disponible'));
+    }
+
+    return ListView.separated(
+      shrinkWrap: true,
+      itemCount: historial.length,
+      separatorBuilder: (_, __) => const Divider(height: 25),
+      itemBuilder: (_, index) {
+        final item = historial[index];
+
+        return ListTile(
+          leading: CircleAvatar(
+            backgroundColor: estadoColor(item.estadoNuevo),
+            child: const Icon(Icons.history, color: Colors.white),
+          ),
+
+          title: Text(
+            '${estadoTexto(item.estadoAnterior)} â†’ ${estadoTexto(item.estadoNuevo)}',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${item.fechaCreacion.day}/${item.fechaCreacion.month}/${item.fechaCreacion.year}',
+              ),
+
+              const SizedBox(height: 4),
+
+              Text('Usuario: ${item.usuarioCreacion}'),
+
+              if ((item.observacion ?? '').trim().isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(item.observacion!),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\moduloLotes\widgets\lote_table.dart =====
+
+import 'package:flutter/material.dart';
+import '../../../models/lotes/lote.dart';
+import '../../../models/lotes/lote_tipo.dart';
+import '../../../models/lotes/lote_estado.dart';
+
+class LoteTable extends StatelessWidget {
+  final List<Lote> lotes;
+
+  final Function(Lote)? onDetalle;
+  final Function(Lote)? onEditar;
+  final Function(Lote)? onCosteo;
+  final Function(Lote)? onGastos;
+  final Function(Lote)? onEliminar;
+
+  const LoteTable({
+    super.key,
+    required this.lotes,
+    this.onDetalle,
+    this.onEditar,
+    this.onCosteo,
+    this.onGastos,
+    this.onEliminar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
+        columnSpacing: 25,
+        columns: const [
+          DataColumn(label: Text('Lote')),
+          DataColumn(label: Text('Tipo')),
+          DataColumn(label: Text('Estado')),
+          DataColumn(label: Text('Total Gastos')),
+          DataColumn(label: Text('Total Final')),
+          DataColumn(label: Text('Stock')),
+          DataColumn(label: Text('Acciones')),
+        ],
+        rows: lotes.map((lote) {
+          return DataRow(
+            cells: [
+              DataCell(Text(lote.numeroLote)),
+
+              DataCell(Text(lote.tipo.nombre)),
+
+              DataCell(Text(lote.estado.nombre)),
+
+              DataCell(Text(lote.totalGastos.toStringAsFixed(2))),
+
+              DataCell(Text(lote.totalFinal.toStringAsFixed(2))),
+
+              DataCell(
+                Icon(lote.stockGenerado ? Icons.check_circle : Icons.cancel),
+              ),
+
+              DataCell(
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      tooltip: 'Detalle',
+                      icon: const Icon(Icons.visibility),
+                      onPressed: () => onDetalle?.call(lote),
+                    ),
+
+                    IconButton(
+                      tooltip: 'Editar',
+                      icon: const Icon(Icons.edit),
+                      onPressed: () => onEditar?.call(lote),
+                    ),
+
+                    IconButton(
+                      tooltip: 'Gastos',
+                      icon: const Icon(Icons.receipt_long),
+                      onPressed: () => onGastos?.call(lote),
+                    ),
+
+                    IconButton(
+                      tooltip: 'Costeo',
+                      icon: const Icon(Icons.calculate),
+                      onPressed: () => onCosteo?.call(lote),
+                    ),
+
+                    IconButton(
+                      tooltip: 'Eliminar',
+                      icon: const Icon(Icons.delete),
+                      onPressed: () => onEliminar?.call(lote),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+
 ===== D:\inv\inventario_telas\lib\modulo_json\providers\json_provider.dart =====
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12104,17 +16101,17 @@ class JsonService {
 
   /// Colecciones disponibles
   final List<String> collections = [
-    'usuarios',
-    'roles',
-    'menus',
+    'codigoTelaProveedor',
+    'colores',
     'empresas',
-    'sucursales',
     'lotes',
-    'rollos',
-    'precios_venta',
-    'catalog_colores',
-    'catalog_monedas',
+    'menus',
+    'monedas',
+    'proveedores',
+    'roles',
+    'sucursales',
     'tiposTela',
+    'usuarios',
   ];
 
   /// Obtener colecciones separadas
@@ -12405,6 +16402,67 @@ class AuthNotifier extends StateNotifier<AsyncValue<Usuario?>> {
 }
 
 
+===== D:\inv\inventario_telas\lib\providers\codigo_tela_proveedor_provider.dart =====
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
+import 'package:inv_telas/models/lotes/codigo_tela_proveedor.dart';
+import '../services/codigo_tela_proveedor_service.dart';
+
+final codigoTelaProveedorServiceProvider = Provider(
+  (ref) => CodigoTelaProveedorService(),
+);
+
+final codigoTelaProveedorNotifierProvider =
+    StateNotifierProvider<CodigoTelaProveedorNotifier, AsyncValue<void>>(
+      (ref) => CodigoTelaProveedorNotifier(ref),
+    );
+
+class CodigoTelaProveedorNotifier extends StateNotifier<AsyncValue<void>> {
+  final Ref ref;
+
+  CodigoTelaProveedorNotifier(this.ref) : super(const AsyncData(null));
+
+  Future<bool> existe({
+    required String empresaId,
+    required String proveedorId,
+    required String tipoTelaId,
+  }) {
+    return ref
+        .read(codigoTelaProveedorServiceProvider)
+        .existe(
+          empresaId: empresaId,
+          proveedorId: proveedorId,
+          tipoTelaId: tipoTelaId,
+        );
+  }
+
+  Future<void> create(CodigoTelaProveedor data) async {
+    state = const AsyncLoading();
+    try {
+      await ref.read(codigoTelaProveedorServiceProvider).create(data);
+      state = const AsyncData(null);
+    } catch (e, st) {
+      state = AsyncError(e, st);
+      rethrow;
+    }
+  }
+
+  Future<void> update(CodigoTelaProveedor data) async {
+    state = const AsyncLoading();
+
+    try {
+      await ref.read(codigoTelaProveedorServiceProvider).update(data);
+
+      state = const AsyncData(null);
+    } catch (e, st) {
+      state = AsyncError(e, st);
+      rethrow;
+    }
+  }
+}
+
+
 ===== D:\inv\inventario_telas\lib\providers\color_provider.dart =====
 
 import 'dart:async';
@@ -12606,6 +16664,89 @@ final empresaDetalleProvider = FutureProvider.autoDispose
     });
 
 
+===== D:\inv\inventario_telas\lib\providers\lote_provider.dart =====
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
+import 'package:inv_telas/models/lotes/lote.dart';
+
+import '../services/lote_service.dart';
+
+final loteServiceProvider = Provider<LoteService>((ref) => LoteService());
+
+class LoteNotifier extends StateNotifier<AsyncValue<List<Lote>>> {
+  final LoteService _service;
+  final String empresaId;
+
+  LoteNotifier({required LoteService service, required this.empresaId})
+    : _service = service,
+      super(const AsyncValue.loading());
+
+  Future<void> cargarLotes() async {
+    try {
+      state = const AsyncValue.loading();
+
+      final lotes = await _service.obtenerLotesPorEmpresa(empresaId);
+
+      state = AsyncValue.data(lotes);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
+  }
+
+  Future<void> guardarLote(Lote lote, {required bool isEdit}) async {
+    try {
+      if (!isEdit) {
+        await _service.crearLote(lote);
+      } else {
+        await _service.actualizarLote(lote);
+      }
+      await cargarLotes();
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      // Volvemos a lanzar el error para que el diÃ¡logo UI tambiÃ©n pueda enterarse
+      rethrow;
+    }
+  }
+
+  Future<void> eliminarLote({
+    required String loteId,
+    required String usuarioId,
+  }) async {
+    await _service.eliminarLote(loteId: loteId, usuarioId: usuarioId);
+
+    await cargarLotes();
+  }
+
+  Future<void> restaurarLote({
+    required String loteId,
+    required String usuarioId,
+  }) async {
+    await _service.restaurarLote(loteId: loteId, usuarioId: usuarioId);
+
+    await cargarLotes();
+  }
+
+  Future<void> recargar() async {
+    await cargarLotes();
+  }
+}
+
+final lotesProvider =
+    StateNotifierProvider.family<LoteNotifier, AsyncValue<List<Lote>>, String>((
+      ref,
+      empresaId,
+    ) {
+      final service = ref.watch(loteServiceProvider);
+
+      final notifier = LoteNotifier(service: service, empresaId: empresaId);
+
+      notifier.cargarLotes();
+
+      return notifier;
+    });
+
+
 ===== D:\inv\inventario_telas\lib\providers\moneda_provider.dart =====
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12676,17 +16817,17 @@ class MonedaNotifier extends StateNotifier<AsyncValue<List<Moneda>>> {
   }
 }
 
-final monedasProvider =
-    StateNotifierProvider.family<
-      MonedaNotifier,
-      AsyncValue<List<Moneda>>,
-      String
-    >((ref, empresaId) {
+final monedasProvider = StateNotifierProvider.autoDispose
+    .family<MonedaNotifier, AsyncValue<List<Moneda>>, String>((ref, empresaId) {
       final service = ref.watch(monedaServiceProvider);
 
       final notifier = MonedaNotifier(service: service, empresaId: empresaId);
 
       notifier.cargarMonedas();
+
+      ref.onDispose(() {
+        print('ðŸ—‘ï¸ MONEDAS PROVIDER ELIMINADO');
+      });
 
       return notifier;
     });
@@ -12718,12 +16859,10 @@ final proveedorServiceProvider = Provider<ProveedorService>(
 /// Obtiene la lista de proveedores por empresa de forma puntual.
 /// Este es el que usarÃ¡s para cargar los Dropdowns al abrir un formulario.
 /// ==========================================================
-final proveedoresFutureProvider =
-    FutureProvider.family<List<Proveedor>, String>((ref, empresaId) async {
-      // Leemos la instancia del servicio expuesta arriba
+final proveedoresFutureProvider = FutureProvider.autoDispose
+    .family<List<Proveedor>, String>((ref, empresaId) async {
       final service = ref.read(proveedorServiceProvider);
 
-      // Llamamos al mÃ©todo que hace el GET Ãºnico a Firestore
       return service.getByEmpresa(empresaId);
     });
 
@@ -12845,12 +16984,10 @@ final sucursalServiceProvider = Provider<SucursalService>(
   (ref) => SucursalService(),
 );
 
-final sucursalesProvider = FutureProvider.family<List<Sucursal>, String>((
-  ref,
-  empresaId,
-) async {
-  return ref.read(sucursalServiceProvider).getSucursales(empresaId);
-});
+final sucursalesProvider = FutureProvider.autoDispose
+    .family<List<Sucursal>, String>((ref, empresaId) async {
+      return ref.read(sucursalServiceProvider).getSucursales(empresaId);
+    });
 
 
 ===== D:\inv\inventario_telas\lib\providers\tipo_tela_provider.dart =====
@@ -13903,6 +18040,63 @@ class AuthService {
 }
 
 
+===== D:\inv\inventario_telas\lib\services\codigo_tela_proveedor_service.dart =====
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:inv_telas/models/lotes/codigo_tela_proveedor.dart';
+import '../config/env.dart';
+
+class CodigoTelaProveedorService {
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  CollectionReference<Map<String, dynamic>> get _ref =>
+      _db.collection(Env.col('codigoTelaProveedor'));
+
+  Future<bool> existe({
+    required String empresaId,
+    required String proveedorId,
+    required String tipoTelaId,
+  }) async {
+    final snap = await _ref
+        .where('empresaId', isEqualTo: empresaId)
+        .where('proveedorId', isEqualTo: proveedorId)
+        .where('tipoTelaId', isEqualTo: tipoTelaId)
+        .where('eliminado', isEqualTo: false)
+        .get();
+
+    return snap.docs.isNotEmpty;
+  }
+
+  Future<void> create(CodigoTelaProveedor data) async {
+    await _ref.doc(data.id).set(data.toMap());
+  }
+
+  Future<void> update(CodigoTelaProveedor data) async {
+    await _ref.doc(data.id).update(data.toMap());
+  }
+
+  Future<CodigoTelaProveedor?> getByProveedorTipo({
+    required String empresaId,
+    required String proveedorId,
+    required String tipoTelaId,
+  }) async {
+    final snap = await _ref
+        .where('empresaId', isEqualTo: empresaId)
+        .where('proveedorId', isEqualTo: proveedorId)
+        .where('tipoTelaId', isEqualTo: tipoTelaId)
+        .where('eliminado', isEqualTo: false)
+        .limit(1)
+        .get();
+
+    if (snap.docs.isEmpty) {
+      return null;
+    }
+
+    return CodigoTelaProveedor.fromMap(snap.docs.first.data());
+  }
+}
+
+
 ===== D:\inv\inventario_telas\lib\services\color_service.dart =====
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -14313,6 +18507,162 @@ class EmpresaService {
       print('âŒ getEmpresaById: $e');
       rethrow;
     }
+  }
+}
+
+
+===== D:\inv\inventario_telas\lib\services\lote_service.dart =====
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:inv_telas/config/env.dart';
+import 'package:inv_telas/models/lotes/lote.dart';
+import 'package:inv_telas/models/lotes/lote_costeo.dart';
+import 'package:inv_telas/models/lotes/lote_detalle.dart';
+import 'package:inv_telas/models/lotes/lote_gasto.dart';
+import 'package:inv_telas/models/lotes/lote_historial_estado.dart';
+
+
+class LoteService {
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  CollectionReference<Map<String, dynamic>> get _loteRef =>
+      _db.collection(Env.col('lotes'));
+
+  Future<List<Lote>> obtenerLotesPorEmpresa(String empresaId) async {
+    final snapshot = await _loteRef
+        .where('empresaId', isEqualTo: empresaId)
+        .where('eliminado', isEqualTo: false)
+        .get();
+
+    return snapshot.docs.map((e) => Lote.fromMap(e.data())).toList();
+  }
+
+  Future<void> crearLote(Lote lote) async {
+    final doc = _loteRef.doc();
+
+    final nuevoLote = lote.copyWith(id: doc.id, fechaCreacion: DateTime.now());
+
+    await doc.set(nuevoLote.toMap());
+  }
+
+  Future<void> actualizarLote(Lote lote) async {
+    await _loteRef
+        .doc(lote.id)
+        .update(lote.copyWith(fechaModificacion: DateTime.now()).toMap());
+  }
+
+  Future<void> eliminarLote({
+    required String loteId,
+    required String usuarioId,
+  }) async {
+    await _loteRef.doc(loteId).update({
+      'eliminado': true,
+      'activo': false,
+      'usuarioEliminacion': usuarioId,
+      'usuarioModificacion': usuarioId,
+      'fechaEliminacion': FieldValue.serverTimestamp(),
+      'fechaModificacion': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> restaurarLote({
+    required String loteId,
+    required String usuarioId,
+  }) async {
+    await _loteRef.doc(loteId).update({
+      'eliminado': false,
+      'activo': true,
+      'usuarioEliminacion': null,
+      'usuarioModificacion': usuarioId,
+      'fechaEliminacion': null,
+      'fechaModificacion': FieldValue.serverTimestamp(),
+    });
+  }
+
+  // ============================================================
+  // DETALLES
+  // ============================================================
+
+  Future<void> guardarDetalle(LoteDetalle detalle) async {
+    await _loteRef
+        .doc(detalle.loteId)
+        .collection('detalles')
+        .doc(detalle.id)
+        .set(detalle.toMap());
+  }
+
+  Future<List<LoteDetalle>> obtenerDetalles(String loteId) async {
+    final snapshot = await _loteRef.doc(loteId).collection('detalles').get();
+
+    return snapshot.docs.map((e) => LoteDetalle.fromMap(e.data())).toList();
+  }
+
+  // ============================================================
+  // GASTOS
+  // ============================================================
+
+  Future<void> guardarGasto(LoteGasto gasto) async {
+    await _loteRef
+        .doc(gasto.loteId)
+        .collection('gastos')
+        .doc(gasto.id)
+        .set(gasto.toMap());
+  }
+
+  Future<List<LoteGasto>> obtenerGastos(String loteId) async {
+    final snapshot = await _loteRef.doc(loteId).collection('gastos').get();
+
+    return snapshot.docs.map((e) => LoteGasto.fromMap(e.data())).toList();
+  }
+
+  // ============================================================
+  // COSTEO
+  // ============================================================
+
+  Future<void> guardarCosteo(LoteCosteo costeo) async {
+    await _loteRef
+        .doc(costeo.loteId)
+        .collection('costeo')
+        .doc(costeo.id)
+        .set(costeo.toMap());
+  }
+
+  Future<LoteCosteo?> obtenerCosteo(String loteId) async {
+    final snapshot = await _loteRef
+        .doc(loteId)
+        .collection('costeo')
+        .limit(1)
+        .get();
+
+    if (snapshot.docs.isEmpty) {
+      return null;
+    }
+
+    return LoteCosteo.fromMap(snapshot.docs.first.data());
+  }
+
+  // ============================================================
+  // HISTORIAL
+  // ============================================================
+
+  Future<void> guardarHistorialEstado(LoteHistorialEstado historial) async {
+    await _loteRef
+        .doc(historial.loteId)
+        .collection('historial')
+        .doc(historial.id)
+        .set(historial.toMap());
+  }
+
+  Future<List<LoteHistorialEstado>> obtenerHistorial(String loteId) async {
+    final snapshot = await _loteRef
+        .doc(loteId)
+        .collection('historial')
+        .orderBy('fechaCambio')
+        .get();
+
+    return snapshot.docs
+        .map((e) => LoteHistorialEstado.fromMap(e.data()))
+        .toList();
   }
 }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/providers/sucursal_provider.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/providers/session_provider.dart';
@@ -31,6 +32,7 @@ class _LoteFormDialogState extends ConsumerState<LoteFormDialog> {
   String? monedaId;
 
   LoteTipo tipo = LoteTipo.local;
+  String? sucursalId;
 
   bool get isEdit => widget.lote != null;
 
@@ -47,6 +49,7 @@ class _LoteFormDialogState extends ConsumerState<LoteFormDialog> {
 
     monedaId = lote.monedaId;
     tipo = lote.tipo;
+    sucursalId = lote.sucursalId;
   }
 
   @override
@@ -89,6 +92,7 @@ class _LoteFormDialogState extends ConsumerState<LoteFormDialog> {
     final lote = Lote(
       id: widget.lote?.id ?? const Uuid().v4(),
       empresaId: empresa.id,
+      sucursalId: sucursalId,
       monedaId: monedaId!,
       numeroLote: numeroLoteCtrl.text.trim(),
       observacion: observacionCtrl.text.trim(),
@@ -138,6 +142,7 @@ class _LoteFormDialogState extends ConsumerState<LoteFormDialog> {
     final empresaId = ref.read(sessionProvider).empresaActual!.id;
 
     final monedasAsync = ref.watch(monedasProvider(empresaId));
+    final sucursalesAsync = ref.watch(sucursalesProvider(empresaId));
 
     return Dialog(
       child: SizedBox(
@@ -197,6 +202,39 @@ class _LoteFormDialogState extends ConsumerState<LoteFormDialog> {
                           },
                         ),
 
+                        const SizedBox(height: 15),
+
+                        sucursalesAsync.when(
+                          loading: () => const CircularProgressIndicator(),
+                          error: (_, __) =>
+                              const Text('Error cargando sucursales'),
+                          data: (sucursales) {
+                            return DropdownButtonFormField<String?>(
+                              value: sucursalId,
+                              decoration: const InputDecoration(
+                                labelText: 'Sucursal',
+                              ),
+                              items: [
+                                const DropdownMenuItem<String?>(
+                                  value: null,
+                                  child: Text('S/S (Sin sucursal)'),
+                                ),
+
+                                ...sucursales.map(
+                                  (s) => DropdownMenuItem<String?>(
+                                    value: s.id,
+                                    child: Text(s.nombre),
+                                  ),
+                                ),
+                              ],
+                              onChanged: (value) {
+                                setState(() {
+                                  sucursalId = value;
+                                });
+                              },
+                            );
+                          },
+                        ),
                         const SizedBox(height: 15),
 
                         monedasAsync.when(

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:inv_telas/core/providers/session_provider.dart';
 import 'package:inv_telas/models/rol.dart';
+import 'package:inv_telas/moduloAbms/codigosTelaProveedor/screens/codigo_tela_proveedor_page.dart';
 import 'package:inv_telas/moduloAbms/colores/screens/colores_abm_screen.dart';
 import 'package:inv_telas/moduloAbms/menus/screens/menus_abm_screen.dart';
 import 'package:inv_telas/moduloAbms/monedas/monedas_abm_screen.dart';
@@ -53,6 +54,7 @@ class _PrincipalShellState extends ConsumerState<PrincipalShell> {
     '/colores': const ColoresAbmScreen(),
     '/moneda': const MonedasAbmScreen(),
     '/lote': const LotesAbmScreen(),
+    '/proveedor-colores': const CodigoTelaProveedorPage(),
   };
 
   /// Navegación
