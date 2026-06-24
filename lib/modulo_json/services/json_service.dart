@@ -8,9 +8,11 @@ class JsonService {
   /// Colecciones disponibles
   final List<String> collections = [
     'codigoTelaProveedor',
+    'codigoUnicoTelaProveedor',
     'colores',
     'empresas',
     'lotes',
+    'loteDetalle',
     'menus',
     'monedas',
     'proveedores',
@@ -18,7 +20,6 @@ class JsonService {
     'sucursales',
     'tiposTela',
     'usuarios',
-    'codigoUnicoTelaProveedor',
   ];
 
   /// Obtener colecciones separadas

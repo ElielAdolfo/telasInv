@@ -3,9 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/models/abmTiposTelas/proveedor.dart';
 import 'package:inv_telas/models/abmTiposTelas/tipo_tela.dart';
 import 'package:inv_telas/models/lotes/lote.dart';
-import 'package:inv_telas/models/lotes/lote_estado.dart';
 import 'package:inv_telas/models/lotes/lote_tipo.dart';
+import 'package:inv_telas/providers/lote_detalle_provider.dart';
 import 'package:inv_telas/providers/moneda_provider.dart';
+import 'package:inv_telas/services/codigo_tela_proveedor_service.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/providers/session_provider.dart';
@@ -51,6 +52,58 @@ class _LoteDetalleDialogState extends ConsumerState<LoteDetalleDialog> {
   final costoMetroBaseCtrl = TextEditingController();
 
   String? monedaIdSeleccionada;
+
+  bool _initDone = false;
+  bool _editInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    final d = widget.detalle;
+    if (d != null) {
+      cantidadRollosCtrl.text = d.cantidadRollos.toString();
+      metrosPorRolloCtrl.text = d.metrosPorRollo.toString();
+      costoMetroOrigenCtrl.text = d.costoMetroOrigen.toString();
+      costoMetroBaseCtrl.text = d.costoMetroBase.toString();
+    }
+  }
+
+  Future<void> _tryInitEdit(
+    List<Proveedor> proveedores,
+    List<TipoTela> tipos,
+    CodigoTelaProveedorService service,
+  ) async {
+    if (_editInitialized) return;
+    if (widget.detalle == null) return;
+    if (proveedores.isEmpty || tipos.isEmpty) return;
+
+    _editInitialized = true;
+
+    try {
+      final relacion = await service.getById(
+        widget.detalle!.codigoTelaProveedorId!,
+      );
+      if (relacion == null) return;
+
+      final prov = proveedores.firstWhere((p) => p.id == relacion.proveedorId);
+      final tipo = tipos.firstWhere((t) => t.id == relacion.tipoTelaId);
+
+      if (!mounted) return;
+
+      setState(() {
+        proveedorId = prov.id;
+        tipoTelaId = tipo.id;
+        proveedorSeleccionado = prov;
+        tipoTelaSeleccionado = tipo;
+        relacionActual = relacion;
+      });
+
+      _cargarConfiguracionCosto();
+    } catch (e) {
+      debugPrint("Error init edit: $e");
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -118,6 +171,13 @@ class _LoteDetalleDialogState extends ConsumerState<LoteDetalleDialog> {
                               error: (_, __) =>
                                   const Text("Error al cargar proveedores"),
                               data: (proveedores) {
+                                final tipos = tiposAsync.asData?.value ?? [];
+
+                                WidgetsBinding.instance.addPostFrameCallback((
+                                  _,
+                                ) {
+                                  _tryInitEdit(proveedores, tipos, service);
+                                });
                                 return DropdownButtonFormField<String>(
                                   value: proveedorId,
                                   decoration: const InputDecoration(
@@ -322,6 +382,8 @@ class _LoteDetalleDialogState extends ConsumerState<LoteDetalleDialog> {
                                           return;
                                         }
 
+                                        if (!mounted) return;
+
                                         final result = await showDialog(
                                           context: context,
                                           barrierDismissible: false,
@@ -429,6 +491,23 @@ class _LoteDetalleDialogState extends ConsumerState<LoteDetalleDialog> {
                           error: (_, __) =>
                               const Text('Error cargando monedas'),
                           data: (monedas) {
+                            if (widget.detalle != null &&
+                                monedaIdSeleccionada == null) {
+                              /*final id = widget
+                                  .detalle!
+                                  .monedaId; // (SI NO LO TIENES, aquí está otro bug)
+
+                              final encontrada = monedas.firstWhere(
+                                (m) => m.id == id,
+                                orElse: () => monedas.first,
+                              );
+
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                setState(() {
+                                  monedaIdSeleccionada = encontrada.id;
+                                });
+                              });*/
+                            }
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 12),
                               child: DropdownButtonFormField<String>(
@@ -473,21 +552,30 @@ class _LoteDetalleDialogState extends ConsumerState<LoteDetalleDialog> {
                     ),
                     const SizedBox(width: 10),
                     ElevatedButton(
-                      onPressed: () {
+                      onPressed: () async {
                         if (!_formKey.currentState!.validate()) return;
                         if (tipoTelaId == null) return;
 
+                        final cantidad =
+                            int.tryParse(cantidadRollosCtrl.text) ?? 0;
+                        final metros =
+                            double.tryParse(metrosPorRolloCtrl.text) ?? 0;
+
                         final detalle = LoteDetalle(
-                          id: widget.detalle?.id ?? const Uuid().v4(),
+                          id:
+                              widget.detalle?.id ??
+                              const Uuid()
+                                  .v4(), // Si es edición, conserva su ID
                           loteId: widget.loteId,
                           tipoTelaId: tipoTelaId!,
                           varianteId: widget.detalle?.varianteId,
                           colorId: widget.detalle?.colorId,
-                          cantidadRollos:
-                              int.tryParse(cantidadRollosCtrl.text) ?? 0,
-                          metrosPorRollo:
-                              double.tryParse(metrosPorRolloCtrl.text) ?? 0,
-                          totalMetros: 0,
+                          codigoTelaProveedorId: relacionActual?.id,
+                          cantidadRollos: cantidad,
+                          metrosPorRollo: metros,
+                          totalMetros:
+                              cantidad *
+                              metros, // Calculamos el total de metros
                           costoMetroOrigen:
                               double.tryParse(costoMetroOrigenCtrl.text) ?? 0,
                           costoMetroBase:
@@ -502,7 +590,15 @@ class _LoteDetalleDialogState extends ConsumerState<LoteDetalleDialog> {
                               widget.detalle?.fechaCreacion ?? DateTime.now(),
                         );
 
-                        Navigator.pop(context, detalle);
+                        // 1. LLAMAMOS A TU PROPIO PROVIDER (Esperamos a que guarde en la BD)
+                        await ref
+                            .read(loteDetallesProvider(widget.loteId).notifier)
+                            .guardar(detalle);
+
+                        // 2. RECIÉN CUANDO TERMINA EL PROCESO ASÍNCRONO, CERRAMOS EL MODAL
+                        if (context.mounted) {
+                          Navigator.pop(context, true);
+                        }
                       },
                       child: const Text('Guardar'),
                     ),
@@ -528,6 +624,15 @@ class _LoteDetalleDialogState extends ConsumerState<LoteDetalleDialog> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    cantidadRollosCtrl.dispose();
+    metrosPorRolloCtrl.dispose();
+    costoMetroOrigenCtrl.dispose();
+    costoMetroBaseCtrl.dispose();
+    super.dispose();
   }
 
   void _cargarConfiguracionCosto() {

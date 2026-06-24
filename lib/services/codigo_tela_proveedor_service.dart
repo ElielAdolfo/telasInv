@@ -31,6 +31,14 @@ class CodigoTelaProveedorService {
     await _ref.doc(data.id).update(data.toMap());
   }
 
+  Future<CodigoTelaProveedor?> getById(String id) async {
+    final doc = await _ref.doc(id).get();
+
+    if (!doc.exists) return null;
+
+    return CodigoTelaProveedor.fromMap(doc.data()!);
+  }
+
   Future<CodigoTelaProveedor?> getByProveedorTipo({
     required String empresaId,
     required String proveedorId,
@@ -49,5 +57,14 @@ class CodigoTelaProveedorService {
     }
 
     return CodigoTelaProveedor.fromMap(snap.docs.first.data());
+  }
+
+  Future<List<CodigoTelaProveedor>> getByEmpresaId(String empresaId) async {
+    final snap = await _ref
+        .where('empresaId', isEqualTo: empresaId)
+        .where('eliminado', isEqualTo: false)
+        .get();
+
+    return snap.docs.map((e) => CodigoTelaProveedor.fromMap(e.data())).toList();
   }
 }

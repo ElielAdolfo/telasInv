@@ -13,6 +13,7 @@ class LoteDetalle extends BaseEntity {
   final double costoMetroBase;
   final double costoRolloOrigen;
   final double costoRolloBase;
+  final String? codigoTelaProveedorId; //hay que agregar esto
 
   const LoteDetalle({
     required super.id,
@@ -28,6 +29,8 @@ class LoteDetalle extends BaseEntity {
     required this.tipoTelaId,
     this.varianteId,
     this.colorId,
+
+    this.codigoTelaProveedorId,
     required this.cantidadRollos,
     required this.metrosPorRollo,
     required this.totalMetros,
@@ -62,6 +65,7 @@ class LoteDetalle extends BaseEntity {
       tipoTelaId: map['tipoTelaId'] ?? '',
       varianteId: map['varianteId'],
       colorId: map['colorId'],
+      codigoTelaProveedorId: map['codigoTelaProveedorId'],
       cantidadRollos: map['cantidadRollos'] ?? 0,
       metrosPorRollo: (map['metrosPorRollo'] ?? 0).toDouble(),
       totalMetros: (map['totalMetros'] ?? 0).toDouble(),
@@ -91,6 +95,7 @@ class LoteDetalle extends BaseEntity {
       'tipoTelaId': tipoTelaId,
       'varianteId': varianteId,
       'colorId': colorId,
+      'codigoTelaProveedorId': codigoTelaProveedorId,
       'cantidadRollos': cantidadRollos,
       'metrosPorRollo': metrosPorRollo,
       'totalMetros': totalMetros,
@@ -115,6 +120,7 @@ class LoteDetalle extends BaseEntity {
     String? tipoTelaId,
     String? varianteId,
     String? colorId,
+    String? codigoTelaProveedorId,
     int? cantidadRollos,
     double? metrosPorRollo,
     double? totalMetros,
@@ -137,6 +143,8 @@ class LoteDetalle extends BaseEntity {
       tipoTelaId: tipoTelaId ?? this.tipoTelaId,
       varianteId: varianteId ?? this.varianteId,
       colorId: colorId ?? this.colorId,
+      codigoTelaProveedorId:
+          codigoTelaProveedorId ?? this.codigoTelaProveedorId,
       cantidadRollos: cantidadRollos ?? this.cantidadRollos,
       metrosPorRollo: metrosPorRollo ?? this.metrosPorRollo,
       totalMetros: totalMetros ?? this.totalMetros,

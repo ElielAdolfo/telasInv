@@ -12,7 +12,7 @@ import '../../../providers/lote_provider.dart';
 import '../widgets/lote_card.dart';
 import '../widgets/lote_table.dart';
 import '../widgets/lote_form_dialog.dart';
-import '../widgets/lote_detalle_dialog.dart';
+import '../widgets/lote_detalle_manager_dialog.dart';
 import '../widgets/cambio_estado_dialog.dart';
 
 class LotesAbmScreen extends ConsumerWidget {
@@ -116,7 +116,8 @@ class LotesAbmScreen extends ConsumerWidget {
   static Future<void> _abrirDetalle(BuildContext context, Lote lote) async {
     await showDialog(
       context: context,
-      builder: (_) => LoteDetalleDialog(loteId: lote.id, lote: lote),
+      builder: (_) => LoteDetalleManagerDialog(lote: lote),
+      
     );
   }
 
