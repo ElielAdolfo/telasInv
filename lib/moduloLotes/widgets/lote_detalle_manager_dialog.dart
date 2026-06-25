@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/models/abmTiposTelas/proveedor.dart';
+import 'package:inv_telas/models/abmTiposTelas/tipo_tela.dart';
 import 'package:inv_telas/models/lotes/lote.dart';
 import 'package:inv_telas/models/lotes/lote_detalle.dart';
 import 'package:inv_telas/moduloLotes/screens/modificar_rollos_screen.dart';
@@ -159,6 +161,8 @@ class _LoteDetalleManagerDialogState
                                           detalle,
                                           proveedor.nombre,
                                           tipo.nombre,
+                                          proveedor,
+                                          tipo
                                         );
                                       },
                                     );
@@ -186,7 +190,8 @@ class _LoteDetalleManagerDialogState
   Widget _buildItem(
     LoteDetalle detalle,
     String proveedorNombre,
-    String tipoTelaNombre,
+    String tipoTelaNombre, 
+    Proveedor proveedor, TipoTela tipoTela,
   ) {
     return Card(
       elevation: 2,
@@ -226,7 +231,7 @@ class _LoteDetalleManagerDialogState
                 TextButton.icon(
                   icon: const Icon(Icons.tune),
                   label: const Text('Modificar'),
-                  onPressed: () => _modificar(detalle),
+                  onPressed: () => _modificar(detalle, proveedor, tipoTela),
                 ),
 
                 const SizedBox(width: 8),
@@ -247,12 +252,12 @@ class _LoteDetalleManagerDialogState
     );
   }
 
-  Future<void> _modificar(LoteDetalle detalle) async {
+  Future<void> _modificar(LoteDetalle detalle, Proveedor proveedor, TipoTela tipoTela) async {
     await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) =>
-            ModificarRollosScreen(lote: widget.lote, detalle: detalle),
+            ModificarRollosScreen(lote: widget.lote, detalle: detalle, proveedor:proveedor, tipoTela:tipoTela),
       ),
     );
   }

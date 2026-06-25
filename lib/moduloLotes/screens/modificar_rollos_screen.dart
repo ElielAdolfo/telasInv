@@ -1,7 +1,18 @@
+//observaciones para mejorar 
+//guardar en el mismo orden que el usuario puso y devolver en el mismo orden
+//no aceptar dos con el mismo color 
+//falta configuraciones
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/core/providers/session_provider.dart';
+import 'package:inv_telas/models/abmTiposTelas/proveedor.dart';
+import 'package:inv_telas/models/abmTiposTelas/tipo_tela.dart';
 import 'package:inv_telas/models/lotes/lote.dart';
 import 'package:inv_telas/models/lotes/lote_detalle.dart';
+import 'package:inv_telas/models/lotes/rollo_info.dart';
+import 'package:inv_telas/providers/color_provider.dart';
+import 'package:inv_telas/providers/lote_detalle_provider.dart';
 import 'package:inv_telas/widgets/confirm_action_dialog.dart';
 
 class GrupoRollo {
@@ -13,35 +24,45 @@ class GrupoRollo {
   });
 
   double metraje;
-  String color;
+  String color; // Almacenará el ID o código asignado del color
   double cantidad;
   bool confirmado;
 }
 
-class ModificarRollosScreen extends StatefulWidget {
+class DropdownColor {
+  final String id;
+  final String nombre;
+  final String codigo;
+  final String hex;
+
+  DropdownColor({
+    required this.id,
+    required this.nombre,
+    required this.codigo,
+    required this.hex,
+  });
+}
+
+class ModificarRollosScreen extends ConsumerStatefulWidget {
   final Lote lote;
   final LoteDetalle detalle;
+  final Proveedor proveedor;
+  final TipoTela tipoTela;
 
   const ModificarRollosScreen({
     super.key,
     required this.lote,
     required this.detalle,
+    required this.proveedor,
+    required this.tipoTela,
   });
 
   @override
-  State<ModificarRollosScreen> createState() => _ModificarRollosScreenState();
+  ConsumerState<ModificarRollosScreen> createState() =>
+      _ModificarRollosScreenState();
 }
 
-class _ModificarRollosScreenState extends State<ModificarRollosScreen> {
-  final List<String> colores = [
-    'Rojo',
-    'Verde',
-    'Azul',
-    'Negro',
-    'Blanco',
-    'Gris',
-  ];
-
+class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
   Set<int> seleccionados = {};
   bool modoSeleccion = false;
 
@@ -56,21 +77,52 @@ class _ModificarRollosScreenState extends State<ModificarRollosScreen> {
     super.initState();
     _scrollController.addListener(_scrollListener);
 
-    todosLosGrupos = [
-      GrupoRollo(
-        metraje: widget.detalle.metrosPorRollo.toDouble(),
-        color: 'Rojo',
-        cantidad: widget.detalle.cantidadRollos.toDouble(),
-      ),
-    ];
-
-    _cargarMasDatos();
+    _cargarDistribucionGuardada();
   }
 
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
+  Future<void> _cargarDistribucionGuardada() async {
+    try {
+      final notifier = ref.read(loteDetallesProvider(widget.lote.id).notifier);
+
+      final rollos = await notifier.obtenerRollosPorDetalle(
+        loteDetalleId: widget.detalle.id,
+      );
+
+      if (!mounted) return;
+
+      if (rollos.isNotEmpty) {
+        setState(() {
+          todosLosGrupos = rollos.map((r) {
+            return GrupoRollo(
+              metraje: r.metraje,
+              color: r.colorId,
+              cantidad: r.cantidad.toDouble(),
+              confirmado: true,
+            );
+          }).toList();
+
+          gruposRenderizados.clear();
+        });
+
+        _cargarMasDatos();
+      } else {
+        setState(() {
+          todosLosGrupos = [
+            GrupoRollo(
+              metraje: widget.detalle.metrosPorRollo.toDouble(),
+              color: '',
+              cantidad: widget.detalle.cantidadRollos.toDouble(),
+            ),
+          ];
+
+          gruposRenderizados.clear();
+        });
+
+        _cargarMasDatos();
+      }
+    } catch (e) {
+      debugPrint("Error cargando distribución: $e");
+    }
   }
 
   void _scrollListener() {
@@ -97,12 +149,28 @@ class _ModificarRollosScreenState extends State<ModificarRollosScreen> {
     return todosLosGrupos.fold(0, (sum, item) => sum + item.cantidad);
   }
 
-  double get pendientes {
-    return widget.detalle.cantidadRollos - totalDistribuido;
+  double get pendientes => widget.detalle.cantidadRollos - totalDistribuido;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final session = ref.watch(sessionProvider);
+    final empresaId = session.empresaActual?.id ?? '';
+
+    // Consumo directo del nuevo provider reactivo optimizado por combinaciones
+    final asyncColoresFiltrados = ref.watch(
+      coloresFiltradosProvider((
+        empresaId: empresaId,
+        proveedorId: widget.proveedor.id,
+        tipoTelaId: widget.tipoTela.id,
+      )),
+    );
+
     return Scaffold(
       appBar: AppBar(
         title: Container(
@@ -113,14 +181,14 @@ class _ModificarRollosScreenState extends State<ModificarRollosScreen> {
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: Colors.blueGrey.shade100),
           ),
-          child: const Column(
+          child: Column(
             children: [
               Row(
                 children: [
                   Expanded(
                     child: Text(
-                      'Proveedor: ---',
-                      style: TextStyle(
+                      'Proveedor: ${widget.proveedor.nombre}',
+                      style: const TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 15,
                       ),
@@ -128,8 +196,8 @@ class _ModificarRollosScreenState extends State<ModificarRollosScreen> {
                   ),
                   Expanded(
                     child: Text(
-                      'Tipo Tela: ---',
-                      style: TextStyle(
+                      'Tipo Tela: ${widget.tipoTela.nombre}',
+                      style: const TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 15,
                       ),
@@ -142,168 +210,199 @@ class _ModificarRollosScreenState extends State<ModificarRollosScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _mostrarMenuAcciones,
+        onPressed: () =>
+            _mostrarMenuAcciones(asyncColoresFiltrados.value ?? []),
         child: Icon(modoSeleccion ? Icons.close : Icons.add),
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text('Rollos: ${widget.detalle.cantidadRollos}'),
-                ),
-                Expanded(
-                  child: Text('Mtrs/Rollo: ${widget.detalle.metrosPorRollo}'),
-                ),
-                Expanded(child: Text('Total: ${widget.detalle.totalMetros}')),
-              ],
-            ),
-          ),
+      body: asyncColoresFiltrados.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, stack) =>
+            Center(child: Text('Error al cargar colores: $err')),
+        data: (coloresFiltrados) {
+          // Mapeamos los datos cruzados al formato esperado por el Widget de UI
+          final coloresDisponibles = coloresFiltrados.map((c) {
+            return DropdownColor(
+              id: c.color.id,
+              nombre: c.color.nombre,
+              codigo: c.codigoColorProveedor,
+              hex: c.color.hexadecimal,
+            );
+          }).toList();
 
-          // Indicador visual superior del estado de la distribución
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Distribuido: ${totalDistribuido.toInt()}'),
-                Text(
-                  pendientes == 0
-                      ? 'Distribución Perfecta ✔'
-                      : pendientes > 0
-                      ? 'Faltan: ${pendientes.toInt()} rollos'
-                      : 'Sobran: ${pendientes.abs().toInt()} rollos',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: pendientes == 0 ? Colors.green : Colors.red,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-
-          // ENCABEZADO TABLA
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 12),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-            decoration: BoxDecoration(
-              color: Colors.blueGrey.shade700,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Row(
-              children: [
-                SizedBox(
-                  width: 40,
-                  child: Text('#', style: TextStyle(color: Colors.white)),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: Text('Metraje', style: TextStyle(color: Colors.white)),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: Text('Color', style: TextStyle(color: Colors.white)),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    'Cantidad',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ),
-                SizedBox(
-                  width: 80,
-                  child: Text('Acción', style: TextStyle(color: Colors.white)),
-                ),
-              ],
-            ),
-          ),
-
-          // FILAS
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              itemCount: gruposRenderizados.length,
-              itemBuilder: (_, index) {
-                final grupo = gruposRenderizados[index];
-
-                return ItemFilaRollo(
-                  key: ValueKey(grupo),
-                  grupo: grupo,
-                  colores: colores,
-                  modoSeleccion: modoSeleccion,
-                  estaSeleccionado: seleccionados.contains(index),
-                  index: index,
-                  onSeleccionChanged: (v) {
-                    setState(() {
-                      if (v == true) {
-                        seleccionados.add(index);
-                      } else {
-                        seleccionados.remove(index);
-                      }
-                    });
-                  },
-                  onEliminar: () {
-                    if (todosLosGrupos.length == 1) return;
-                    setState(() {
-                      todosLosGrupos.removeAt(index);
-                      seleccionados.clear();
-                      _actualizarVistaPaginada();
-                    });
-                  },
-                  onStatusChanged: () {
-                    setState(() {});
-                  },
-                );
-              },
-            ),
-          ),
-
-          // BOTÓN GUARDAR CAMBIOS
-          Container(
-            padding: const EdgeInsets.all(12),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.save),
-                label: const Text('Guardar Cambios'),
-                onPressed: _guardarCambiosConConfirmacion,
-              ),
-            ),
-          ),
-
-          if (modoSeleccion)
-            Container(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  Text(
-                    'Seleccionados: ${seleccionados.length}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const Spacer(),
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text('Rollos: ${widget.detalle.cantidadRollos}'),
                     ),
-                    icon: const Icon(Icons.delete),
-                    label: const Text('Eliminar'),
-                    onPressed: seleccionados.isEmpty
-                        ? null
-                        : _eliminarSeleccionados,
-                  ),
-                  const SizedBox(width: 10),
-                  TextButton(
-                    onPressed: () => setState(() => seleccionados.clear()),
-                    child: const Text('Limpiar'),
-                  ),
-                ],
+                    Expanded(
+                      child: Text(
+                        'Mtrs/Rollo: ${widget.detalle.metrosPorRollo}',
+                      ),
+                    ),
+                    Expanded(
+                      child: Text('Total: ${widget.detalle.totalMetros}'),
+                    ),
+                  ],
+                ),
               ),
-            ),
-        ],
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Distribuido: ${totalDistribuido.toInt()}'),
+                    Text(
+                      pendientes == 0
+                          ? 'Distribución Perfecta ✔'
+                          : pendientes > 0
+                          ? 'Faltan: ${pendientes.toInt()} rollos'
+                          : 'Sobran: ${pendientes.abs().toInt()} rollos',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: pendientes == 0 ? Colors.green : Colors.red,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              // ENCABEZADO TABLA
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.blueGrey.shade700,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  children: [
+                    SizedBox(
+                      width: 40,
+                      child: Text('#', style: TextStyle(color: Colors.white)),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        'Metraje',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        'Color',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        'Cantidad',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 80,
+                      child: Text(
+                        'Acción',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // FILAS
+              Expanded(
+                child: ListView.builder(
+                  controller: _scrollController,
+                  itemCount: gruposRenderizados.length,
+                  itemBuilder: (_, index) {
+                    final grupo = gruposRenderizados[index];
+
+                    return ItemFilaRollo(
+                      key: ValueKey(grupo),
+                      grupo: grupo,
+                      colores:
+                          coloresDisponibles, // Recibe la lista estructurada corregida
+                      modoSeleccion: modoSeleccion,
+                      estaSeleccionado: seleccionados.contains(index),
+                      index: index,
+                      onSeleccionChanged: (v) {
+                        setState(() {
+                          if (v == true) {
+                            seleccionados.add(index);
+                          } else {
+                            seleccionados.remove(index);
+                          }
+                        });
+                      },
+                      onEliminar: () {
+                        if (todosLosGrupos.length == 1) return;
+                        setState(() {
+                          todosLosGrupos.removeAt(index);
+                          seleccionados.clear();
+                          _actualizarVistaPaginada();
+                        });
+                      },
+                      onStatusChanged: () => setState(() {}),
+                    );
+                  },
+                ),
+              ),
+
+              // BOTÓN GUARDAR CAMBIOS
+              Container(
+                padding: const EdgeInsets.all(12),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.save),
+                    label: const Text('Guardar Cambios'),
+                    onPressed: _guardarCambiosConConfirmacion,
+                  ),
+                ),
+              ),
+
+              if (modoSeleccion)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      Text(
+                        'Seleccionados: ${seleccionados.length}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const Spacer(),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                        ),
+                        icon: const Icon(Icons.delete),
+                        label: const Text('Eliminar'),
+                        onPressed: seleccionados.isEmpty
+                            ? null
+                            : _eliminarSeleccionados,
+                      ),
+                      const SizedBox(width: 10),
+                      TextButton(
+                        onPressed: () => setState(() => seleccionados.clear()),
+                        child: const Text('Limpiar'),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -342,7 +441,7 @@ class _ModificarRollosScreenState extends State<ModificarRollosScreen> {
         return ConfirmActionDialog(
           title: '¿Eliminar filas?',
           message:
-              'Se eliminarán sólo las ${deVerdadSePuedenEliminar.length} filas seleccionadas que no están confirmadas.',
+              'Se eliminarán sólo las ${deVerdadSePuedenEliminar.length} filas seleccionadas no confirmadas.',
           icon: Icons.delete_forever,
           iconColor: Colors.red,
           confirmText: 'Eliminar',
@@ -366,26 +465,15 @@ class _ModificarRollosScreenState extends State<ModificarRollosScreen> {
     }
   }
 
-  // ACCIÓN DE GUARDAR CON VALIDACIÓN ESTRICTA DE CANTIDADES
   Future<void> _guardarCambiosConConfirmacion() async {
-    // 1. VALIDACIÓN MATEMÁTICA
     if (pendientes != 0) {
-      final String mensajeError = pendientes > 0
-          ? 'No puedes guardar. Faltan distribuir ${pendientes.toInt()} rollos.'
-          : 'No puedes guardar. Has distribuido ${pendientes.abs().toInt()} rollos de más.';
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(mensajeError),
-          backgroundColor: Colors.red.shade700,
-          duration: const Duration(seconds: 3),
-        ),
-      );
-      return; // Detiene por completo la ejecución y no abre el Dialog
+      // ... (Mantienes tu validación de error intacta)
+      return;
     }
 
-    // 2. DIÁLOGO SI LA VALIDACIÓN ES EXITOSA
-    await showDialog<bool>(
+    final notifier = ref.read(loteDetallesProvider(widget.lote.id).notifier);
+
+    final resultado = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
@@ -396,14 +484,45 @@ class _ModificarRollosScreenState extends State<ModificarRollosScreen> {
           icon: Icons.save,
           iconColor: Colors.blueGrey,
           confirmText: 'Guardar',
-          onConfirm: () async =>
-              await Future.delayed(const Duration(seconds: 1)),
+          onConfirm: () async {
+            // 1. Ya NO aplanamos a 88 registros. Guardamos la estructura agrupada.
+            final List<RolloInfo> rollosAPersistir = todosLosGrupos.map((
+              grupo,
+            ) {
+              return RolloInfo(
+                id: '', // Se autogenerará en el servicio si es nuevo
+                loteDetalleId: widget.detalle.id,
+                metraje: grupo.metraje,
+                colorId: grupo.color,
+                cantidad: grupo.cantidad
+                    .toInt(), // <--- Nuevo campo en el modelo
+                sucursalActualId: widget.lote.sucursalId ?? '',
+                estado: 'DISPONIBLE',
+                atributosEspeciales:
+                    {}, // Aquí entrarán peso, número de rollo, etc., en el futuro
+              );
+            }).toList();
+
+            // 2. Ejecutamos la inserción atómica
+            final exito = await notifier.guardarRollos(
+              loteDetalleId: widget.detalle.id,
+              rollos: rollosAPersistir,
+            );
+
+            if (!exito) {
+              throw Exception("No se pudo guardar la distribución de rollos.");
+            }
+          },
         );
       },
     );
+
+    // 3. ... (Mantienes tu snackbar de éxito y el pop del Navigator)
   }
 
-  Future<void> _mostrarMenuAcciones() async {
+  Future<void> _mostrarMenuAcciones(
+    List<ColorFiltrado> coloresFiltrados,
+  ) async {
     await showModalBottomSheet(
       context: context,
       showDragHandle: true,
@@ -429,18 +548,16 @@ class _ModificarRollosScreenState extends State<ModificarRollosScreen> {
                 onTap: () {
                   Navigator.pop(context);
                   setState(() {
-                    // 1. Creamos el nuevo registro
                     final nuevoGrupo = GrupoRollo(
                       metraje: widget.detalle.metrosPorRollo.toDouble(),
-                      color: colores.first,
+                      color: coloresFiltrados.isNotEmpty
+                          ? coloresFiltrados.first.color.id
+                          : '',
                       cantidad: 0,
                       confirmado: false,
                     );
 
-                    // 2. Lo añadimos a la lista maestra
                     todosLosGrupos.add(nuevoGrupo);
-
-                    // 3. Forzamos a que la lista visible sume uno más para que se pinte de inmediato
                     final siguienteTope = gruposRenderizados.length + 1;
                     gruposRenderizados = todosLosGrupos.sublist(
                       0,
@@ -448,7 +565,6 @@ class _ModificarRollosScreenState extends State<ModificarRollosScreen> {
                     );
                   });
 
-                  // 4. Opcional: Desplazar el scroll automáticamente al final para ver la nueva fila
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (_scrollController.hasClients) {
                       _scrollController.animateTo(
@@ -465,7 +581,7 @@ class _ModificarRollosScreenState extends State<ModificarRollosScreen> {
                 title: const Text('Todos Individuales'),
                 onTap: () {
                   Navigator.pop(context);
-                  _convertirATodosIndividuales();
+                  _convertirATodosIndividuales(coloresFiltrados);
                 },
               ),
             ],
@@ -475,14 +591,17 @@ class _ModificarRollosScreenState extends State<ModificarRollosScreen> {
     );
   }
 
-  void _convertirATodosIndividuales() {
+  void _convertirATodosIndividuales(List<ColorFiltrado> coloresFiltrados) {
     final totalRollos = widget.detalle.cantidadRollos;
+    final defaultColor = coloresFiltrados.isNotEmpty
+        ? coloresFiltrados.first.color.id
+        : '';
     setState(() {
       todosLosGrupos = List.generate(
         totalRollos,
         (index) => GrupoRollo(
           metraje: widget.detalle.metrosPorRollo.toDouble(),
-          color: colores.first,
+          color: defaultColor,
           cantidad: 1,
           confirmado: false,
         ),
@@ -493,10 +612,10 @@ class _ModificarRollosScreenState extends State<ModificarRollosScreen> {
   }
 }
 
-// --- ITEM FILA (Mantiene tu lógica de optimización) ---
+// --- ITEM FILA OPTIMIZADO ---
 class ItemFilaRollo extends StatefulWidget {
   final GrupoRollo grupo;
-  final List<String> colores;
+  final List<DropdownColor> colores; // Cambiado a List<DropdownColor>
   final bool modoSeleccion;
   final bool estaSeleccionado;
   final int index;
@@ -562,6 +681,13 @@ class _ItemFilaRolloState extends State<ItemFilaRollo> {
   Widget build(BuildContext context) {
     final bool isConfirmado = widget.grupo.confirmado;
 
+    // Buscamos si hay un color seleccionado para mostrar su nombre o indicador en modo lectura
+    final colorSeleccionado = widget.colores.firstWhere(
+      (c) => c.id == widget.grupo.color,
+      orElse: () =>
+          DropdownColor(id: '', nombre: 'Sin color', codigo: '', hex: 'FFFFFF'),
+    );
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -614,40 +740,64 @@ class _ItemFilaRolloState extends State<ItemFilaRollo> {
           ),
           const SizedBox(width: 8),
 
-          // COLOR
+          // COLOR (CON CÓDIGO PROVEEDOR VISIBLE)
           Expanded(
             flex: 2,
             child: isConfirmado
                 ? Chip(
-                    label: Text(
-                      widget.grupo.color,
-                      style: const TextStyle(fontSize: 12),
+                    avatar: CircleAvatar(
+                      backgroundColor: _hexToColor(colorSeleccionado.hex),
+                      radius: 8,
                     ),
-                    padding: EdgeInsets.zero,
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    label: Text(
+                      colorSeleccionado.codigo.isNotEmpty
+                          ? '${colorSeleccionado.nombre} (${colorSeleccionado.codigo})'
+                          : colorSeleccionado.nombre,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   )
                 : DropdownButtonFormField<String>(
-                    value: widget.grupo.color,
-                    isDense: true,
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                    items: widget.colores
-                        .map(
-                          (c) => DropdownMenuItem(
-                            value: c,
-                            child: Text(
-                              c,
-                              style: const TextStyle(fontSize: 14),
+                    isExpanded: true,
+                    value: widget.grupo.color.isEmpty
+                        ? null
+                        : widget.grupo.color,
+                    items: widget.colores.map((c) {
+                      return DropdownMenuItem(
+                        value: c.id,
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                color: _hexToColor(c.hex),
+                                shape: BoxShape.circle,
+                              ),
                             ),
-                          ),
-                        )
-                        .toList(),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                c.codigo.isNotEmpty
+                                    ? '${c.nombre} [${c.codigo}]'
+                                    : c.nombre,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
                     onChanged: (v) {
                       if (v == null) return;
-                      widget.grupo.color = v;
+                      setState(() {
+                        widget.grupo.color = v;
+                      });
                     },
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(vertical: 4),
+                    ),
                   ),
           ),
           const SizedBox(width: 8),
@@ -719,5 +869,14 @@ class _ItemFilaRolloState extends State<ItemFilaRollo> {
         ],
       ),
     );
+  }
+
+  Color _hexToColor(String hex) {
+    if (hex.isEmpty) return Colors.transparent;
+    final String cleanHex = hex.replaceFirst('#', '');
+    if (cleanHex.length == 6) {
+      return Color(int.parse('0xff$cleanHex'));
+    }
+    return Color(int.parse('0x$cleanHex'));
   }
 }

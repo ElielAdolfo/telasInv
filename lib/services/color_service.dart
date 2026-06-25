@@ -55,4 +55,37 @@ class ColorService {
       'fechaActualizacion': FieldValue.serverTimestamp(),
     });
   }
+
+  Future<List<ColorTela>> getByEmpresa(String empresaId) async {
+    final snap = await _colorRef
+        .where('empresaId', isEqualTo: empresaId)
+        .where('eliminado', isEqualTo: false)
+        .get();
+
+    return snap.docs.map((e) => ColorTela.fromJson(e.data(), e.id)).toList();
+  }
+
+  /// Escucha los colores asignados a una combinación específica de proveedor y tipo de tela
+  Stream<List<Map<String, dynamic>>> streamColoresPorTelaProveedor({
+    required String empresaId,
+    required String proveedorId,
+    required String tipoTelaId,
+  }) {
+    return _db
+        .collection(Env.col('codigoUnicoTelaProveedor'))
+        .where('empresaId', isEqualTo: empresaId)
+        .where('proveedorId', isEqualTo: proveedorId)
+        .where('tipoTelaId', isEqualTo: tipoTelaId)
+        .where('eliminado', isEqualTo: false)
+        .snapshots()
+        .map((snapshot) {
+          if (snapshot.docs.isEmpty) return [];
+
+          // Extraemos la lista de mapas del campo 'colores' del primer documento coincidente
+          final data = snapshot.docs.first.data();
+          final coloresLista = data['colores'] as List<dynamic>? ?? [];
+
+          return coloresLista.map((c) => Map<String, dynamic>.from(c)).toList();
+        });
+  }
 }
