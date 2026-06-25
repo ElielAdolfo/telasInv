@@ -53,7 +53,6 @@ class _LoteDetalleDialogState extends ConsumerState<LoteDetalleDialog> {
 
   String? monedaIdSeleccionada;
 
-  bool _initDone = false;
   bool _editInitialized = false;
 
   @override
@@ -97,9 +96,9 @@ class _LoteDetalleDialogState extends ConsumerState<LoteDetalleDialog> {
         proveedorSeleccionado = prov;
         tipoTelaSeleccionado = tipo;
         relacionActual = relacion;
-      });
 
-      _cargarConfiguracionCosto();
+        monedaIdSeleccionada = widget.detalle?.monedaId;
+      });
     } catch (e) {
       debugPrint("Error init edit: $e");
     }
@@ -523,9 +522,13 @@ class _LoteDetalleDialogState extends ConsumerState<LoteDetalleDialog> {
                                   );
                                 }).toList(),
                                 onChanged: (v) {
+                                  if (v == null) return;
+
                                   setState(() {
                                     monedaIdSeleccionada = v;
                                   });
+
+                                  _cargarConfiguracionSegunMoneda();
                                 },
                               ),
                             );
@@ -562,34 +565,39 @@ class _LoteDetalleDialogState extends ConsumerState<LoteDetalleDialog> {
                             double.tryParse(metrosPorRolloCtrl.text) ?? 0;
 
                         final detalle = LoteDetalle(
-                          id:
-                              widget.detalle?.id ??
-                              const Uuid()
-                                  .v4(), // Si es edición, conserva su ID
+                          id: widget.detalle?.id ?? const Uuid().v4(),
                           loteId: widget.loteId,
                           tipoTelaId: tipoTelaId!,
+
                           varianteId: widget.detalle?.varianteId,
                           colorId: widget.detalle?.colorId,
+
                           codigoTelaProveedorId: relacionActual?.id,
+
+                          monedaId: monedaIdSeleccionada,
+
                           cantidadRollos: cantidad,
                           metrosPorRollo: metros,
-                          totalMetros:
-                              cantidad *
-                              metros, // Calculamos el total de metros
+                          totalMetros: cantidad * metros,
+
                           costoMetroOrigen:
                               double.tryParse(costoMetroOrigenCtrl.text) ?? 0,
+
                           costoMetroBase:
                               double.tryParse(costoMetroBaseCtrl.text) ?? 0,
+
                           costoRolloOrigen: 0,
                           costoRolloBase: 0,
+
                           activo: true,
                           eliminado: false,
+
                           usuarioCreacion:
                               widget.detalle?.usuarioCreacion ?? '',
+
                           fechaCreacion:
                               widget.detalle?.fechaCreacion ?? DateTime.now(),
                         );
-
                         // 1. LLAMAMOS A TU PROPIO PROVIDER (Esperamos a que guarde en la BD)
                         await ref
                             .read(loteDetallesProvider(widget.loteId).notifier)
@@ -638,61 +646,97 @@ class _LoteDetalleDialogState extends ConsumerState<LoteDetalleDialog> {
   void _cargarConfiguracionCosto() {
     if (relacionActual == null) return;
 
-    // ================= IMPORTACION =================
-    if (widget.lote.tipo == LoteTipo.importacion) {
-      setState(() {
+    // Si aún no hay moneda seleccionada,
+    // usamos la configuración por defecto del lote.
+    if (monedaIdSeleccionada == null) {
+      if (widget.lote.tipo == LoteTipo.importacion) {
         monedaIdSeleccionada = relacionActual!.precioImportacion.monedaId;
+      } else {
+        final sucursalId = widget.lote.sucursalId;
 
-        // Metros por rollo carga Metraje Fijo
+        final sucursal = relacionActual!.preciosLocalPorSucursal
+            .where((e) => e.sucursalId == sucursalId)
+            .toList();
+
+        if (sucursal.isNotEmpty) {
+          monedaIdSeleccionada = sucursal.first.precio.monedaId;
+        } else {
+          monedaIdSeleccionada = relacionActual!.precioLocalGeneral.monedaId;
+        }
+      }
+    }
+
+    _cargarConfiguracionSegunMoneda();
+  }
+
+  void _cargarConfiguracionSegunMoneda() {
+    if (relacionActual == null) return;
+    if (monedaIdSeleccionada == null) return;
+
+    // ================= IMPORTACION =================
+
+    if (relacionActual!.precioImportacion.monedaId == monedaIdSeleccionada) {
+      setState(() {
         metrosPorRolloCtrl.text = relacionActual!.precioImportacion.metrajeFijo
             .toString();
-        // Precio por metro carga Precio Metro
+
         costoMetroOrigenCtrl.text = relacionActual!
             .precioImportacion
             .precioMetro
             .toString();
-        // Precio por rollo carga Precio Rollo
+
         costoMetroBaseCtrl.text = relacionActual!.precioImportacion.precioRollo
             .toString();
       });
+
       return;
     }
 
-    // ================= LOCAL POR SUCURSAL =================
+    // ================= LOCAL SUCURSAL =================
+
     final sucursalId = widget.lote.sucursalId;
 
     if (sucursalId != null) {
-      final listaSucursal = relacionActual!.preciosLocalPorSucursal
-          .where((e) => e.sucursalId == sucursalId)
+      final sucursal = relacionActual!.preciosLocalPorSucursal
+          .where(
+            (e) =>
+                e.sucursalId == sucursalId &&
+                e.precio.monedaId == monedaIdSeleccionada,
+          )
           .toList();
 
-      if (listaSucursal.isNotEmpty) {
-        final precioSucursal = listaSucursal.first;
+      if (sucursal.isNotEmpty) {
+        final precio = sucursal.first.precio;
 
         setState(() {
-          monedaIdSeleccionada = precioSucursal.precio.monedaId;
+          metrosPorRolloCtrl.text = precio.metrajeFijo.toString();
 
-          metrosPorRolloCtrl.text = precioSucursal.precio.metrajeFijo
-              .toString();
-          costoMetroOrigenCtrl.text = precioSucursal.precio.precioMetro
-              .toString();
-          costoMetroBaseCtrl.text = precioSucursal.precio.precioRollo
-              .toString();
+          costoMetroOrigenCtrl.text = precio.precioMetro.toString();
+
+          costoMetroBaseCtrl.text = precio.precioRollo.toString();
         });
+
         return;
       }
     }
 
-    // ================= FALLBACK LOCAL GENERAL =================
-    setState(() {
-      monedaIdSeleccionada = relacionActual!.precioLocalGeneral.monedaId;
+    // ================= LOCAL GENERAL =================
 
-      metrosPorRolloCtrl.text = relacionActual!.precioLocalGeneral.metrajeFijo
-          .toString();
-      costoMetroOrigenCtrl.text = relacionActual!.precioLocalGeneral.precioMetro
-          .toString();
-      costoMetroBaseCtrl.text = relacionActual!.precioLocalGeneral.precioRollo
-          .toString();
-    });
+    if (relacionActual!.precioLocalGeneral.monedaId == monedaIdSeleccionada) {
+      setState(() {
+        metrosPorRolloCtrl.text = relacionActual!.precioLocalGeneral.metrajeFijo
+            .toString();
+
+        costoMetroOrigenCtrl.text = relacionActual!
+            .precioLocalGeneral
+            .precioMetro
+            .toString();
+
+        costoMetroBaseCtrl.text = relacionActual!.precioLocalGeneral.precioRollo
+            .toString();
+      });
+
+      return;
+    }
   }
 }

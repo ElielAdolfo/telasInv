@@ -1,0 +1,11 @@
+crear un lote detalle
+//observacion de correccion
+lote_detalle_manager_dialog.dart
+no esta cargando bien hay fallas se debe revisar para futuras actualizaciones
+
+
+modificar_rollos_screen.dart
+//observacion de mejora 
+1)guardar en el mismo orden que el usuario puso y devolver en el mismo orden
+2)no aceptar dos con el mismo color 
+3)falta configuraciones de las telas como ser numero de rollo
