@@ -76,7 +76,7 @@ class LotesAbmScreen extends ConsumerWidget {
 
                   onEditar: () => _editar(context, lote),
 
-                  onGastos: () => _abrirGastos(context, lote),
+                  onGastos: () => _abrirGastos(context, lote, empresaId),
 
                   onCosteo: () => _abrirCosteo(context, lote),
 
@@ -96,7 +96,7 @@ class LotesAbmScreen extends ConsumerWidget {
 
               onEditar: (lote) => _editar(context, lote),
 
-              onGastos: (lote) => _abrirGastos(context, lote),
+              onGastos: (lote) => _abrirGastos(context, lote, empresaId),
 
               onCosteo: (lote) => _abrirCosteo(context, lote),
 
@@ -117,7 +117,6 @@ class LotesAbmScreen extends ConsumerWidget {
     await showDialog(
       context: context,
       builder: (_) => LoteDetalleManagerDialog(lote: lote),
-      
     );
   }
 
@@ -136,10 +135,14 @@ class LotesAbmScreen extends ConsumerWidget {
   // GASTOS
   //==================================================
 
-  static Future<void> _abrirGastos(BuildContext context, Lote lote) async {
+  static Future<void> _abrirGastos(
+    BuildContext context,
+    Lote lote,
+    empresaId,
+  ) async {
     await showDialog(
       context: context,
-      builder: (_) => LoteGastosDialog(loteId: lote.id),
+      builder: (_) => LoteGastosDialog(loteId: lote.id, empresaId: empresaId),
     );
   }
 

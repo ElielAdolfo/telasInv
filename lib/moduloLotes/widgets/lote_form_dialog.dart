@@ -118,6 +118,7 @@ class _LoteFormDialogState extends ConsumerState<LoteFormDialog> {
       fechaCreacion: widget.lote?.fechaCreacion ?? DateTime.now(),
 
       fechaModificacion: DateTime.now(),
+      tipoCambio: 0,
     );
 
     try {

@@ -21,6 +21,8 @@ class Lote extends BaseEntity {
   final double totalFinal;
   final bool stockGenerado;
 
+  final double tipoCambio;
+
   const Lote({
     required super.id,
     required super.activo,
@@ -43,6 +45,7 @@ class Lote extends BaseEntity {
     required this.totalGastos,
     required this.totalFinal,
     this.stockGenerado = false,
+    required this.tipoCambio,
   });
 
   factory Lote.fromMap(Map<String, dynamic> map) {
@@ -78,6 +81,7 @@ class Lote extends BaseEntity {
       totalGastos: (map['totalGastos'] as num?)?.toDouble() ?? 0.0,
       totalFinal: (map['totalFinal'] as num?)?.toDouble() ?? 0.0,
       stockGenerado: map['stockGenerado'] ?? false,
+      tipoCambio: (map['tipoCambio'] as num?)?.toDouble() ?? 1.0,
     );
   }
 
@@ -108,6 +112,7 @@ class Lote extends BaseEntity {
       'totalGastos': totalGastos,
       'totalFinal': totalFinal,
       'stockGenerado': stockGenerado,
+      'tipoCambio': tipoCambio,
     };
   }
 
@@ -133,6 +138,7 @@ class Lote extends BaseEntity {
     double? totalGastos,
     double? totalFinal,
     bool? stockGenerado,
+    double? tipoCambio,
   }) {
     return Lote(
       id: id ?? this.id,
@@ -156,6 +162,7 @@ class Lote extends BaseEntity {
       totalGastos: totalGastos ?? this.totalGastos,
       totalFinal: totalFinal ?? this.totalFinal,
       stockGenerado: stockGenerado ?? this.stockGenerado,
+      tipoCambio: tipoCambio ?? this.tipoCambio,
     );
   }
 }

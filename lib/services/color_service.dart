@@ -43,7 +43,7 @@ class ColorService {
   Future<void> modificarEstadoEliminado({
     required String id,
     required bool eliminado,
-    required String usuarioId,
+    required String usuarioId,a
   }) async {
     await _colorRef.doc(id).update({
       // 👈 Cambiado

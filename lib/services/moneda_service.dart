@@ -53,4 +53,15 @@ class MonedaService {
       'fechaModificacion': FieldValue.serverTimestamp(),
     });
   }
+
+  Future<List<Moneda>> obtenerMonedasPorIds(List<String> ids) async {
+    if (ids.isEmpty) return [];
+
+    final snapshot = await _monedaRef
+        .where('id', whereIn: ids)
+        .where('eliminado', isEqualTo: false)
+        .get();
+
+    return snapshot.docs.map((d) => Moneda.fromMap(d.data())).toList();
+  }
 }
