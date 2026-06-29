@@ -1,11 +1,10 @@
 //observaciones para mejorar
-//guardar en el mismo orden que el usuario puso y devolver en el mismo orden
-//no aceptar dos con el mismo color
-//falta configuraciones
+//falta configuraciones especiales
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/core/providers/session_provider.dart';
+import 'package:inv_telas/models/abmTiposTelas/campo_configurable.dart';
 import 'package:inv_telas/models/abmTiposTelas/proveedor.dart';
 import 'package:inv_telas/models/abmTiposTelas/tipo_tela.dart';
 import 'package:inv_telas/models/lotes/lote.dart';
@@ -18,10 +17,13 @@ import 'package:uuid/uuid.dart';
 
 class GrupoRollo {
   final String uid;
+
   double metraje;
-  String color; // Almacenará el ID o código asignado del color
+  String color;
   double cantidad;
   bool confirmado;
+
+  Map<String, dynamic> atributosEspeciales;
 
   GrupoRollo({
     String? uid,
@@ -29,7 +31,11 @@ class GrupoRollo {
     required this.color,
     required this.cantidad,
     this.confirmado = false,
-  }) : uid = uid ?? const Uuid().v4();
+    Map<String, dynamic>? atributosEspeciales,
+  }) : uid = uid ?? const Uuid().v4(),
+       atributosEspeciales = atributosEspeciales != null
+           ? Map<String, dynamic>.from(atributosEspeciales)
+           : {};
 }
 
 class DropdownColor {
@@ -75,9 +81,15 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
   final ScrollController _scrollController = ScrollController();
   final int _tamanoPagina = 20;
 
+  late final List<CampoConfigurable> camposEspeciales;
+
   @override
   void initState() {
     super.initState();
+    camposEspeciales = widget.tipoTela.camposConfigurables
+        .where((c) => !c.esDiferenciador)
+        .toList();
+
     _scrollController.addListener(_scrollListener);
 
     _cargarDistribucionGuardada();
@@ -101,6 +113,9 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
               color: r.colorId,
               cantidad: r.cantidad.toDouble(),
               confirmado: true,
+              atributosEspeciales: Map<String, dynamic>.from(
+                r.atributosEspeciales,
+              ),
             );
           }).toList();
 
@@ -285,34 +300,41 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
                   color: Colors.blueGrey.shade700,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    SizedBox(
+                    const SizedBox(
                       width: 40,
                       child: Text('#', style: TextStyle(color: Colors.white)),
                     ),
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        'Metraje',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
-                    Expanded(
+
+                    // 👇 CAMPOS DINÁMICOS (AQUÍ ESTÁ LA CLAVE)
+                    ...camposEspeciales.map((campo) {
+                      return Expanded(
+                        flex: 2,
+                        child: Text(
+                          campo.nombre,
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      );
+                    }),
+
+                    const Expanded(
                       flex: 2,
                       child: Text(
                         'Color',
                         style: TextStyle(color: Colors.white),
                       ),
                     ),
-                    Expanded(
+
+                    const Expanded(
                       flex: 2,
                       child: Text(
                         'Cantidad',
                         style: TextStyle(color: Colors.white),
                       ),
                     ),
-                    SizedBox(
+
+                    const SizedBox(
                       width: 80,
                       child: Text(
                         'Acción',
@@ -350,6 +372,8 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
                       child: ItemFilaRollo(
                         grupo: grupo,
                         colores: coloresDisponibles,
+
+                        camposEspeciales: camposEspeciales,
                         modoSeleccion: modoSeleccion,
                         estaSeleccionado: seleccionados.contains(index),
                         index: index,
@@ -526,7 +550,7 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
 
                     sucursalActualId: widget.lote.sucursalId ?? '',
                     estado: 'DISPONIBLE',
-                    atributosEspeciales: {},
+                    atributosEspeciales: grupo.atributosEspeciales,
                   );
                 })
                 .toList();
@@ -582,6 +606,7 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
                           ? coloresFiltrados.first.color.id
                           : '',
                       cantidad: 0,
+                      atributosEspeciales: {},
                       confirmado: false,
                     );
 
@@ -650,6 +675,7 @@ class ItemFilaRollo extends StatefulWidget {
   final ValueChanged<bool?> onSeleccionChanged;
   final VoidCallback onEliminar;
   final VoidCallback onStatusChanged;
+  final List<CampoConfigurable> camposEspeciales;
 
   const ItemFilaRollo({
     super.key,
@@ -661,6 +687,7 @@ class ItemFilaRollo extends StatefulWidget {
     required this.onSeleccionChanged,
     required this.onEliminar,
     required this.onStatusChanged,
+    required this.camposEspeciales,
   });
 
   @override
@@ -670,6 +697,7 @@ class ItemFilaRollo extends StatefulWidget {
 class _ItemFilaRolloState extends State<ItemFilaRollo> {
   TextEditingController? metrajeController;
   TextEditingController? cantidadController;
+  final Map<String, TextEditingController> atributosControllers = {};
 
   @override
   void initState() {
@@ -690,6 +718,12 @@ class _ItemFilaRolloState extends State<ItemFilaRollo> {
             : widget.grupo.cantidad.toInt().toString(),
       );
     }
+
+    for (final campo in widget.camposEspeciales) {
+      atributosControllers[campo.id] = TextEditingController(
+        text: widget.grupo.atributosEspeciales[campo.id]?.toString() ?? '',
+      );
+    }
   }
 
   void _limpiarControllers() {
@@ -697,6 +731,11 @@ class _ItemFilaRolloState extends State<ItemFilaRollo> {
     cantidadController?.dispose();
     metrajeController = null;
     cantidadController = null;
+    for (final c in atributosControllers.values) {
+      c.dispose();
+    }
+
+    atributosControllers.clear();
   }
 
   @override
@@ -739,6 +778,7 @@ class _ItemFilaRolloState extends State<ItemFilaRollo> {
             SizedBox(width: 30, child: Text('${widget.index + 1}')),
 
           // METRAJE
+          // ⚠️ CAMPO BASE (NO CONFIGURABLE - SIEMPRE EXISTE EN GRUPO)
           Expanded(
             flex: 2,
             child: isConfirmado
@@ -854,6 +894,35 @@ class _ItemFilaRolloState extends State<ItemFilaRollo> {
           ),
           const SizedBox(width: 4),
 
+          // 👇 INSERTAR DESPUÉS DE CANTIDAD Y ANTES DE ACCIONES
+          ...widget.camposEspeciales.map((campo) {
+            final controller = atributosControllers[campo.id]!;
+
+            return Expanded(
+              flex: 2,
+              child: isConfirmado
+                  ? Text(
+                      widget.grupo.atributosEspeciales[campo.id]?.toString() ??
+                          '-',
+                      style: const TextStyle(fontWeight: FontWeight.w500),
+                    )
+                  : TextFormField(
+                      controller: controller,
+                      keyboardType: _keyboardForType(campo.tipo),
+                      inputFormatters: _inputFormattersForType(campo.tipo),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        labelText: campo.nombre,
+                      ),
+                      onChanged: (value) {
+                        widget.grupo.atributosEspeciales[campo.id] =
+                            _parseValue(value, campo.tipo);
+
+                        widget.onStatusChanged();
+                      },
+                    ),
+            );
+          }).toList(),
           // ACCIONES
           SizedBox(
             width: 85,
@@ -897,6 +966,47 @@ class _ItemFilaRolloState extends State<ItemFilaRollo> {
         ],
       ),
     );
+  }
+
+  TextInputType _keyboardForType(TipoCampo tipo) {
+    switch (tipo) {
+      case TipoCampo.entero:
+        return TextInputType.number;
+      case TipoCampo.decimal:
+        return const TextInputType.numberWithOptions(decimal: true);
+      default:
+        return TextInputType.text;
+    }
+  }
+
+  List<TextInputFormatter>? _inputFormattersForType(TipoCampo tipo) {
+    switch (tipo) {
+      case TipoCampo.entero:
+        return [FilteringTextInputFormatter.digitsOnly];
+
+      case TipoCampo.decimal:
+        return [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))];
+
+      default:
+        return null;
+    }
+  }
+
+  dynamic _parseValue(String value, TipoCampo tipo) {
+    switch (tipo) {
+      case TipoCampo.entero:
+        return int.tryParse(value) ?? 0;
+
+      case TipoCampo.decimal:
+        return double.tryParse(value) ?? 0.0;
+
+      case TipoCampo.booleano:
+        return value.toLowerCase() == 'true';
+
+      case TipoCampo.texto:
+      default:
+        return value;
+    }
   }
 
   Color _hexToColor(String hex) {
