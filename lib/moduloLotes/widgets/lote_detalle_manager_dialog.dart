@@ -162,7 +162,7 @@ class _LoteDetalleManagerDialogState
                                           proveedor.nombre,
                                           tipo.nombre,
                                           proveedor,
-                                          tipo
+                                          tipo,
                                         );
                                       },
                                     );
@@ -190,8 +190,9 @@ class _LoteDetalleManagerDialogState
   Widget _buildItem(
     LoteDetalle detalle,
     String proveedorNombre,
-    String tipoTelaNombre, 
-    Proveedor proveedor, TipoTela tipoTela,
+    String tipoTelaNombre,
+    Proveedor proveedor,
+    TipoTela tipoTela,
   ) {
     return Card(
       elevation: 2,
@@ -252,14 +253,26 @@ class _LoteDetalleManagerDialogState
     );
   }
 
-  Future<void> _modificar(LoteDetalle detalle, Proveedor proveedor, TipoTela tipoTela) async {
+  Future<void> _modificar(
+    LoteDetalle detalle,
+    Proveedor proveedor,
+    TipoTela tipoTela,
+  ) async {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            ModificarRollosScreen(lote: widget.lote, detalle: detalle, proveedor:proveedor, tipoTela:tipoTela),
+        builder: (_) => ModificarRollosScreen(
+          lote: widget.lote,
+          detalle: detalle,
+          proveedor: proveedor,
+          tipoTela: tipoTela,
+        ),
       ),
     );
+
+    if (!mounted) return;
+
+    await ref.read(loteDetallesProvider(widget.lote.id).notifier).refresh();
   }
 
   //==================================================

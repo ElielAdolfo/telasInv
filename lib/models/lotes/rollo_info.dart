@@ -3,18 +3,24 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class RolloInfo {
   final String id;
   final String loteDetalleId;
+
+  /// Mantiene el orden exacto definido por el usuario
+  final int orden;
+
   final double metraje;
   final String colorId;
   final String sucursalActualId;
   final String estado;
   final int cantidad;
   final DateTime? fechaCreacion;
-  // Aquí guardaremos numRollo, peso, gramaje, etc., dinámicamente
+
+  /// Futuros atributos dinámicos
   final Map<String, dynamic> atributosEspeciales;
 
-  RolloInfo({
+  const RolloInfo({
     required this.id,
     required this.loteDetalleId,
+    required this.orden,
     required this.metraje,
     required this.colorId,
     required this.cantidad,
@@ -28,14 +34,20 @@ class RolloInfo {
     return {
       'id': id,
       'loteDetalleId': loteDetalleId,
+
+      // NUEVO
+      'orden': orden,
+
       'metraje': metraje,
       'colorId': colorId,
       'cantidad': cantidad,
       'sucursalActualId': sucursalActualId,
       'estado': estado,
+
       'fechaCreacion': fechaCreacion != null
           ? Timestamp.fromDate(fechaCreacion!)
           : FieldValue.serverTimestamp(),
+
       'atributosEspeciales': atributosEspeciales,
     };
   }
@@ -44,14 +56,53 @@ class RolloInfo {
     return RolloInfo(
       id: map['id'] ?? '',
       loteDetalleId: map['loteDetalleId'] ?? '',
-      metraje: (map['metraje'] as num).toDouble(),
+
+      // NUEVO
+      orden: map['orden'] ?? 0,
+
+      metraje: ((map['metraje'] ?? 0) as num).toDouble(),
       colorId: map['colorId'] ?? '',
-      cantidad: map['cantidad'] ?? -1,
+      cantidad: map['cantidad'] ?? 0,
+
       sucursalActualId: map['sucursalActualId'] ?? 'central',
       estado: map['estado'] ?? 'disponible',
+
       fechaCreacion: (map['fechaCreacion'] as Timestamp?)?.toDate(),
-      atributosEspeciales:
-          map['atributosEspeciales'] as Map<String, dynamic>? ?? {},
+
+      atributosEspeciales: Map<String, dynamic>.from(
+        map['atributosEspeciales'] ?? {},
+      ),
     );
+  }
+
+  RolloInfo copyWith({
+    String? id,
+    String? loteDetalleId,
+    int? orden,
+    double? metraje,
+    String? colorId,
+    String? sucursalActualId,
+    String? estado,
+    int? cantidad,
+    DateTime? fechaCreacion,
+    Map<String, dynamic>? atributosEspeciales,
+  }) {
+    return RolloInfo(
+      id: id ?? this.id,
+      loteDetalleId: loteDetalleId ?? this.loteDetalleId,
+      orden: orden ?? this.orden,
+      metraje: metraje ?? this.metraje,
+      colorId: colorId ?? this.colorId,
+      cantidad: cantidad ?? this.cantidad,
+      sucursalActualId: sucursalActualId ?? this.sucursalActualId,
+      estado: estado ?? this.estado,
+      fechaCreacion: fechaCreacion ?? this.fechaCreacion,
+      atributosEspeciales: atributosEspeciales ?? this.atributosEspeciales,
+    );
+  }
+
+  @override
+  String toString() {
+    return 'RolloInfo(id: $id, orden: $orden, colorId: $colorId, cantidad: $cantidad)';
   }
 }

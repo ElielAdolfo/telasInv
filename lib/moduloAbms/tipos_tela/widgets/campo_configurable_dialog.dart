@@ -132,7 +132,25 @@ class _CampoConfigurableDialogState extends State<CampoConfigurableDialog> {
               CheckboxListTile(
                 value: esDiferenciador,
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Es Diferenciador (Genera Variante)'),
+                title: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Es Diferenciador (Genera Variante)'),
+                    const SizedBox(width: 6),
+                    Tooltip(
+                      message:
+                          'Ejemplo:\n'
+                          'Magitex 1.60 metros de largo\n'
+                          'Magitex 1.50 metros de largo',
+                      waitDuration: Duration(milliseconds: 300),
+                      child: Icon(
+                        Icons.help_outline,
+                        size: 18,
+                        color: Colors.blueGrey,
+                      ),
+                    ),
+                  ],
+                ),
                 subtitle: const Text(
                   'Si se activa, este campo se definirá individualmente por cada variante.',
                 ),

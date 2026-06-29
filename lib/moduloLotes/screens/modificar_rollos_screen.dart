@@ -1,6 +1,6 @@
-//observaciones para mejorar 
+//observaciones para mejorar
 //guardar en el mismo orden que el usuario puso y devolver en el mismo orden
-//no aceptar dos con el mismo color 
+//no aceptar dos con el mismo color
 //falta configuraciones
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,19 +14,22 @@ import 'package:inv_telas/models/lotes/rollo_info.dart';
 import 'package:inv_telas/providers/color_provider.dart';
 import 'package:inv_telas/providers/lote_detalle_provider.dart';
 import 'package:inv_telas/widgets/confirm_action_dialog.dart';
+import 'package:uuid/uuid.dart';
 
 class GrupoRollo {
-  GrupoRollo({
-    required this.metraje,
-    required this.color,
-    required this.cantidad,
-    this.confirmado = false,
-  });
-
+  final String uid;
   double metraje;
   String color; // Almacenará el ID o código asignado del color
   double cantidad;
   bool confirmado;
+
+  GrupoRollo({
+    String? uid,
+    required this.metraje,
+    required this.color,
+    required this.cantidad,
+    this.confirmado = false,
+  }) : uid = uid ?? const Uuid().v4();
 }
 
 class DropdownColor {
@@ -322,43 +325,61 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
 
               // FILAS
               Expanded(
-                child: ListView.builder(
-                  controller: _scrollController,
+                child: ReorderableListView.builder(
+                  scrollController: _scrollController,
                   itemCount: gruposRenderizados.length,
+
+                  onReorder: (oldIndex, newIndex) {
+                    setState(() {
+                      if (newIndex > oldIndex) {
+                        newIndex--;
+                      }
+
+                      final item = todosLosGrupos.removeAt(oldIndex);
+                      todosLosGrupos.insert(newIndex, item);
+
+                      _actualizarVistaPaginada();
+                    });
+                  },
+
                   itemBuilder: (_, index) {
                     final grupo = gruposRenderizados[index];
 
-                    return ItemFilaRollo(
-                      key: ValueKey(grupo),
-                      grupo: grupo,
-                      colores:
-                          coloresDisponibles, // Recibe la lista estructurada corregida
-                      modoSeleccion: modoSeleccion,
-                      estaSeleccionado: seleccionados.contains(index),
-                      index: index,
-                      onSeleccionChanged: (v) {
-                        setState(() {
-                          if (v == true) {
-                            seleccionados.add(index);
-                          } else {
-                            seleccionados.remove(index);
-                          }
-                        });
-                      },
-                      onEliminar: () {
-                        if (todosLosGrupos.length == 1) return;
-                        setState(() {
-                          todosLosGrupos.removeAt(index);
-                          seleccionados.clear();
-                          _actualizarVistaPaginada();
-                        });
-                      },
-                      onStatusChanged: () => setState(() {}),
+                    return Container(
+                      key: ValueKey(grupo.uid),
+                      child: ItemFilaRollo(
+                        grupo: grupo,
+                        colores: coloresDisponibles,
+                        modoSeleccion: modoSeleccion,
+                        estaSeleccionado: seleccionados.contains(index),
+                        index: index,
+
+                        onSeleccionChanged: (v) {
+                          setState(() {
+                            if (v == true) {
+                              seleccionados.add(index);
+                            } else {
+                              seleccionados.remove(index);
+                            }
+                          });
+                        },
+
+                        onEliminar: () {
+                          if (todosLosGrupos.length == 1) return;
+
+                          setState(() {
+                            todosLosGrupos.removeAt(index);
+                            seleccionados.clear();
+                            _actualizarVistaPaginada();
+                          });
+                        },
+
+                        onStatusChanged: () => setState(() {}),
+                      ),
                     );
                   },
                 ),
               ),
-
               // BOTÓN GUARDAR CAMBIOS
               Container(
                 padding: const EdgeInsets.all(12),
@@ -486,22 +507,29 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
           confirmText: 'Guardar',
           onConfirm: () async {
             // 1. Ya NO aplanamos a 88 registros. Guardamos la estructura agrupada.
-            final List<RolloInfo> rollosAPersistir = todosLosGrupos.map((
-              grupo,
-            ) {
-              return RolloInfo(
-                id: '', // Se autogenerará en el servicio si es nuevo
-                loteDetalleId: widget.detalle.id,
-                metraje: grupo.metraje,
-                colorId: grupo.color,
-                cantidad: grupo.cantidad
-                    .toInt(), // <--- Nuevo campo en el modelo
-                sucursalActualId: widget.lote.sucursalId ?? '',
-                estado: 'DISPONIBLE',
-                atributosEspeciales:
-                    {}, // Aquí entrarán peso, número de rollo, etc., en el futuro
-              );
-            }).toList();
+            final List<RolloInfo> rollosAPersistir = todosLosGrupos
+                .asMap()
+                .entries
+                .map((entry) {
+                  final index = entry.key;
+                  final grupo = entry.value;
+
+                  return RolloInfo(
+                    id: '',
+                    loteDetalleId: widget.detalle.id,
+
+                    orden: index,
+
+                    metraje: grupo.metraje,
+                    colorId: grupo.color,
+                    cantidad: grupo.cantidad.toInt(),
+
+                    sucursalActualId: widget.lote.sucursalId ?? '',
+                    estado: 'DISPONIBLE',
+                    atributosEspeciales: {},
+                  );
+                })
+                .toList();
 
             // 2. Ejecutamos la inserción atómica
             final exito = await notifier.guardarRollos(

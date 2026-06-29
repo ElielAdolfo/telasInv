@@ -66,6 +66,7 @@ class LoteDetalleService {
       final nuevoRollo = RolloInfo(
         id: docId,
         loteDetalleId: loteDetalleId,
+        orden: rollo.orden,
         metraje: rollo.metraje,
         colorId: rollo.colorId,
         cantidad: rollo.cantidad, // Guardamos la cantidad agrupada
@@ -86,8 +87,11 @@ class LoteDetalleService {
   Future<List<RolloInfo>> getRollosByDetalle({
     required String loteDetalleId,
   }) async {
-    // CORRECCIÓN: Buscamos directamente dentro de la subcolección del detalle
-    final snapshot = await _ref.doc(loteDetalleId).collection('rollos').get();
+    final snapshot = await _ref
+        .doc(loteDetalleId)
+        .collection('rollos')
+        .orderBy('orden')
+        .get();
 
     return snapshot.docs.map((doc) => RolloInfo.fromMap(doc.data())).toList();
   }
