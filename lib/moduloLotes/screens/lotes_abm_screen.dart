@@ -278,7 +278,7 @@ class LotesAbmScreen extends ConsumerWidget {
   }
 
   //==================================================
-  // AVANZAR ESTADO (NUEVA ACCIÓN)
+  // AVANZAR ESTADO (DENTRO DE LOTESABMSCREEN)
   //==================================================
   static Future<void> _avanzarEstado(
     BuildContext context,
@@ -286,13 +286,9 @@ class LotesAbmScreen extends ConsumerWidget {
     Lote lote,
     String usuarioId,
   ) async {
-    // Definimos el estado lógico siguiente
     final LoteEstado siguienteEstado = _obtenerSiguienteEstado(lote.estado);
 
-    if (siguienteEstado == lote.estado) {
-      // Si ya está finalizado o cancelado, no hacemos nada
-      return;
-    }
+    if (siguienteEstado == lote.estado) return;
 
     await showDialog<bool>(
       context: context,
@@ -304,24 +300,20 @@ class LotesAbmScreen extends ConsumerWidget {
         iconColor: Colors.blue,
         confirmText: "Aceptar",
         onConfirm: () async {
-          try {
-            // Invocamos el servicio a través del provider
-            await ref
-                .read(loteHistorialServiceProvider)
-                .registrarCambioEstado(
-                  lote: lote,
-                  nuevoEstado: siguienteEstado,
-                  usuarioId: usuarioId,
-                  observacion: "Cambio de estado automático en flujo de la app",
-                );
+          // El servicio ejecutará de forma transparente la transposición a StockActual si es FINALIZADO
+          await ref
+              .read(loteHistorialServiceProvider)
+              .registrarCambioEstado(
+                lote: lote,
+                nuevoEstado: siguienteEstado,
+                usuarioId: usuarioId,
+                observacion: "Cambio de estado automático en flujo de la app.",
+              );
 
-            debugPrint(
-              'Lote ${lote.id} avanzado exitosamente e historial guardado.',
-            );
-          } catch (e) {
-            debugPrint('Error al avanzar el estado del lote: $e');
-            // Aquí puedes gestionar el error mostrando un SnackBar o alerta al usuario
-          }
+          // RECARGA DEL LISTADO: Forzamos la actualización inmediata del UI state
+          ref.read(lotesProvider(lote.empresaId).notifier).recargar();
+
+          debugPrint('Lote ${lote.id} avanzado con éxito.');
         },
       ),
     );
