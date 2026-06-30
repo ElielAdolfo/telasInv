@@ -11,7 +11,8 @@ class LoteTable extends StatelessWidget {
   final Function(Lote)? onHistorial;
   final Function(Lote)? onGastos;
   final Function(Lote)? onEliminar;
-  final Function(Lote)? onAvanzar; // <-- 1. Agregado
+  final Function(Lote)? onAvanzar;
+  final Function(Lote)? onDevolver;
 
   const LoteTable({
     super.key,
@@ -21,7 +22,8 @@ class LoteTable extends StatelessWidget {
     this.onHistorial,
     this.onGastos,
     this.onEliminar,
-    this.onAvanzar, // <-- 2. Agregado al constructor
+    this.onAvanzar,
+    this.onDevolver,
   });
 
   @override
@@ -40,6 +42,16 @@ class LoteTable extends StatelessWidget {
           DataColumn(label: Text('Acciones')),
         ],
         rows: lotes.map((lote) {
+          // Validaciones de flujo de estados por cada fila
+          final mostrarDevolver =
+              lote.estado != LoteEstado.borrador &&
+              lote.estado != LoteEstado.finalizado &&
+              lote.estado != LoteEstado.cancelado;
+
+          final mostrarAvanzar =
+              lote.estado != LoteEstado.finalizado &&
+              lote.estado != LoteEstado.cancelado;
+
           return DataRow(
             cells: [
               DataCell(Text(lote.numeroLote)),
@@ -54,12 +66,33 @@ class LoteTable extends StatelessWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // <-- 3. Botón de avanzar añadido al inicio de las acciones
-                    IconButton(
-                      tooltip: 'Avanzar Estado',
-                      icon: const Icon(Icons.arrow_forward, color: Colors.blue),
-                      onPressed: () => onAvanzar?.call(lote),
-                    ),
+                    // Botón Devolver Estado (Hacia atrás)
+                    if (mostrarDevolver)
+                      IconButton(
+                        tooltip: 'Devolver Estado',
+                        icon: const Icon(
+                          Icons.arrow_back,
+                          color: Colors.orange,
+                        ),
+                        onPressed: () => onDevolver?.call(lote),
+                      )
+                    else
+                      const SizedBox(
+                        width: 48,
+                      ), // Mantiene la alineación uniforme de la columna
+                    // Botón Avanzar Estado (Hacia adelante)
+                    if (mostrarAvanzar)
+                      IconButton(
+                        tooltip: 'Avanzar Estado',
+                        icon: const Icon(
+                          Icons.arrow_forward,
+                          color: Colors.blue,
+                        ),
+                        onPressed: () => onAvanzar?.call(lote),
+                      )
+                    else
+                      const SizedBox(width: 48),
+
                     IconButton(
                       tooltip: 'Detalle',
                       icon: const Icon(Icons.visibility),

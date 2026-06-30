@@ -1,25 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:inv_telas/models/base/base_entity.dart';
-
 import 'lote_estado.dart';
 
 class LoteHistorialEstado extends BaseEntity {
   final String loteId;
-
-  /// Estado anterior
   final LoteEstado estadoAnterior;
-
-  /// Estado nuevo
   final LoteEstado estadoNuevo;
-
-  /// Comentario opcional del usuario
   final String? observacion;
 
-  /// Snapshot opcional del lote antes del cambio
-  final Map<String, dynamic>? datosAntes;
-
-  /// Snapshot opcional del lote después del cambio
-  final Map<String, dynamic>? datosDespues;
+  /// Captura del lote con sus detalles y rollos en el momento del cambio
+  final Map<String, dynamic> snapshot;
 
   const LoteHistorialEstado({
     required super.id,
@@ -35,22 +25,14 @@ class LoteHistorialEstado extends BaseEntity {
     required this.estadoAnterior,
     required this.estadoNuevo,
     this.observacion,
-    this.datosAntes,
-    this.datosDespues,
+    required this.snapshot,
   });
 
   factory LoteHistorialEstado.fromMap(Map<String, dynamic> map) {
     DateTime? parseDate(dynamic value) {
       if (value == null) return null;
-
-      if (value is Timestamp) {
-        return value.toDate();
-      }
-
-      if (value is String) {
-        return DateTime.tryParse(value);
-      }
-
+      if (value is Timestamp) return value.toDate();
+      if (value is String) return DateTime.tryParse(value);
       return null;
     }
 
@@ -72,95 +54,32 @@ class LoteHistorialEstado extends BaseEntity {
         map['estadoNuevo'] ?? 'BORRADOR',
       ),
       observacion: map['observacion'],
-      datosAntes: map['datosAntes'] != null
-          ? Map<String, dynamic>.from(map['datosAntes'])
-          : null,
-      datosDespues: map['datosDespues'] != null
-          ? Map<String, dynamic>.from(map['datosDespues'])
-          : null,
+      snapshot: map['snapshot'] != null
+          ? Map<String, dynamic>.from(map['snapshot'])
+          : {},
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
       'id': id,
-
       'activo': activo,
       'eliminado': eliminado,
-
       'usuarioCreacion': usuarioCreacion,
       'usuarioModificacion': usuarioModificacion,
       'usuarioEliminacion': usuarioEliminacion,
-
       'fechaCreacion': Timestamp.fromDate(fechaCreacion),
-
       'fechaModificacion': fechaModificacion != null
           ? Timestamp.fromDate(fechaModificacion!)
           : null,
-
       'fechaEliminacion': fechaEliminacion != null
           ? Timestamp.fromDate(fechaEliminacion!)
           : null,
-
       'loteId': loteId,
-
       'estadoAnterior': estadoAnterior.nombre,
       'estadoNuevo': estadoNuevo.nombre,
-
       'observacion': observacion,
-
-      'datosAntes': datosAntes,
-      'datosDespues': datosDespues,
+      'snapshot': snapshot,
     };
-  }
-
-  LoteHistorialEstado copyWith({
-    String? id,
-    bool? activo,
-    bool? eliminado,
-    String? usuarioCreacion,
-    String? usuarioModificacion,
-    String? usuarioEliminacion,
-    DateTime? fechaCreacion,
-    DateTime? fechaModificacion,
-    DateTime? fechaEliminacion,
-    String? loteId,
-    LoteEstado? estadoAnterior,
-    LoteEstado? estadoNuevo,
-    String? observacion,
-    Map<String, dynamic>? datosAntes,
-    Map<String, dynamic>? datosDespues,
-  }) {
-    return LoteHistorialEstado(
-      id: id ?? this.id,
-      activo: activo ?? this.activo,
-      eliminado: eliminado ?? this.eliminado,
-      usuarioCreacion: usuarioCreacion ?? this.usuarioCreacion,
-      usuarioModificacion: usuarioModificacion ?? this.usuarioModificacion,
-      usuarioEliminacion: usuarioEliminacion ?? this.usuarioEliminacion,
-      fechaCreacion: fechaCreacion ?? this.fechaCreacion,
-      fechaModificacion: fechaModificacion ?? this.fechaModificacion,
-      fechaEliminacion: fechaEliminacion ?? this.fechaEliminacion,
-      loteId: loteId ?? this.loteId,
-      estadoAnterior: estadoAnterior ?? this.estadoAnterior,
-      estadoNuevo: estadoNuevo ?? this.estadoNuevo,
-      observacion: observacion ?? this.observacion,
-      datosAntes: datosAntes ?? this.datosAntes,
-      datosDespues: datosDespues ?? this.datosDespues,
-    );
-  }
-
-  @override
-  String toString() {
-    return '''
-LoteHistorialEstado(
-  id: $id,
-  loteId: $loteId,
-  estadoAnterior: ${estadoAnterior.nombre},
-  estadoNuevo: ${estadoNuevo.nombre},
-  usuarioCreacion: $usuarioCreacion,
-  fechaCreacion: $fechaCreacion
-)
-''';
   }
 }
