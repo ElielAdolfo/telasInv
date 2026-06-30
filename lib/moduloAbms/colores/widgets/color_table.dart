@@ -150,7 +150,7 @@ class ColorTable extends StatelessWidget {
                   child: Text(
                     'Acciones',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
               ],

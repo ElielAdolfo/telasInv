@@ -182,7 +182,7 @@ class _LoteFormDialogState extends ConsumerState<LoteFormDialog> {
                         const SizedBox(height: 15),
 
                         DropdownButtonFormField<LoteTipo>(
-                          value: tipo,
+                          initialValue: tipo,
                           decoration: const InputDecoration(labelText: 'Tipo'),
                           items: const [
                             DropdownMenuItem(
@@ -211,7 +211,7 @@ class _LoteFormDialogState extends ConsumerState<LoteFormDialog> {
                               const Text('Error cargando sucursales'),
                           data: (sucursales) {
                             return DropdownButtonFormField<String?>(
-                              value: sucursalId,
+                              initialValue: sucursalId,
                               decoration: const InputDecoration(
                                 labelText: 'Sucursal',
                               ),
@@ -280,7 +280,7 @@ class _LoteFormDialogState extends ConsumerState<LoteFormDialog> {
                             }
 
                             return DropdownButtonFormField<String>(
-                              value: monedaId,
+                              initialValue: monedaId,
                               decoration: const InputDecoration(
                                 labelText: 'Moneda',
                                 hintText: 'Seleccione moneda',

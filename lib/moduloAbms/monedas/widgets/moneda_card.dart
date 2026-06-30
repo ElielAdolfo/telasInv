@@ -38,7 +38,7 @@ class MonedaCard extends StatelessWidget {
             title: const Text('Permite Tipo Cambio'),
             subtitle: Text(moneda.permiteTipoCambio ? 'Sí' : 'No'),
           ),
-          ButtonBar(
+          OverflowBar(
             children: [
               IconButton(
                 icon: const Icon(Icons.edit),

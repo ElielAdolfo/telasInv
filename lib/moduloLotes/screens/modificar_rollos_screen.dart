@@ -826,7 +826,7 @@ class _ItemFilaRolloState extends State<ItemFilaRollo> {
                   )
                 : DropdownButtonFormField<String>(
                     isExpanded: true,
-                    value: widget.grupo.color.isEmpty
+                    initialValue: widget.grupo.color.isEmpty
                         ? null
                         : widget.grupo.color,
                     items: widget.colores.map((c) {
@@ -922,7 +922,7 @@ class _ItemFilaRolloState extends State<ItemFilaRollo> {
                       },
                     ),
             );
-          }).toList(),
+          }),
           // ACCIONES
           SizedBox(
             width: 85,

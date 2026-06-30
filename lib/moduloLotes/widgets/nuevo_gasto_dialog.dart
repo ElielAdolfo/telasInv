@@ -226,7 +226,7 @@ class _NuevoGastoDialogState extends ConsumerState<NuevoGastoDialog> {
                           const SizedBox(height: 15),
 
                           DropdownButtonFormField<Moneda>(
-                            value: _monedaSeleccionada,
+                            initialValue: _monedaSeleccionada,
                             decoration: const InputDecoration(
                               labelText: "Moneda de Origen",
                               border: OutlineInputBorder(),

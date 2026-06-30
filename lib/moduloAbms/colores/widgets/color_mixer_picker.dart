@@ -268,8 +268,9 @@ class _ColorMixerPickerState extends State<ColorMixerPicker> {
     final distancia = math.sqrt(dx * dx + dy * dy);
 
     // Margen de tolerancia táctil para el anillo de color
-    if (distancia < (center - strokeWidth - 16) || distancia > (center + 16))
+    if (distancia < (center - strokeWidth - 16) || distancia > (center + 16)) {
       return;
+    }
 
     double angulo = math.atan2(dy, dx);
     if (angulo < 0) angulo += 2 * math.pi;

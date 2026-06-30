@@ -69,7 +69,7 @@ class _CambioEstadoDialogState extends State<CambioEstadoDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             DropdownButtonFormField<LoteEstado>(
-              value: nuevoEstado,
+              initialValue: nuevoEstado,
               decoration: const InputDecoration(labelText: 'Nuevo Estado'),
               items: estadosDisponibles()
                   .map(

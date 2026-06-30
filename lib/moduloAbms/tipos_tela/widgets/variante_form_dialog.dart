@@ -174,7 +174,7 @@ class _VarianteFormDialogState extends ConsumerState<VarianteFormDialog> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: monedaId,
+                  initialValue: monedaId,
                   decoration: const InputDecoration(labelText: 'Moneda'),
                   items: const [
                     DropdownMenuItem(value: 'USD', child: Text('USD')),
@@ -276,10 +276,12 @@ class _VarianteFormDialogState extends ConsumerState<VarianteFormDialog> {
                 final stringRaw =
                     _dinamicosTextCtrls[campo.id]?.text.trim() ?? '';
                 if (stringRaw.isNotEmpty) {
-                  if (campo.tipo == TipoCampo.entero)
+                  if (campo.tipo == TipoCampo.entero) {
                     valorProcesado = int.tryParse(stringRaw);
-                  if (campo.tipo == TipoCampo.decimal)
+                  }
+                  if (campo.tipo == TipoCampo.decimal) {
                     valorProcesado = double.tryParse(stringRaw);
+                  }
                   if (campo.tipo == TipoCampo.texto) valorProcesado = stringRaw;
                 }
               }

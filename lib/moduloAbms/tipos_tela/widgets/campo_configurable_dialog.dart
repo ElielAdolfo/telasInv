@@ -91,7 +91,7 @@ class _CampoConfigurableDialogState extends State<CampoConfigurableDialog> {
               ),
               const SizedBox(height: 15),
               DropdownButtonFormField<TipoCampo>(
-                value: tipo,
+                initialValue: tipo,
                 decoration: const InputDecoration(labelText: 'Tipo'),
                 items: const [
                   DropdownMenuItem(

@@ -178,7 +178,7 @@ class _LoteDetalleDialogState extends ConsumerState<LoteDetalleDialog> {
                                   _tryInitEdit(proveedores, tipos, service);
                                 });
                                 return DropdownButtonFormField<String>(
-                                  value: proveedorId,
+                                  initialValue: proveedorId,
                                   decoration: const InputDecoration(
                                     labelText: 'Proveedor',
                                     border: OutlineInputBorder(),
@@ -252,7 +252,7 @@ class _LoteDetalleDialogState extends ConsumerState<LoteDetalleDialog> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     DropdownButtonFormField<String>(
-                                      value: tipoTelaId,
+                                      initialValue: tipoTelaId,
                                       decoration: const InputDecoration(
                                         labelText: 'Tipo De Tela',
                                         border: OutlineInputBorder(),
@@ -264,8 +264,9 @@ class _LoteDetalleDialogState extends ConsumerState<LoteDetalleDialog> {
                                         );
                                       }).toList(),
                                       onChanged: (v) async {
-                                        if (v == null || proveedorId == null)
+                                        if (v == null || proveedorId == null) {
                                           return;
+                                        }
 
                                         setState(() {
                                           tipoTelaId = v;
@@ -510,7 +511,7 @@ class _LoteDetalleDialogState extends ConsumerState<LoteDetalleDialog> {
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 12),
                               child: DropdownButtonFormField<String>(
-                                value: monedaIdSeleccionada,
+                                initialValue: monedaIdSeleccionada,
                                 decoration: const InputDecoration(
                                   labelText: 'Moneda',
                                   border: OutlineInputBorder(),

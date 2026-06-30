@@ -210,7 +210,7 @@ class _State extends ConsumerState<CodigoTelaProveedorFormDialog> {
                   error: (_, __) => const Text('Error proveedores'),
                   data: (list) {
                     return DropdownButtonFormField<String>(
-                      value: proveedorId,
+                      initialValue: proveedorId,
                       decoration: const InputDecoration(labelText: 'Proveedor'),
                       items: list
                           .map(
@@ -238,7 +238,7 @@ class _State extends ConsumerState<CodigoTelaProveedorFormDialog> {
                   error: (_, __) => const Text('Error tipos'),
                   data: (list) {
                     return DropdownButtonFormField<String>(
-                      value: tipoTelaId,
+                      initialValue: tipoTelaId,
                       decoration: const InputDecoration(labelText: 'Tipo Tela'),
                       items: list
                           .map(
@@ -278,7 +278,7 @@ class _State extends ConsumerState<CodigoTelaProveedorFormDialog> {
                                 Expanded(
                                   flex: 2,
                                   child: DropdownButtonFormField<String>(
-                                    value: item.colorId,
+                                    initialValue: item.colorId,
                                     decoration: const InputDecoration(
                                       labelText: 'Color',
                                     ),

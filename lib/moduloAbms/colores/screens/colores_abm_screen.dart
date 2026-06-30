@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/core/providers/session_provider.dart';
-import '../../../core/widgets/action_dialog.dart'; // Si usas ConfirmActionDialog cámbialo aquí
-import '../../../providers/auth_provider.dart'; // O el proveedor de sesión correspondiente
+// Si usas ConfirmActionDialog cámbialo aquí
+// O el proveedor de sesión correspondiente
 import '../../../providers/color_provider.dart';
 import '../../../models/abmTiposTelas/color_tela.dart';
 import '../widgets/color_table.dart';

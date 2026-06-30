@@ -428,7 +428,7 @@ class _CodigoTelaProveedorDialogState
               Expanded(
                 flex: 2,
                 child: DropdownButtonFormField<String>(
-                  value: monedaSeleccionada,
+                  initialValue: monedaSeleccionada,
                   decoration: const InputDecoration(
                     labelText: "Moneda",
                     border: OutlineInputBorder(),
