@@ -1,5 +1,4 @@
 import 'package:inv_telas/models/lotes/lote.dart';
-import 'package:inv_telas/models/lotes/lote_costeo.dart';
 import 'package:inv_telas/models/lotes/lote_detalle.dart';
 import 'package:inv_telas/models/lotes/lote_estado.dart';
 import 'package:inv_telas/models/lotes/lote_gasto.dart';
@@ -13,7 +12,6 @@ class LoteValidator {
     required Lote lote,
     required List<LoteDetalle> detalles,
     List<LoteGasto> gastos = const [],
-    LoteCosteo? costeo,
   }) {
     final errores = <String>[];
 
@@ -23,7 +21,7 @@ class LoteValidator {
 
     _validarGastos(gastos, errores);
 
-    _validarEstado(lote, detalles, gastos, costeo, errores);
+    _validarEstado(lote, detalles, gastos, errores);
 
     return errores;
   }
@@ -32,14 +30,8 @@ class LoteValidator {
     required Lote lote,
     required List<LoteDetalle> detalles,
     List<LoteGasto> gastos = const [],
-    LoteCosteo? costeo,
   }) {
-    final errores = validar(
-      lote: lote,
-      detalles: detalles,
-      gastos: gastos,
-      costeo: costeo,
-    );
+    final errores = validar(lote: lote, detalles: detalles, gastos: gastos);
 
     if (errores.isNotEmpty) {
       throw Exception(errores.join('\n'));
@@ -136,7 +128,6 @@ class LoteValidator {
     Lote lote,
     List<LoteDetalle> detalles,
     List<LoteGasto> gastos,
-    LoteCosteo? costeo,
     List<String> errores,
   ) {
     switch (lote.estado) {
@@ -156,7 +147,7 @@ class LoteValidator {
         break;
 
       case LoteEstado.finalizado:
-        _validarFinalizacion(lote, detalles, gastos, costeo, errores);
+        _validarFinalizacion(lote, detalles, gastos, errores);
         break;
 
       case LoteEstado.cancelado:
@@ -172,28 +163,10 @@ class LoteValidator {
     Lote lote,
     List<LoteDetalle> detalles,
     List<LoteGasto> gastos,
-    LoteCosteo? costeo,
     List<String> errores,
   ) {
     if (detalles.isEmpty) {
       errores.add('No puede finalizar un lote sin detalles.');
-    }
-
-    if (costeo == null) {
-      errores.add('Debe existir un costeo final.');
-      return;
-    }
-
-    if (costeo.costoFinal <= 0) {
-      errores.add('El costo final debe ser mayor a cero.');
-    }
-
-    if (costeo.costoMetroFinal <= 0) {
-      errores.add('El costo por metro final debe ser mayor a cero.');
-    }
-
-    if (costeo.costoRolloFinal <= 0) {
-      errores.add('El costo por rollo final debe ser mayor a cero.');
     }
   }
 

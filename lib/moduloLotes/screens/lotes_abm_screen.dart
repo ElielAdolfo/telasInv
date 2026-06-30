@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:inv_telas/moduloLotes/widgets/lote_costeo_dialog.dart';
 import 'package:inv_telas/moduloLotes/widgets/lote_gastos_dialog.dart';
+import 'package:inv_telas/moduloLotes/widgets/lote_historial_dialog.dart';
 
 import '../../../core/providers/session_provider.dart';
-
 import '../../../models/lotes/lote.dart';
-
 import '../../../providers/lote_provider.dart';
 
 import '../widgets/lote_card.dart';
@@ -21,15 +19,12 @@ class LotesAbmScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final empresaId = ref.watch(sessionProvider).empresaActual!.id;
-
     final usuarioId = ref.watch(sessionProvider).usuario!.id;
-
     final lotesAsync = ref.watch(lotesProvider(empresaId));
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Administración de Lotes'),
-
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -53,9 +48,7 @@ class LotesAbmScreen extends ConsumerWidget {
 
       body: lotesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-
         error: (e, _) => Center(child: Text(e.toString())),
-
         data: (lotes) {
           if (lotes.isEmpty) {
             return const Center(child: Text('No existen lotes registrados'));
@@ -71,15 +64,10 @@ class LotesAbmScreen extends ConsumerWidget {
 
                 return LoteCard(
                   lote: lote,
-
                   onDetalle: () => _abrirDetalle(context, lote),
-
                   onEditar: () => _editar(context, lote),
-
                   onGastos: () => _abrirGastos(context, lote, empresaId),
-
-                  onCosteo: () => _abrirCosteo(context, lote),
-
+                  onHistorial: () => _abrirHistorial(context, lote),
                   onEliminar: () =>
                       _eliminar(context, ref, empresaId, usuarioId, lote),
                 );
@@ -91,15 +79,10 @@ class LotesAbmScreen extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             child: LoteTable(
               lotes: lotes,
-
               onDetalle: (lote) => _abrirDetalle(context, lote),
-
               onEditar: (lote) => _editar(context, lote),
-
               onGastos: (lote) => _abrirGastos(context, lote, empresaId),
-
-              onCosteo: (lote) => _abrirCosteo(context, lote),
-
+              onHistorial: (lote) => _abrirHistorial(context, lote),
               onEliminar: (lote) =>
                   _eliminar(context, ref, empresaId, usuarioId, lote),
             ),
@@ -112,7 +95,6 @@ class LotesAbmScreen extends ConsumerWidget {
   //==================================================
   // DETALLE
   //==================================================
-
   static Future<void> _abrirDetalle(BuildContext context, Lote lote) async {
     await showDialog(
       context: context,
@@ -123,7 +105,6 @@ class LotesAbmScreen extends ConsumerWidget {
   //==================================================
   // EDITAR
   //==================================================
-
   static Future<void> _editar(BuildContext context, Lote lote) async {
     await showDialog(
       context: context,
@@ -134,11 +115,10 @@ class LotesAbmScreen extends ConsumerWidget {
   //==================================================
   // GASTOS
   //==================================================
-
   static Future<void> _abrirGastos(
     BuildContext context,
     Lote lote,
-    empresaId,
+    dynamic empresaId,
   ) async {
     await showDialog(
       context: context,
@@ -147,20 +127,18 @@ class LotesAbmScreen extends ConsumerWidget {
   }
 
   //==================================================
-  // COSTEO
+  // HISTORIAL
   //==================================================
-
-  static Future<void> _abrirCosteo(BuildContext context, Lote lote) async {
+  static Future<void> _abrirHistorial(BuildContext context, Lote lote) async {
     await showDialog(
       context: context,
-      builder: (_) => LoteCosteoDialog(loteId: lote.id),
+      builder: (_) => LoteHistorialDialog(loteId: lote.id),
     );
   }
 
   //==================================================
   // ELIMINAR
   //==================================================
-
   static Future<void> _eliminar(
     BuildContext context,
     WidgetRef ref,
@@ -173,9 +151,7 @@ class LotesAbmScreen extends ConsumerWidget {
       builder: (_) {
         return AlertDialog(
           title: const Text('Eliminar lote'),
-
           content: Text('¿Desea eliminar el lote ${lote.numeroLote}?'),
-
           actions: [
             TextButton(
               onPressed: () {
@@ -183,7 +159,6 @@ class LotesAbmScreen extends ConsumerWidget {
               },
               child: const Text('Cancelar'),
             ),
-
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context, true);
@@ -207,7 +182,6 @@ class LotesAbmScreen extends ConsumerWidget {
   //==================================================
   // CAMBIO ESTADO
   //==================================================
-
   static Future<void> abrirCambioEstado(BuildContext context, Lote lote) async {
     await showDialog(
       context: context,

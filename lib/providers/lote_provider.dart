@@ -62,6 +62,7 @@ class LoteNotifier extends StateNotifier<AsyncValue<List<Lote>>> {
   Future<void> recargar() async {
     await cargarLotes();
   }
+  
 }
 
 final lotesProvider =

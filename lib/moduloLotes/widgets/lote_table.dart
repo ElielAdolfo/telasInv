@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:inv_telas/models/lotes/lote_estado.dart';
+import 'package:inv_telas/models/lotes/lote_tipo.dart';
 import '../../../models/lotes/lote.dart';
-import '../../../models/lotes/lote_tipo.dart';
-import '../../../models/lotes/lote_estado.dart';
 
 class LoteTable extends StatelessWidget {
   final List<Lote> lotes;
 
   final Function(Lote)? onDetalle;
   final Function(Lote)? onEditar;
-  final Function(Lote)? onCosteo;
+  final Function(Lote)? onHistorial;
   final Function(Lote)? onGastos;
   final Function(Lote)? onEliminar;
 
@@ -17,7 +17,7 @@ class LoteTable extends StatelessWidget {
     required this.lotes,
     this.onDetalle,
     this.onEditar,
-    this.onCosteo,
+    this.onHistorial,
     this.onGastos,
     this.onEliminar,
   });
@@ -41,19 +41,13 @@ class LoteTable extends StatelessWidget {
           return DataRow(
             cells: [
               DataCell(Text(lote.numeroLote)),
-
               DataCell(Text(lote.tipo.nombre)),
-
               DataCell(Text(lote.estado.nombre)),
-
               DataCell(Text(lote.totalGastos.toStringAsFixed(2))),
-
               DataCell(Text(lote.totalFinal.toStringAsFixed(2))),
-
               DataCell(
                 Icon(lote.stockGenerado ? Icons.check_circle : Icons.cancel),
               ),
-
               DataCell(
                 Row(
                   mainAxisSize: MainAxisSize.min,
@@ -63,25 +57,21 @@ class LoteTable extends StatelessWidget {
                       icon: const Icon(Icons.visibility),
                       onPressed: () => onDetalle?.call(lote),
                     ),
-
                     IconButton(
                       tooltip: 'Editar',
                       icon: const Icon(Icons.edit),
                       onPressed: () => onEditar?.call(lote),
                     ),
-
                     IconButton(
                       tooltip: 'Gastos',
                       icon: const Icon(Icons.receipt_long),
                       onPressed: () => onGastos?.call(lote),
                     ),
-
                     IconButton(
-                      tooltip: 'Costeo',
-                      icon: const Icon(Icons.calculate),
-                      onPressed: () => onCosteo?.call(lote),
+                      tooltip: 'Historial',
+                      icon: const Icon(Icons.history),
+                      onPressed: () => onHistorial?.call(lote),
                     ),
-
                     IconButton(
                       tooltip: 'Eliminar',
                       icon: const Icon(Icons.delete),

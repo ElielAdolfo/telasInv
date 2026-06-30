@@ -1,11 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:inv_telas/config/env.dart';
 import 'package:inv_telas/models/lotes/lote.dart';
-import 'package:inv_telas/models/lotes/lote_costeo.dart';
 import 'package:inv_telas/models/lotes/lote_detalle.dart';
 import 'package:inv_telas/models/lotes/lote_gasto.dart';
 import 'package:inv_telas/models/lotes/lote_historial_estado.dart';
-
 
 class LoteService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -98,32 +96,6 @@ class LoteService {
     final snapshot = await _loteRef.doc(loteId).collection('gastos').get();
 
     return snapshot.docs.map((e) => LoteGasto.fromMap(e.data())).toList();
-  }
-
-  // ============================================================
-  // COSTEO
-  // ============================================================
-
-  Future<void> guardarCosteo(LoteCosteo costeo) async {
-    await _loteRef
-        .doc(costeo.loteId)
-        .collection('costeo')
-        .doc(costeo.id)
-        .set(costeo.toMap());
-  }
-
-  Future<LoteCosteo?> obtenerCosteo(String loteId) async {
-    final snapshot = await _loteRef
-        .doc(loteId)
-        .collection('costeo')
-        .limit(1)
-        .get();
-
-    if (snapshot.docs.isEmpty) {
-      return null;
-    }
-
-    return LoteCosteo.fromMap(snapshot.docs.first.data());
   }
 
   // ============================================================

@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:inv_telas/models/lotes/lote_tipo.dart';
 import '../../../models/lotes/lote.dart';
 import '../../../models/lotes/lote_estado.dart';
-import '../../../models/lotes/lote_tipo.dart';
 
 class LoteCard extends StatelessWidget {
   final Lote lote;
 
   final VoidCallback? onDetalle;
   final VoidCallback? onEditar;
-  final VoidCallback? onCosteo;
+  final VoidCallback? onHistorial;
   final VoidCallback? onGastos;
   final VoidCallback? onEliminar;
 
@@ -17,7 +17,7 @@ class LoteCard extends StatelessWidget {
     required this.lote,
     this.onDetalle,
     this.onEditar,
-    this.onCosteo,
+    this.onHistorial,
     this.onGastos,
     this.onEliminar,
   });
@@ -26,16 +26,12 @@ class LoteCard extends StatelessWidget {
     switch (lote.estado) {
       case LoteEstado.borrador:
         return Colors.grey;
-
       case LoteEstado.enTransito:
         return Colors.orange;
-
       case LoteEstado.revision:
         return Colors.blue;
-
       case LoteEstado.finalizado:
         return Colors.green;
-
       case LoteEstado.cancelado:
         return Colors.red;
     }
@@ -45,16 +41,12 @@ class LoteCard extends StatelessWidget {
     switch (lote.estado) {
       case LoteEstado.borrador:
         return 'Borrador';
-
       case LoteEstado.enTransito:
         return 'En Tránsito';
-
       case LoteEstado.revision:
         return 'Revisión';
-
       case LoteEstado.finalizado:
         return 'Finalizado';
-
       case LoteEstado.cancelado:
         return 'Cancelado';
     }
@@ -89,15 +81,10 @@ class LoteCard extends StatelessWidget {
             ),
 
             const SizedBox(height: 10),
-
             Text('Tipo: ${lote.tipo.nombre}'),
-
             const SizedBox(height: 5),
-
             Text('Total Final: ${lote.totalFinal.toStringAsFixed(2)}'),
-
             const SizedBox(height: 5),
-
             Text(
               'Fecha: ${lote.fechaCreacion.day}/${lote.fechaCreacion.month}/${lote.fechaCreacion.year}',
             ),
@@ -113,25 +100,21 @@ class LoteCard extends StatelessWidget {
                   icon: const Icon(Icons.visibility),
                   onPressed: onDetalle,
                 ),
-
                 IconButton(
                   tooltip: 'Editar',
                   icon: const Icon(Icons.edit),
                   onPressed: onEditar,
                 ),
-
                 IconButton(
                   tooltip: 'Gastos',
                   icon: const Icon(Icons.receipt_long),
                   onPressed: onGastos,
                 ),
-
                 IconButton(
-                  tooltip: 'Costeo',
-                  icon: const Icon(Icons.calculate),
-                  onPressed: onCosteo,
+                  tooltip: 'Historial',
+                  icon: const Icon(Icons.history),
+                  onPressed: onHistorial,
                 ),
-
                 IconButton(
                   tooltip: 'Eliminar',
                   icon: const Icon(Icons.delete),
