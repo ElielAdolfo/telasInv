@@ -11,6 +11,7 @@ class LoteCard extends StatelessWidget {
   final VoidCallback? onHistorial;
   final VoidCallback? onGastos;
   final VoidCallback? onEliminar;
+  final VoidCallback? onAvanzar; // <-- 1. Agregado
 
   const LoteCard({
     super.key,
@@ -20,6 +21,7 @@ class LoteCard extends StatelessWidget {
     this.onHistorial,
     this.onGastos,
     this.onEliminar,
+    this.onAvanzar, // <-- 2. Agregado al constructor
   });
 
   Color _estadoColor() {
@@ -95,6 +97,12 @@ class LoteCard extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
+                // <-- 3. Botón de avanzar añadido al inicio del Wrap de acciones
+                IconButton(
+                  tooltip: 'Avanzar Estado',
+                  icon: const Icon(Icons.arrow_forward, color: Colors.blue),
+                  onPressed: onAvanzar,
+                ),
                 IconButton(
                   tooltip: 'Detalle',
                   icon: const Icon(Icons.visibility),

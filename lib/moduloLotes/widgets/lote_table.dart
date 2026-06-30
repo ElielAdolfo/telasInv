@@ -11,6 +11,7 @@ class LoteTable extends StatelessWidget {
   final Function(Lote)? onHistorial;
   final Function(Lote)? onGastos;
   final Function(Lote)? onEliminar;
+  final Function(Lote)? onAvanzar; // <-- 1. Agregado
 
   const LoteTable({
     super.key,
@@ -20,6 +21,7 @@ class LoteTable extends StatelessWidget {
     this.onHistorial,
     this.onGastos,
     this.onEliminar,
+    this.onAvanzar, // <-- 2. Agregado al constructor
   });
 
   @override
@@ -52,6 +54,12 @@ class LoteTable extends StatelessWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    // <-- 3. Botón de avanzar añadido al inicio de las acciones
+                    IconButton(
+                      tooltip: 'Avanzar Estado',
+                      icon: const Icon(Icons.arrow_forward, color: Colors.blue),
+                      onPressed: () => onAvanzar?.call(lote),
+                    ),
                     IconButton(
                       tooltip: 'Detalle',
                       icon: const Icon(Icons.visibility),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/moduloLotes/widgets/lote_gastos_dialog.dart';
 import 'package:inv_telas/moduloLotes/widgets/lote_historial_dialog.dart';
+import 'package:inv_telas/widgets/confirm_action_dialog.dart';
 
 import '../../../core/providers/session_provider.dart';
 import '../../../models/lotes/lote.dart';
@@ -12,6 +13,7 @@ import '../widgets/lote_table.dart';
 import '../widgets/lote_form_dialog.dart';
 import '../widgets/lote_detalle_manager_dialog.dart';
 import '../widgets/cambio_estado_dialog.dart';
+// Asegúrate de importar correctamente la ubicación de tu ConfirmActionDialog
 
 class LotesAbmScreen extends ConsumerWidget {
   const LotesAbmScreen({super.key});
@@ -70,6 +72,8 @@ class LotesAbmScreen extends ConsumerWidget {
                   onHistorial: () => _abrirHistorial(context, lote),
                   onEliminar: () =>
                       _eliminar(context, ref, empresaId, usuarioId, lote),
+                  // Pasamos la nueva acción aquí:
+                  onAvanzar: () => _avanzarEstado(context, lote),
                 );
               },
             );
@@ -85,6 +89,8 @@ class LotesAbmScreen extends ConsumerWidget {
               onHistorial: (lote) => _abrirHistorial(context, lote),
               onEliminar: (lote) =>
                   _eliminar(context, ref, empresaId, usuarioId, lote),
+              // Pasamos la nueva acción aquí:
+              onAvanzar: (lote) => _avanzarEstado(context, lote),
             ),
           );
         },
@@ -189,6 +195,28 @@ class LotesAbmScreen extends ConsumerWidget {
         lote: lote,
         onConfirmar: (nuevoEstado, observacion) {
           debugPrint('Nuevo estado: $nuevoEstado - $observacion');
+        },
+      ),
+    );
+  }
+
+  //==================================================
+  // AVANZAR ESTADO (NUEVA ACCIÓN)
+  //==================================================
+  static Future<void> _avanzarEstado(BuildContext context, Lote lote) async {
+    await showDialog<bool>(
+      context: context,
+      builder: (_) => ConfirmActionDialog(
+        title: "Avanzar Lote",
+        message:
+            "¿Está seguro de avanzar el lote ${lote.numeroLote} al siguiente estado?",
+        icon: Icons.arrow_forward, // Icono de avanzar gráfico
+        iconColor: Colors.blue, // Color azul o el de tu paleta primaria
+        confirmText: "Aceptar",
+        onConfirm: () async {
+          // Por ahora simulamos una espera de 1.5 segundos sin hacer nada más
+          await Future.delayed(const Duration(milliseconds: 1500));
+          debugPrint('Lote ${lote.id} avanzado provisionalmente.');
         },
       ),
     );
