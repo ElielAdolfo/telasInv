@@ -3,6 +3,9 @@ class UsuarioSucursalRol {
 
   final List<String> rolesIds;
 
+  /// Puede realizar ventas en esta sucursal
+  final bool autorizadoVenta;
+
   final bool activo;
   final bool eliminado;
 
@@ -17,6 +20,7 @@ class UsuarioSucursalRol {
   const UsuarioSucursalRol({
     required this.sucursalId,
     this.rolesIds = const [],
+    this.autorizadoVenta = false,
     this.activo = true,
     this.eliminado = false,
     this.usuarioCreadorId,
@@ -33,6 +37,7 @@ class UsuarioSucursalRol {
       rolesIds: json['rolesIds'] != null
           ? List<String>.from(json['rolesIds'])
           : [],
+      autorizadoVenta: json['autorizadoVenta'] ?? false,
       activo: json['activo'] ?? true,
       eliminado: json['eliminado'] ?? false,
       usuarioCreadorId: json['usuarioCreadorId'],
@@ -54,6 +59,7 @@ class UsuarioSucursalRol {
     return {
       'sucursalId': sucursalId,
       'rolesIds': rolesIds,
+      'autorizadoVenta': autorizadoVenta,
       'activo': activo,
       'eliminado': eliminado,
       'usuarioCreadorId': usuarioCreadorId,
@@ -68,6 +74,7 @@ class UsuarioSucursalRol {
   UsuarioSucursalRol copyWith({
     String? sucursalId,
     List<String>? rolesIds,
+    bool? autorizadoVenta,
     bool? activo,
     bool? eliminado,
     String? usuarioCreadorId,
@@ -80,6 +87,7 @@ class UsuarioSucursalRol {
     return UsuarioSucursalRol(
       sucursalId: sucursalId ?? this.sucursalId,
       rolesIds: rolesIds ?? this.rolesIds,
+      autorizadoVenta: autorizadoVenta ?? this.autorizadoVenta,
       activo: activo ?? this.activo,
       eliminado: eliminado ?? this.eliminado,
       usuarioCreadorId: usuarioCreadorId ?? this.usuarioCreadorId,
@@ -89,5 +97,16 @@ class UsuarioSucursalRol {
       fechaActualizacion: fechaActualizacion ?? this.fechaActualizacion,
       fechaEliminacion: fechaEliminacion ?? this.fechaEliminacion,
     );
+  }
+
+  @override
+  String toString() {
+    return 'UsuarioSucursalRol('
+        'sucursalId: $sucursalId, '
+        'rolesIds: $rolesIds, '
+        'autorizadoVenta: $autorizadoVenta, '
+        'activo: $activo, '
+        'eliminado: $eliminado'
+        ')';
   }
 }

@@ -172,6 +172,7 @@ class AsignacionService {
     required String empresaId,
     required String usuarioId,
     required List<String> sucursalesSeleccionadas,
+    required List<String> sucursalesVenta,
     required String usuarioAccionId,
   }) async {
     final empresaDoc = await _empresasRef.doc(empresaId).get();
@@ -199,6 +200,7 @@ class AsignacionService {
               (id) => UsuarioSucursalRol(
                 sucursalId: id,
                 rolesIds: const [],
+                autorizadoVenta: sucursalesVenta.contains(id),
 
                 fechaCreacion: DateTime.now(),
                 fechaActualizacion: DateTime.now(),
@@ -234,6 +236,7 @@ class AsignacionService {
               (id) => UsuarioSucursalRol(
                 sucursalId: id,
                 rolesIds: const [],
+                autorizadoVenta: sucursalesVenta.contains(id),
 
                 fechaCreacion: DateTime.now(),
                 fechaActualizacion: DateTime.now(),

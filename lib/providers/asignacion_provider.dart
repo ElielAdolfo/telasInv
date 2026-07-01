@@ -72,11 +72,11 @@ class AsignacionNotifier {
     );
   }
 
-  /// NUEVO
   Future<void> sincronizarSucursalesUsuario({
     required String empresaId,
     required String usuarioId,
     required List<String> sucursalesSeleccionadas,
+    required List<String> sucursalesVenta,
   }) async {
     final usuarioActual = ref.read(sessionProvider).usuario;
 
@@ -88,6 +88,7 @@ class AsignacionNotifier {
       empresaId: empresaId,
       usuarioId: usuarioId,
       sucursalesSeleccionadas: sucursalesSeleccionadas,
+      sucursalesVenta: sucursalesVenta,
       usuarioAccionId: usuarioActual.id,
     );
   }

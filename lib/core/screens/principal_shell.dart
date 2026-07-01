@@ -12,6 +12,7 @@ import 'package:inv_telas/moduloAbms/sucursal/screens/sucursales_abm_screen.dart
 import 'package:inv_telas/moduloAbms/tipos_tela/screens/tipos_tela_abm_screen.dart';
 import 'package:inv_telas/moduloAsignacion/screens/usuarios_empresa_screen.dart';
 import 'package:inv_telas/moduloLotes/screens/lotes_abm_screen.dart';
+import 'package:inv_telas/moduloVentas/screens/ventas_pos_screen.dart';
 import 'package:inv_telas/modulo_json/screens/json_view_screen.dart';
 import 'package:inv_telas/providers/auth_provider.dart';
 import 'package:inv_telas/screens/auth_screen.dart';
@@ -43,7 +44,7 @@ class _PrincipalShellState extends ConsumerState<PrincipalShell> {
     '/lotes': const Center(child: Text('Pantalla Lotes')),
     '/precios': const Center(child: Text('Pantalla Precios')),
     '/relaciones': const Center(child: Text('Pantalla Relaciones')),
-    '/ventas': const Center(child: Text('Pantalla Ventas')),
+    '/ventas': const VentasPosScreen(),
     '/usuarios': const Center(child: Text('Pantalla Usuarios')),
     '/abm-menus': const MenusAbmScreen(),
     '/abm-roles': const RolesAbmScreen(),

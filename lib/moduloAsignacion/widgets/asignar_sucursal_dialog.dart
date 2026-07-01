@@ -29,6 +29,7 @@ class _AsignarSucursalDialogState extends ConsumerState<AsignarSucursalDialog> {
   bool guardando = false;
 
   final Set<String> seleccionadas = {};
+  final Set<String> autorizadasVenta = {};
 
   @override
   void initState() {
@@ -49,23 +50,24 @@ class _AsignarSucursalDialogState extends ConsumerState<AsignarSucursalDialog> {
         throw Exception('Empresa no encontrada');
       }
 
-      print('======== DIALOG ========');
-      print('usuario.id = ${widget.usuario.id}');
-
-      for (final permiso in empresaActualizada.usuariosPermitidos) {
-        print('permiso.usuarioId = ${permiso.usuarioId}');
-      }
-
       final permiso = empresaActualizada.usuariosPermitidos.firstWhere(
         (e) => e.usuarioId == widget.usuario.id,
       );
 
       seleccionadas.clear();
+      autorizadasVenta.clear();
 
       for (final sucursal in permiso.sucursales) {
         seleccionadas.add(sucursal.sucursalId);
 
-        print('Sucursal cargada -> ${sucursal.sucursalId}');
+        if (sucursal.autorizadoVenta) {
+          autorizadasVenta.add(sucursal.sucursalId);
+        }
+
+        print(
+          'Sucursal cargada -> ${sucursal.sucursalId} '
+          'venta=${sucursal.autorizadoVenta}',
+        );
       }
     } catch (e, st) {
       debugPrint(e.toString());
@@ -171,7 +173,8 @@ class _AsignarSucursalDialogState extends ConsumerState<AsignarSucursalDialog> {
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            '${seleccionadas.length} sucursal(es) seleccionadas',
+                            '${seleccionadas.length} sucursal(es) asignadas • '
+                            '${autorizadasVenta.length} autorizadas para venta',
                           ),
                         ),
                       ],
@@ -187,14 +190,35 @@ class _AsignarSucursalDialogState extends ConsumerState<AsignarSucursalDialog> {
 
                         return _SucursalCheckboxCard(
                           sucursal: sucursal,
-                          checked: seleccionadas.contains(sucursal.id),
+
+                          asignada: seleccionadas.contains(sucursal.id),
+
+                          autorizadaVenta: autorizadasVenta.contains(
+                            sucursal.id,
+                          ),
+
                           enabled: !guardando,
-                          onChanged: (value) {
+
+                          onAsignadaChanged: (value) {
                             setState(() {
                               if (value) {
                                 seleccionadas.add(sucursal.id);
                               } else {
                                 seleccionadas.remove(sucursal.id);
+
+                                // si ya no está asignada,
+                                // tampoco puede vender
+                                autorizadasVenta.remove(sucursal.id);
+                              }
+                            });
+                          },
+
+                          onVentaChanged: (value) {
+                            setState(() {
+                              if (value) {
+                                autorizadasVenta.add(sucursal.id);
+                              } else {
+                                autorizadasVenta.remove(sucursal.id);
                               }
                             });
                           },
@@ -254,6 +278,7 @@ class _AsignarSucursalDialogState extends ConsumerState<AsignarSucursalDialog> {
                             empresaId: widget.empresa.id,
                             usuarioId: widget.usuario.id,
                             sucursalesSeleccionadas: seleccionadas.toList(),
+                            sucursalesVenta: autorizadasVenta.toList(),
                           );
 
                       if (!mounted) return;
@@ -290,34 +315,79 @@ class _AsignarSucursalDialogState extends ConsumerState<AsignarSucursalDialog> {
 
 class _SucursalCheckboxCard extends StatelessWidget {
   final Sucursal sucursal;
-  final bool checked;
+
+  final bool asignada;
+  final bool autorizadaVenta;
+
   final bool enabled;
-  final ValueChanged<bool> onChanged;
+
+  final ValueChanged<bool> onAsignadaChanged;
+  final ValueChanged<bool> onVentaChanged;
 
   const _SucursalCheckboxCard({
     required this.sucursal,
-    required this.checked,
+    required this.asignada,
+    required this.autorizadaVenta,
     required this.enabled,
-    required this.onChanged,
+    required this.onAsignadaChanged,
+    required this.onVentaChanged,
   });
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: checked ? 4 : 1,
-      color: checked ? Colors.green.withOpacity(0.08) : null,
-      child: CheckboxListTile(
-        value: checked,
-        controlAffinity: ListTileControlAffinity.leading,
+      elevation: asignada ? 4 : 1,
+      color: asignada ? Colors.green.withOpacity(.08) : null,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Checkbox(
+                  value: asignada,
+                  onChanged: enabled
+                      ? (v) => onAsignadaChanged(v ?? false)
+                      : null,
+                ),
 
-        title: Text(
-          sucursal.nombre,
-          style: const TextStyle(fontWeight: FontWeight.w600),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        sucursal.nombre,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+
+                      if ((sucursal.direccion ?? '').isNotEmpty)
+                        Text(sucursal.direccion!),
+                    ],
+                  ),
+                ),
+
+                const Text('Asignado'),
+              ],
+            ),
+
+            const Divider(),
+
+            Row(
+              children: [
+                const SizedBox(width: 42),
+
+                Checkbox(
+                  value: autorizadaVenta,
+                  onChanged: enabled && asignada
+                      ? (v) => onVentaChanged(v ?? false)
+                      : null,
+                ),
+
+                const Text('Puede vender'),
+              ],
+            ),
+          ],
         ),
-
-        subtitle: Text(sucursal.direccion ?? ''),
-
-        onChanged: enabled ? (v) => onChanged(v ?? false) : null,
       ),
     );
   }

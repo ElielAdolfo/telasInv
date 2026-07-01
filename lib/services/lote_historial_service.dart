@@ -1,7 +1,7 @@
 // lib/services/lote_historial_service.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:inv_telas/models/stock_actual.dart';
+import 'package:inv_telas/models/ventas/stock_actual.dart';
 import '../config/env.dart';
 import '../models/lotes/lote.dart';
 import '../models/lotes/lote_estado.dart';
