@@ -1,5 +1,1 @@
-modificar_rollos_screen.dart
-//observacion de mejora 
-1)guardar en el mismo orden que el usuario puso y devolver en el mismo orden
-2)no aceptar dos con el mismo color 
-3)falta configuraciones de las telas como ser numero de rollo
+revisar al crear una empresa que se le este dando el rol admin

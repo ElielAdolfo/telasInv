@@ -16,32 +16,42 @@ import 'package:inv_telas/services/rol_service.dart';
 class SessionState {
   final Usuario? usuario;
   final Empresa? empresaActual;
+  final dynamic sucursalActual; // Se asignará la sucursal activa
   final Rol? rolActual;
 
   final List<Rol> rolesDisponibles;
   final List<Empresa> empresasDisponibles;
+  final List<dynamic>
+  sucursalesDisponibles; // Almacena las sucursales de la empresa seleccionada
 
   const SessionState({
     this.usuario,
     this.empresaActual,
+    this.sucursalActual,
     this.rolActual,
     this.rolesDisponibles = const [],
     this.empresasDisponibles = const [],
+    this.sucursalesDisponibles = const [],
   });
 
   SessionState copyWith({
     Usuario? usuario,
     Empresa? empresaActual,
+    dynamic sucursalActual,
     Rol? rolActual,
     List<Rol>? rolesDisponibles,
     List<Empresa>? empresasDisponibles,
+    List<dynamic>? sucursalesDisponibles,
   }) {
     return SessionState(
       usuario: usuario ?? this.usuario,
       empresaActual: empresaActual ?? this.empresaActual,
+      sucursalActual: sucursalActual ?? this.sucursalActual,
       rolActual: rolActual ?? this.rolActual,
       rolesDisponibles: rolesDisponibles ?? this.rolesDisponibles,
       empresasDisponibles: empresasDisponibles ?? this.empresasDisponibles,
+      sucursalesDisponibles:
+          sucursalesDisponibles ?? this.sucursalesDisponibles,
     );
   }
 }
@@ -59,7 +69,6 @@ class SessionNotifier extends StateNotifier<SessionState> {
   /// -----------------------------------
   Future<void> initSession(Usuario user) async {
     try {
-      final rolService = ref.read(rolServiceProvider);
       final empresaService = ref.read(empresaServiceProvider);
 
       print('🔍 Iniciando sesión ${user.nombre}');
@@ -67,13 +76,14 @@ class SessionNotifier extends StateNotifier<SessionState> {
       /// SUPER ADMIN GLOBAL
       if (user.esSuperAdmin) {
         final rolService = ref.read(rolServiceProvider);
-
         final roles = await rolService.getRolesByIds(['superAdmin']);
 
         state = state.copyWith(
           usuario: user,
           empresaActual: null,
+          sucursalActual: null,
           empresasDisponibles: [],
+          sucursalesDisponibles: [],
           rolesDisponibles: roles,
           rolActual: roles.isNotEmpty ? roles.first : null,
         );
@@ -98,46 +108,12 @@ class SessionNotifier extends StateNotifier<SessionState> {
         return;
       }
 
-      /// EMPRESA DEFAULT
       final empresaSeleccionada = empresas.first;
 
-      /// RELACIÓN EMPRESA-USUARIO
-      final relacionEmpresa = user.empresas.firstWhere(
-        (e) => e.empresaId == empresaSeleccionada.id,
-        orElse: () => UsuarioEmpresaRol(empresaId: ''),
-      );
+      // Establecemos las empresas y disparamos el flujo encadenado para la primera
+      state = state.copyWith(usuario: user, empresasDisponibles: empresas);
 
-      /// CARGAR ROLES
-      List<Rol> roles = [];
-
-      final rolesIds = _obtenerRolesEmpresa(relacionEmpresa);
-
-      if (rolesIds.isNotEmpty) {
-        roles = await rolService.getRolesByIds(rolesIds);
-      }
-
-      /// SI EXISTE SUPERADMIN LO PRIORIZAMOS
-      Rol? rolInicial;
-
-      try {
-        rolInicial = roles.firstWhere((r) => r.id == 'superAdmin');
-      } catch (_) {
-        if (roles.isNotEmpty) {
-          rolInicial = roles.first;
-        }
-      }
-
-      state = state.copyWith(
-        usuario: user,
-        empresaActual: empresaSeleccionada,
-        empresasDisponibles: empresas,
-        rolesDisponibles: roles,
-        rolActual: rolInicial,
-      );
-
-      print('✅ Empresa actual: ${empresaSeleccionada.nombre}');
-
-      print('✅ Rol actual: ${rolInicial?.nombre}');
+      await _seleccionarEmpresaFlujo(empresaSeleccionada, user);
     } catch (e) {
       print('❌ initSession: $e');
     }
@@ -149,27 +125,67 @@ class SessionNotifier extends StateNotifier<SessionState> {
   Future<void> cambiarEmpresa(Empresa nuevaEmpresa) async {
     try {
       final user = state.usuario;
-
       if (user == null) return;
 
+      await _seleccionarEmpresaFlujo(nuevaEmpresa, user);
+      print('🔄 Empresa cambiada: ${nuevaEmpresa.nombre}');
+    } catch (e) {
+      print('❌ cambiarEmpresa: $e');
+    }
+  }
+
+  /// -----------------------------------
+  /// FLUJO INTERNO: Cargar Sucursales de la Empresa
+  /// -----------------------------------
+  Future<void> _seleccionarEmpresaFlujo(Empresa empresa, Usuario user) async {
+    final relacionEmpresa = user.empresas.firstWhere(
+      (e) => e.empresaId == empresa.id,
+      orElse: () => UsuarioEmpresaRol(empresaId: ''),
+    );
+
+    // Filtramos únicamente las sucursales que están activas y no eliminadas
+    final sucursalesValidas = relacionEmpresa.sucursales
+        .where((s) => s.activo && !s.eliminado)
+        .toList();
+
+    dynamic sucursalInicial = sucursalesValidas.isNotEmpty
+        ? sucursalesValidas.first
+        : null;
+
+    state = state.copyWith(
+      empresaActual: empresa,
+      sucursalesDisponibles: sucursalesValidas,
+      sucursalActual: sucursalInicial,
+    );
+
+    // Si encontramos una sucursal por defecto, cargamos sus roles específicos
+    if (sucursalInicial != null) {
+      await cambiarSucursal(sucursalInicial);
+    } else {
+      // Si la empresa no tiene sucursales asignadas, limpiamos roles
+      state = state.copyWith(rolesDisponibles: [], rolActual: null);
+    }
+  }
+
+  /// -----------------------------------
+  /// CAMBIAR SUCURSAL (Filtra roles específicos)
+  /// -----------------------------------
+  Future<void> cambiarSucursal(dynamic nuevaSucursal) async {
+    try {
       final rolService = ref.read(rolServiceProvider);
 
-      final relacionEmpresa = user.empresas.firstWhere(
-        (e) => e.empresaId == nuevaEmpresa.id,
-        orElse: () => UsuarioEmpresaRol(empresaId: ''),
+      // Obtenemos los IDs de los roles mapeados ÚNICAMENTE en esta sucursal
+      final List<String> rolesIds = List<String>.from(
+        nuevaSucursal.rolesIds ?? [],
       );
-
       List<Rol> roles = [];
-
-      final rolesIds = _obtenerRolesEmpresa(relacionEmpresa);
 
       if (rolesIds.isNotEmpty) {
         roles = await rolService.getRolesByIds(rolesIds);
       }
 
-      /// SUPERADMIN PRIORIDAD
+      /// SI EXISTE SUPERADMIN LO PRIORIZAMOS
       Rol? rolInicial;
-
       try {
         rolInicial = roles.firstWhere((r) => r.id == 'superAdmin');
       } catch (_) {
@@ -179,16 +195,17 @@ class SessionNotifier extends StateNotifier<SessionState> {
       }
 
       state = state.copyWith(
-        empresaActual: nuevaEmpresa,
+        sucursalActual: nuevaSucursal,
         rolesDisponibles: roles,
         rolActual: rolInicial,
       );
 
-      print('🔄 Empresa cambiada: ${nuevaEmpresa.nombre}');
-
-      print('🔄 Rol actual: ${rolInicial?.nombre}');
+      // CORREGIDO: Usamos sucursalId en lugar de nombre para el log
+      print(
+        '✅ Sucursal actual: ${nuevaSucursal.sucursalId} | Roles cargados: ${roles.length}',
+      );
     } catch (e) {
-      print('❌ cambiarEmpresa: $e');
+      print('❌ cambiarSucursal: $e');
     }
   }
 
@@ -204,9 +221,7 @@ class SessionNotifier extends StateNotifier<SessionState> {
   /// -----------------------------------
   Future<void> refreshSession() async {
     final user = state.usuario;
-
     if (user == null) return;
-
     await initSession(user);
   }
 
@@ -215,20 +230,6 @@ class SessionNotifier extends StateNotifier<SessionState> {
   /// -----------------------------------
   void logout() {
     state = const SessionState();
-  }
-
-  List<String> _obtenerRolesEmpresa(UsuarioEmpresaRol relacionEmpresa) {
-    final rolesIds = <String>{};
-
-    for (final sucursal in relacionEmpresa.sucursales) {
-      if (!sucursal.activo || sucursal.eliminado) {
-        continue;
-      }
-
-      rolesIds.addAll(sucursal.rolesIds);
-    }
-
-    return rolesIds.toList();
   }
 
   UsuarioEmpresaPermiso? get permisoEmpresaActual {
@@ -276,7 +277,6 @@ final sessionProvider = StateNotifierProvider<SessionNotifier, SessionState>((
 });
 
 final rolServiceProvider = Provider<RolService>((ref) => RolService());
-
 final menuServiceProvider = Provider<MenuService>((ref) => MenuService());
 
 /// =====================================
@@ -284,39 +284,24 @@ final menuServiceProvider = Provider<MenuService>((ref) => MenuService());
 /// =====================================
 final allowedMenusProvider = FutureProvider<List<MenuApp>>((ref) async {
   final session = ref.watch(sessionProvider);
-
   final user = session.usuario;
 
-  if (user == null) {
-    return [];
-  }
+  if (user == null) return [];
 
   final menuService = ref.read(menuServiceProvider);
 
-  /// SUPER ADMIN
   if (user.esSuperAdmin) {
     return menuService.getAllMenus();
   }
 
   final rol = session.rolActual;
-
-  if (rol == null) {
-    return [];
-  }
-
-  if (rol.menusPermitidos.isEmpty) {
-    return [];
-  }
+  if (rol == null || rol.menusPermitidos.isEmpty) return [];
 
   return menuService.getMenusByIds(rol.menusPermitidos);
 });
 
 final currentUserProvider = Provider<Usuario>((ref) {
   final user = ref.watch(sessionProvider).usuario;
-
-  if (user == null) {
-    throw Exception('No hay sesión activa');
-  }
-
+  if (user == null) throw Exception('No hay sesión activa');
   return user;
 });

@@ -222,6 +222,52 @@ class _PrincipalShellState extends ConsumerState<PrincipalShell> {
 
         // En el build del AppBar, dentro de actions:
         actions: [
+          /// SELECTOR DE SUCURSAL (Nuevo)
+          /// SELECTOR DE SUCURSAL (Corregido con ID)
+          if (!user!.esSuperAdmin && session.sucursalesDisponibles.length > 1)
+            PopupMenuButton<dynamic>(
+              icon: Row(
+                children: [
+                  const Icon(Icons.place, color: Colors.white, size: 16),
+                  const SizedBox(width: 4),
+                  Text(
+                    // Cambiado .nombre por .sucursalId
+                    session.sucursalActual != null
+                        ? 'Sucursal: ${session.sucursalActual.sucursalId}'
+                        : "Sucursal",
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                  const Icon(Icons.arrow_drop_down, color: Colors.white),
+                ],
+              ),
+              onSelected: (dynamic sucursal) async {
+                await ref
+                    .read(sessionProvider.notifier)
+                    .cambiarSucursal(sucursal);
+              },
+              itemBuilder: (context) {
+                return session.sucursalesDisponibles.map((sucursal) {
+                  final isSelected =
+                      session.sucursalActual?.sucursalId == sucursal.sucursalId;
+                  return PopupMenuItem<dynamic>(
+                    value: sucursal,
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.check,
+                          size: 20,
+                          color: isSelected ? Colors.green : Colors.transparent,
+                        ),
+                        const SizedBox(width: 8),
+                        // Cambiado sucursal.nombre por sucursal.sucursalId
+                        Text('ID: ${sucursal.sucursalId}'),
+                      ],
+                    ),
+                  );
+                }).toList();
+              },
+            ),
+
           /// SELECTOR DE ROL (Nuevo)
           //if (session.rolesDisponibles.length > 1)
           PopupMenuButton<Rol>(
