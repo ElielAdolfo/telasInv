@@ -376,4 +376,28 @@ class AsignacionService {
 
     return []; // Si no encuentra coincidencia, retorna una lista vacía
   }
+
+  Future<List<UsuarioSucursalRol>> obtenerSucursalesVentaUsuario({
+    required String empresaId,
+    required String usuarioId,
+  }) async {
+    final usuarioDoc = await _usuariosRef.doc(usuarioId).get();
+
+    if (!usuarioDoc.exists) return [];
+
+    final usuarioData = usuarioDoc.data();
+
+    if (usuarioData == null) return [];
+
+    final empresas = (usuarioData['empresas'] as List<dynamic>? ?? [])
+        .map((e) => UsuarioEmpresaRol.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+
+    final empresa = empresas.firstWhere(
+      (e) => e.empresaId == empresaId,
+      orElse: () => throw Exception('Empresa no asignada'),
+    );
+
+    return empresa.sucursales.where((s) => s.autorizadoVenta).toList();
+  }
 }

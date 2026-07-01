@@ -4,6 +4,7 @@ import 'package:inv_telas/core/providers/session_provider.dart';
 
 import 'package:inv_telas/models/empresa.dart';
 import 'package:inv_telas/models/usuario.dart';
+import 'package:inv_telas/models/usuario_sucursal_rol.dart';
 
 import 'package:inv_telas/services/asignacion_service.dart';
 
@@ -102,6 +103,16 @@ class AsignacionNotifier {
       empresaId: empresaId,
       usuarioId: usuarioId,
       sucursalId: sucursalId,
+    );
+  }
+
+  Future<List<UsuarioSucursalRol>> obtenerSucursalesVentaUsuario({
+    required String empresaId,
+    required String usuarioId,
+  }) {
+    return _service.obtenerSucursalesVentaUsuario(
+      empresaId: empresaId,
+      usuarioId: usuarioId,
     );
   }
 }
