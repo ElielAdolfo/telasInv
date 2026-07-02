@@ -1,20 +1,9 @@
-/*✔ buscar usuario por correo
-✔ agregar usuario a empresa
-✔ asignar sucursales
-✔ sincronizar sucursales
-✔ asignar roles
-✔ desactivar usuario de empresa
-✔ obtener usuarios de empresa*/
-
 import 'package:cloud_firestore/cloud_firestore.dart';
-
 import 'package:inv_telas/config/env.dart';
-
 import 'package:inv_telas/models/empresa.dart';
 import 'package:inv_telas/models/usuario.dart';
 import 'package:inv_telas/models/usuario_empresa_rol.dart';
 import 'package:inv_telas/models/usuario_sucursal_rol.dart';
-
 import 'package:inv_telas/moduloAsignacion/utils/asignacion_mapper.dart';
 
 class AsignacionService {
@@ -87,7 +76,6 @@ class AsignacionService {
     required String usuarioAccionId,
   }) async {
     final empresaDoc = await _empresasRef.doc(empresa.id).get();
-
     final usuarioDoc = await _usuariosRef.doc(usuario.id).get();
 
     if (!empresaDoc.exists || !usuarioDoc.exists) {
@@ -102,7 +90,6 @@ class AsignacionService {
       }
 
       final existe = permiso.sucursales.any((s) => s.sucursalId == sucursalId);
-
       if (existe) {
         return permiso;
       }
@@ -121,7 +108,6 @@ class AsignacionService {
     }).toList();
 
     final usuarioData = usuarioDoc.data()!;
-
     final empresasUsuario = (usuarioData['empresas'] as List<dynamic>? ?? [])
         .map((e) => UsuarioEmpresaRol.fromJson(Map<String, dynamic>.from(e)))
         .toList();
@@ -134,7 +120,6 @@ class AsignacionService {
       final existe = empresaRol.sucursales.any(
         (s) => s.sucursalId == sucursalId,
       );
-
       if (existe) {
         return empresaRol;
       }
@@ -176,7 +161,6 @@ class AsignacionService {
     required String usuarioAccionId,
   }) async {
     final empresaDoc = await _empresasRef.doc(empresaId).get();
-
     final usuarioDoc = await _usuariosRef.doc(usuarioId).get();
 
     if (!empresaDoc.exists || !usuarioDoc.exists) {
@@ -185,10 +169,7 @@ class AsignacionService {
 
     final empresa = Empresa.fromFirestore(empresaDoc);
 
-    // ===================================================
-    // EMPRESA
-    // ===================================================
-
+    // Actualización en Empresa
     final usuariosPermitidos = empresa.usuariosPermitidos.map((permiso) {
       if (permiso.usuarioId != usuarioId) {
         return permiso;
@@ -201,26 +182,19 @@ class AsignacionService {
                 sucursalId: id,
                 rolesIds: const [],
                 autorizadoVenta: sucursalesVenta.contains(id),
-
                 fechaCreacion: DateTime.now(),
                 fechaActualizacion: DateTime.now(),
-
                 usuarioCreadorId: usuarioAccionId,
                 usuarioModificadorId: usuarioAccionId,
               ),
             )
             .toList(),
-
         fechaActualizacion: DateTime.now(),
       );
     }).toList();
 
-    // ===================================================
-    // USUARIO
-    // ===================================================
-
+    // Actualización en Usuario
     final usuarioData = usuarioDoc.data()!;
-
     final empresasUsuario = (usuarioData['empresas'] as List<dynamic>? ?? [])
         .map((e) => UsuarioEmpresaRol.fromJson(Map<String, dynamic>.from(e)))
         .toList();
@@ -237,16 +211,13 @@ class AsignacionService {
                 sucursalId: id,
                 rolesIds: const [],
                 autorizadoVenta: sucursalesVenta.contains(id),
-
                 fechaCreacion: DateTime.now(),
                 fechaActualizacion: DateTime.now(),
-
                 usuarioCreadorId: usuarioAccionId,
                 usuarioModificadorId: usuarioAccionId,
               ),
             )
             .toList(),
-
         fechaActualizacion: DateTime.now(),
       );
     }).toList();
@@ -262,7 +233,6 @@ class AsignacionService {
     });
 
     await batch.commit();
-
     print('✅ Sucursales sincronizadas');
   }
 
@@ -276,7 +246,6 @@ class AsignacionService {
     required List<String> rolesIds,
   }) async {
     final empresaDoc = await _empresasRef.doc(empresa.id).get();
-
     final usuarioDoc = await _usuariosRef.doc(usuario.id).get();
 
     if (!empresaDoc.exists || !usuarioDoc.exists) {
@@ -305,7 +274,6 @@ class AsignacionService {
     }).toList();
 
     final usuarioData = usuarioDoc.data()!;
-
     final empresasUsuario = (usuarioData['empresas'] as List<dynamic>? ?? [])
         .map((e) => UsuarioEmpresaRol.fromJson(Map<String, dynamic>.from(e)))
         .toList();
@@ -357,26 +325,26 @@ class AsignacionService {
     final usuarioData = usuarioDoc.data();
     if (usuarioData == null) return [];
 
-    // Mapeamos las empresas asociadas al usuario usando tu estructura
     final empresasUsuario = (usuarioData['empresas'] as List<dynamic>? ?? [])
         .map((e) => UsuarioEmpresaRol.fromJson(Map<String, dynamic>.from(e)))
         .toList();
 
-    // Buscamos la empresa y la sucursal solicitada
     for (final empresaRol in empresasUsuario) {
       if (empresaRol.empresaId == empresaId) {
         for (final sucursalRol in empresaRol.sucursales) {
           if (sucursalRol.sucursalId == sucursalId) {
-            return sucursalRol
-                .rolesIds; // Retorna los roles reales ("admin", etc.)
+            return sucursalRol.rolesIds;
           }
         }
       }
     }
 
-    return []; // Si no encuentra coincidencia, retorna una lista vacía
+    return [];
   }
 
+  // ============================================================
+  // OBTENER SUCURSALES AUTORIZADAS PARA VENTA
+  // ============================================================
   Future<List<UsuarioSucursalRol>> obtenerSucursalesVentaUsuario({
     required String empresaId,
     required String usuarioId,
@@ -386,7 +354,6 @@ class AsignacionService {
     if (!usuarioDoc.exists) return [];
 
     final usuarioData = usuarioDoc.data();
-
     if (usuarioData == null) return [];
 
     final empresas = (usuarioData['empresas'] as List<dynamic>? ?? [])
