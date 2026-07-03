@@ -20,6 +20,7 @@ class JsonService {
     'sucursales',
     'tiposTela',
     'usuarios',
+    'stock_actual',
   ];
 
   /// Obtener colecciones separadas

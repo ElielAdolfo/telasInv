@@ -246,6 +246,7 @@ class IconMapper {
     'tablet': Icons.tablet,
     'format_color_fill': Icons.format_color_fill,
     'mediation': Icons.mediation,
+    'swap_horiz': Icons.swap_horiz,
   };
 
   static IconData getIcon(String? iconName) {

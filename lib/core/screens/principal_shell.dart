@@ -12,6 +12,7 @@ import 'package:inv_telas/moduloAbms/sucursal/screens/sucursales_abm_screen.dart
 import 'package:inv_telas/moduloAbms/tipos_tela/screens/tipos_tela_abm_screen.dart';
 import 'package:inv_telas/moduloAsignacion/screens/usuarios_empresa_screen.dart';
 import 'package:inv_telas/moduloLotes/screens/lotes_abm_screen.dart';
+import 'package:inv_telas/moduloTraspasos/screens/traspasos_screen.dart';
 import 'package:inv_telas/moduloVentas/screens/ventas_pos_screen.dart';
 import 'package:inv_telas/modulo_json/screens/json_view_screen.dart';
 import 'package:inv_telas/providers/auth_provider.dart';
@@ -55,7 +56,7 @@ class _PrincipalShellState extends ConsumerState<PrincipalShell> {
     '/colores': const ColoresAbmScreen(),
     '/moneda': const MonedasAbmScreen(),
     '/lote': const LotesAbmScreen(),
-    '/proveedor-colores': const CodigoTelaProveedorPage(),
+    '/traspaso': const TraspasosScreen(),
   };
 
   /// Navegación

@@ -1,4 +1,4 @@
-// lib/models/stock_actual.dart
+// lib/models/ventas/stock_actual.dart
 
 enum StockRolloEstado { cerrado, abierto, vendido }
 
@@ -53,6 +53,13 @@ class StockActual {
     required this.fechaIngresoStock,
   });
 
+  /// METODO EXTRA PARA OBTENER EL DATO DINÁMICO (Número de rollo / Largo)
+  /// Extrae el primer valor registrado en los atributos especiales, o retorna 'S/N' si está vacío.
+  String obtenerDiferenciador() {
+    if (atributosEspeciales.isEmpty) return 'S/N';
+    return atributosEspeciales.values.first.toString();
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -69,5 +76,34 @@ class StockActual {
       'estado': estado.nombre,
       'fechaIngresoStock': fechaIngresoStock.toIso8601String(),
     };
+  }
+
+  factory StockActual.fromJson(Map<String, dynamic> json) {
+    return StockActual(
+      id: json['id'] ?? '',
+      loteId: json['loteId'] ?? '',
+      loteDetalleId: json['loteDetalleId'] ?? '',
+      tipoTelaId: json['tipoTelaId'] ?? '',
+      idRollo: json['idRollo'] ?? '',
+      numeroFisico: json['numeroFisico'] is int
+          ? json['numeroFisico']
+          : int.tryParse(json['numeroFisico']?.toString() ?? '0') ?? 0,
+      sucursalActualId: json['sucursalActualId'] ?? '',
+      colorId: json['colorId'],
+      atributosEspeciales: json['atributosEspeciales'] is Map
+          ? Map<String, dynamic>.from(json['atributosEspeciales'])
+          : {},
+      metrajeOriginal: json['metrajeOriginal'] is num
+          ? (json['metrajeOriginal'] as num).toDouble()
+          : double.tryParse(json['metrajeOriginal']?.toString() ?? '0.0') ??
+                0.0,
+      metrajeActual: json['metrajeActual'] is num
+          ? (json['metrajeActual'] as num).toDouble()
+          : double.tryParse(json['metrajeActual']?.toString() ?? '0.0') ?? 0.0,
+      estado: StockRolloEstadoExtension.fromString(json['estado'] ?? 'CERRADO'),
+      fechaIngresoStock:
+          DateTime.tryParse(json['fechaIngresoStock']?.toString() ?? '') ??
+          DateTime.now(),
+    );
   }
 }
