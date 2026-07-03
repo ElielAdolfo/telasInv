@@ -3,10 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/models/abmTiposTelas/color_tela.dart';
 import 'package:inv_telas/models/abmTiposTelas/tipo_tela.dart';
 import 'package:inv_telas/models/ventas/stock_actual.dart';
+import 'package:inv_telas/providers/lote_provider.dart';
 import 'traspaso_provider.dart';
 import 'color_provider.dart';
 import 'tipo_tela_provider.dart';
 import 'codigo_unico_tela_proveedor_provider.dart';
+// ⚠️ Asegúrate de importar el archivo correcto donde declaraste el lotesProvider abajo, por ejemplo:
+// import 'lote_provider.dart';
 
 /// Modelo de vista optimizado que agrupa los rollos listos para renderizar
 class TraspasoGrupoUi {
@@ -15,6 +18,8 @@ class TraspasoGrupoUi {
   final String colorNombre;
   final Color flutterColor;
   final String? codigoUnicoProveedor;
+  final String?
+  numeroLote; // 👈 1. AGREGADO: Nueva propiedad para guardar el número de lote real
   final List<StockActual> rollos;
 
   /// Mapa ID_CAMPO -> NOMBRE_CAMPO
@@ -29,6 +34,7 @@ class TraspasoGrupoUi {
     required this.colorNombre,
     required this.flutterColor,
     this.codigoUnicoProveedor,
+    this.numeroLote, // 👈 2. AGREGADO al constructor
     required this.rollos,
     required this.nombresCamposConfigurables,
     this.valoresDiferenciadoresGrupo = const {},
@@ -49,11 +55,16 @@ final traspasoGruposProcesadosProvider =
       final codigosAsync = ref.watch(
         codigosUnicoTelaProveedorProvider(empresaId),
       );
+      final lotesAsync = ref.watch(
+        lotesProvider(empresaId),
+      ); // 👈 3. ESCUCHAR: Observamos el provider de lotes
 
+      // 👈 4. CONTROL DE CARGA: Añadida la verificación de lotesAsync
       if (state.isLoading ||
           coloresAsync.isLoading ||
           tiposTelaAsync.isLoading ||
-          codigosAsync.isLoading) {
+          codigosAsync.isLoading ||
+          lotesAsync.isLoading) {
         return const AsyncValue.loading();
       }
 
@@ -70,6 +81,11 @@ final traspasoGruposProcesadosProvider =
 
       if (codigosAsync.hasError) {
         return AsyncValue.error(codigosAsync.error!, codigosAsync.stackTrace!);
+      }
+
+      // 👈 5. CONTROL DE ERRORES: Añadido el manejador de error de lotesAsync
+      if (lotesAsync.hasError) {
+        return AsyncValue.error(lotesAsync.error!, lotesAsync.stackTrace!);
       }
 
       final rollosCerrados = state.items
@@ -103,6 +119,9 @@ final traspasoGruposProcesadosProvider =
       final listaColores = coloresAsync.value ?? [];
       final listaTiposTela = tiposTelaAsync.value ?? [];
       final listaCodigosUnicos = codigosAsync.value ?? [];
+      final listaLotes =
+          lotesAsync.value ??
+          []; // 👈 6. ASIGNACIÓN: Obtenemos los lotes resueltos
 
       /// =====================================================
       /// MAPA GLOBAL ID_CAMPO -> Nombre de Campo
@@ -217,6 +236,20 @@ final traspasoGruposProcesadosProvider =
         }
 
         /// =====================================================
+        /// 👈 7. CRUCE: Localizamos el Lote para extraer su `numeroLote`
+        /// =====================================================
+        String? numeroLoteEncontrado;
+        try {
+          final loteMaestro = listaLotes.firstWhere(
+            (l) => l.id == primerRollo.loteId,
+          );
+          numeroLoteEncontrado =
+              loteMaestro.numeroLote; // Mapea directo a tu modelo Lote
+        } catch (_) {
+          numeroLoteEncontrado = 'Sin Nro Lote';
+        }
+
+        /// =====================================================
         /// DIFERENCIADORES DE CABECERA (SEGURO Y DETERMINÍSTICO)
         /// =====================================================
         final Map<String, String> valoresDiferenciadoresGrupo = {};
@@ -265,6 +298,8 @@ final traspasoGruposProcesadosProvider =
             colorNombre: colorMaestro.nombre,
             flutterColor: colorMaestro.toFlutterColor,
             codigoUnicoProveedor: codigoUnicoEncontrado,
+            numeroLote:
+                numeroLoteEncontrado, // 👈 8. ENVIADO: Pasamos el valor al UI wrapper
             rollos: rollos,
             nombresCamposConfigurables: nombresCamposConfigurables,
             valoresDiferenciadoresGrupo: valoresDiferenciadoresGrupo,

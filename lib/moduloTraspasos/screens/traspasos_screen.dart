@@ -27,7 +27,6 @@ class _TraspasosPageState extends ConsumerState<TraspasosScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // CORRECCIÓN 1: Usar 'watch' en lugar de 'read' para el sessionProvider dentro de build
     final session = ref.watch(sessionProvider);
     final empresa = session.empresaActual;
     final state = ref.watch(traspasoProvider);
@@ -125,7 +124,6 @@ class _TraspasosPageState extends ConsumerState<TraspasosScreen> {
                         itemBuilder: (context, index) {
                           final grupo = grupos[index];
 
-                          // CORRECCIÓN 2: Extracción a un widget independiente para evitar pérdida de foco y fugas de memoria
                           return TraspasoGrupoCard(
                             key: ValueKey(grupo.groupKey),
                             grupo: grupo,
@@ -193,8 +191,7 @@ class _TraspasosPageState extends ConsumerState<TraspasosScreen> {
 // COMPONENTE EXTRAÍDO Y OPTIMIZADO POR GRUPO
 // ==========================================
 class TraspasoGrupoCard extends ConsumerStatefulWidget {
-  final dynamic
-  grupo; // Reemplaza 'dynamic' por tu modelo específico (ej. TraspasoGrupoUi)
+  final dynamic grupo; // Reemplaza por tu modelo (ej. TraspasoGrupoUi)
   final String sucursalFiltro;
 
   const TraspasoGrupoCard({
@@ -229,13 +226,11 @@ class _TraspasoGrupoCardState extends ConsumerState<TraspasoGrupoCard> {
   Widget build(BuildContext context) {
     final state = ref.watch(traspasoProvider);
 
-    // Sincronizar el TextField si las casillas de verificación (checkboxes) cambian externamente
     final idsGrupo = widget.grupo.rollos.map((r) => r.id).toSet();
     final seleccionadosDelGrupo = state.seleccionadosIds
         .where((id) => idsGrupo.contains(id))
         .length;
 
-    // Solo actualiza el texto si el usuario NO está escribiendo activamente en este campo
     if (!_focusNode.hasFocus) {
       if (seleccionadosDelGrupo == 0) {
         if (_cantidadController.text.isNotEmpty) _cantidadController.clear();
@@ -295,7 +290,7 @@ class _TraspasoGrupoCardState extends ConsumerState<TraspasoGrupoCard> {
                         ),
                       ),
                       child: Text(
-                        'Cód. Color: ${widget.grupo.codigoUnicoProveedor}',
+                        'Color: ${widget.grupo.colorNombre} (${widget.grupo.codigoUnicoProveedor}) (${widget.grupo.rollos.length} rollos) ',
                         style: TextStyle(
                           color: Colors.teal.shade900,
                           fontSize: 11,
@@ -303,10 +298,6 @@ class _TraspasoGrupoCardState extends ConsumerState<TraspasoGrupoCard> {
                         ),
                       ),
                     ),
-                  Text(
-                    'Color: ${widget.grupo.colorNombre} (${widget.grupo.rollos.length} rollos)',
-                    style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
-                  ),
                   if (widget.grupo.valoresDiferenciadoresGrupo.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Wrap(
@@ -372,7 +363,8 @@ class _TraspasoGrupoCardState extends ConsumerState<TraspasoGrupoCard> {
               return CheckboxListTile(
                 value: isSelected,
                 title: Text(
-                  'Rollo #${rollo.numeroFisico} - Lote: ${rollo.loteId}',
+                  // CORRECCIÓN 1: Cambiado 'grupoUi' por 'widget.grupo'
+                  'Rollo #${rollo.numeroFisico} - Nro Lote: ${widget.grupo.numeroLote ?? "N/A"}',
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -469,7 +461,6 @@ class _TraspasoGrupoCardState extends ConsumerState<TraspasoGrupoCard> {
                 ),
                 activeColor: Colors.indigo,
                 onChanged: (bool? checked) {
-                  // Si el usuario tenía escrito un número, limpiamos para que use el conteo real al hacer toggle manual
                   if (_cantidadController.text.isNotEmpty &&
                       !_focusNode.hasFocus) {
                     _cantidadController.clear();
@@ -516,6 +507,10 @@ class _TraspasoGrupoCardState extends ConsumerState<TraspasoGrupoCard> {
               nuevos.add(widget.grupo.rollos[i].id);
             }
           }
+
+          // CORRECCIÓN 2: Se llama a una función dedicada del Notifier.
+          // Debes asegurarte de añadir este método 'actualizarSeleccion' en tu TraspasoNotifier.
+          //ref.read(traspasoProvider.notifier).actualizarSeleccion(nuevos);
 
           // NOTA DE MEJORA: Lo ideal en Riverpod es invocar un método del Notifier, por ejemplo:
           // ref.read(traspasoProvider.notifier).cambiarSeleccionMasiva(nuevos);
