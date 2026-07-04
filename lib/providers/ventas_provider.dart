@@ -8,12 +8,11 @@ final ventasServiceProvider = Provider<VentasService>((ref) {
   return VentasService();
 });
 
-final jornadaActivaProvider =
-    StateNotifierProvider.family<
-      JornadaNotifier,
-      AsyncValue<JornadaLaboral?>,
-      String
-    >((ref, sucursalId) {
+final jornadaActivaProvider = StateNotifierProvider.autoDispose
+    .family<JornadaNotifier, AsyncValue<JornadaLaboral?>, String>((
+      ref,
+      sucursalId,
+    ) {
       final service = ref.read(ventasServiceProvider);
 
       return JornadaNotifier(service, sucursalId);

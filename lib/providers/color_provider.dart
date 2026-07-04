@@ -93,12 +93,11 @@ class ColorNotifier extends StateNotifier<AsyncValue<List<ColorTela>>> {
 
 /// Provider familiar reactivo que expone la lista de colores basados en la Empresa activa.
 /// Uso en UI: ref.watch(coloresProvider(empresaIdActual));
-final coloresProvider =
-    StateNotifierProvider.family<
-      ColorNotifier,
-      AsyncValue<List<ColorTela>>,
-      String
-    >((ref, empresaId) {
+final coloresProvider = StateNotifierProvider.autoDispose
+    .family<ColorNotifier, AsyncValue<List<ColorTela>>, String>((
+      ref,
+      empresaId,
+    ) {
       final service = ref.watch(colorServiceProvider);
       return ColorNotifier(service: service, empresaId: empresaId);
     });
@@ -202,8 +201,8 @@ class ColoresFiltradosNotifier
 }
 
 /// Provider que expone los colores filtrados por los tres parámetros usando un Record de Dart 3
-final coloresFiltradosProvider =
-    StateNotifierProvider.family<
+final coloresFiltradosProvider = StateNotifierProvider.autoDispose
+    .family<
       ColoresFiltradosNotifier,
       AsyncValue<List<ColorFiltrado>>,
       ({String empresaId, String proveedorId, String tipoTelaId})

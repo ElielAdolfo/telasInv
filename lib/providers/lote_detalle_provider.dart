@@ -9,7 +9,7 @@ final loteDetalleServiceProvider = Provider<LoteDetalleService>((ref) {
 });
 
 final loteDetallesProvider =
-    StateNotifierProvider.family<
+    StateNotifierProvider.autoDispose.family<
       LoteDetalleNotifier,
       AsyncValue<List<LoteDetalle>>,
       String

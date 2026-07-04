@@ -81,12 +81,8 @@ class GastoNotifier extends StateNotifier<AsyncValue<List<Gasto>>> {
   }
 }
 
-final gastosLoteProvider =
-    StateNotifierProvider.family<
-      GastoNotifier,
-      AsyncValue<List<Gasto>>,
-      GastoArgs
-    >((ref, args) {
+final gastosLoteProvider = StateNotifierProvider.autoDispose
+    .family<GastoNotifier, AsyncValue<List<Gasto>>, GastoArgs>((ref, args) {
       final service = ref.watch(gastoServiceProvider);
       return GastoNotifier(service: service, args: args);
     });

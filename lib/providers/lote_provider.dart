@@ -66,7 +66,7 @@ class LoteNotifier extends StateNotifier<AsyncValue<List<Lote>>> {
 }
 
 final lotesProvider =
-    StateNotifierProvider.family<LoteNotifier, AsyncValue<List<Lote>>, String>((
+    StateNotifierProvider.autoDispose.family<LoteNotifier, AsyncValue<List<Lote>>, String>((
       ref,
       empresaId,
     ) {

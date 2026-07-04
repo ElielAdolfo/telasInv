@@ -14,15 +14,22 @@ class FormAperturaJornada extends ConsumerWidget {
     final empresa = session.empresaActual?.nombre ?? 'Sin empresa';
     final empresaId = session.empresaActual?.id ?? '';
     final usuarioId = session.usuario?.id ?? '';
-    final sucursalId =
-        ref.watch(sucursalVentaSeleccionadaProvider) ?? 'Sin sucursal';
+
+    final sucursalId = session.sucursalActual?.sucursalId ?? 'Sin sucursal';
 
     final jornadaState = ref.watch(jornadaActivaProvider(sucursalId));
     final ultimaJornadaRegistrada = jornadaState.value;
 
-    // Evaluamos si el botón debe decir "Reabrir Jornada" o "Abrir Jornada"
+    // 1. Obtenemos la fecha de hoy en formato YYYY-MM-DD
+    final ahora = DateTime.now();
+    final fechaHoy =
+        "${ahora.year}-${ahora.month.toString().padLeft(2, '0')}-${ahora.day.toString().padLeft(2, '0')}";
+
+    // 2. Evaluamos si es candidata a reapertura SOLO si pertenece a la fecha de hoy
     final bool esReaperturaCandidata =
-        ultimaJornadaRegistrada != null && !ultimaJornadaRegistrada.abierta;
+        ultimaJornadaRegistrada != null &&
+        !ultimaJornadaRegistrada.abierta &&
+        ultimaJornadaRegistrada.fechaDia == fechaHoy; // 👈 NUEVA VALIDACIÓN
 
     return Center(
       child: Card(
