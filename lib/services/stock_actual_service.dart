@@ -20,4 +20,13 @@ class StockActualService {
       batch.set(docRef, item.toMap());
     }
   }
+
+  /// 🟢 AGREGA ESTE MÉTODO para obtener el stock (puedes filtrarlo por sucursal si lo requieres)
+  Future<List<StockActual>> obtenerStock() async {
+    final snapshot = await _stockRef.get();
+    return snapshot.docs.map((doc) {
+      // Ajusta 'fromJson' o 'fromMap' según cómo esté construido tu modelo StockActual
+      return StockActual.fromJson(doc.data());
+    }).toList();
+  }
 }

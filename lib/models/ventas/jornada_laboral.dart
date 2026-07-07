@@ -5,19 +5,13 @@ class JornadaLaboral {
   final String empresaId;
   final String sucursalId;
   final String usuarioId;
-
   final double tipoCambio;
-
   final double cajaInicialBs;
   final double? cajaFinalBs;
-
   final DateTime fechaApertura;
   final DateTime? fechaCierre;
-
   final bool abierta;
-
   final String fechaDia;
-
   final int reaperturas;
 
   const JornadaLaboral({
@@ -74,10 +68,8 @@ class JornadaLaboral {
       'tipoCambio': tipoCambio,
       'cajaInicialBs': cajaInicialBs,
       'cajaFinalBs': cajaFinalBs,
-      'fechaApertura': Timestamp.fromDate(fechaApertura),
-      'fechaCierre': fechaCierre != null
-          ? Timestamp.fromDate(fechaCierre!)
-          : null,
+      'fechaApertura': fechaApertura.toIso8601String(),
+      'fechaCierre': fechaCierre?.toIso8601String(),
       'abierta': abierta,
       'fechaDia': fechaDia,
       'reaperturas': reaperturas,
@@ -90,17 +82,27 @@ class JornadaLaboral {
       empresaId: map['empresaId'] ?? '',
       sucursalId: map['sucursalId'] ?? '',
       usuarioId: map['usuarioId'] ?? '',
-      tipoCambio: (map['tipoCambio'] as num?)?.toDouble() ?? 6.96,
-      cajaInicialBs: (map['cajaInicialBs'] as num?)?.toDouble() ?? 0,
+      tipoCambio: (map['tipoCambio'] as num?)?.toDouble() ?? 0.0,
+      cajaInicialBs: (map['cajaInicialBs'] as num?)?.toDouble() ?? 0.0,
       cajaFinalBs: (map['cajaFinalBs'] as num?)?.toDouble(),
-      fechaApertura:
-          (map['fechaApertura'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      fechaCierre: map['fechaCierre'] != null
-          ? (map['fechaCierre'] as Timestamp).toDate()
-          : null,
+      // 🟢 Modificado para parsear de forma segura usando la función auxiliar
+      fechaApertura: _parseFecha(map['fechaApertura']) ?? DateTime.now(),
+      fechaCierre: _parseFecha(map['fechaCierre']),
       abierta: map['abierta'] ?? false,
       fechaDia: map['fechaDia'] ?? '',
       reaperturas: map['reaperturas'] ?? 0,
     );
+  }
+
+  /// 🟢 Función de ayuda interna para procesar dinámicamente Timestamps de Firestore o Strings ISO
+  static DateTime? _parseFecha(dynamic valor) {
+    if (valor == null) return null;
+    if (valor is Timestamp) {
+      return valor.toDate();
+    }
+    if (valor is String) {
+      return DateTime.parse(valor);
+    }
+    return null;
   }
 }

@@ -1,6 +1,6 @@
-// lib/models/ventas/stock_actual.dart
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum StockRolloEstado { cerrado, abierto, vendido }
+enum StockRolloEstado { cerrado, abierto, sobra, vendido }
 
 extension StockRolloEstadoExtension on StockRolloEstado {
   String get nombre {
@@ -9,6 +9,8 @@ extension StockRolloEstadoExtension on StockRolloEstado {
         return 'CERRADO';
       case StockRolloEstado.abierto:
         return 'ABIERTO';
+      case StockRolloEstado.sobra:
+        return 'SOBRA';
       case StockRolloEstado.vendido:
         return 'VENDIDO';
     }
@@ -53,8 +55,6 @@ class StockActual {
     required this.fechaIngresoStock,
   });
 
-  /// METODO EXTRA PARA OBTENER EL DATO DINÁMICO (Número de rollo / Largo)
-  /// Extrae el primer valor registrado en los atributos especiales, o retorna 'S/N' si está vacío.
   String obtenerDiferenciador() {
     if (atributosEspeciales.isEmpty) return 'S/N';
     return atributosEspeciales.values.first.toString();
@@ -104,6 +104,38 @@ class StockActual {
       fechaIngresoStock:
           DateTime.tryParse(json['fechaIngresoStock']?.toString() ?? '') ??
           DateTime.now(),
+    );
+  }
+
+  StockActual copyWith({
+    String? id,
+    String? loteId,
+    String? loteDetalleId,
+    String? tipoTelaId,
+    String? idRollo,
+    int? numeroFisico,
+    String? sucursalActualId,
+    String? colorId,
+    Map<String, dynamic>? atributosEspeciales,
+    double? metrajeOriginal,
+    double? metrajeActual,
+    StockRolloEstado? estado,
+    DateTime? fechaIngresoStock,
+  }) {
+    return StockActual(
+      id: id ?? this.id,
+      loteId: loteId ?? this.loteId,
+      loteDetalleId: loteDetalleId ?? this.loteDetalleId,
+      tipoTelaId: tipoTelaId ?? this.tipoTelaId,
+      idRollo: idRollo ?? this.idRollo,
+      numeroFisico: numeroFisico ?? this.numeroFisico,
+      sucursalActualId: sucursalActualId ?? this.sucursalActualId,
+      colorId: colorId ?? this.colorId,
+      atributosEspeciales: atributosEspeciales ?? this.atributosEspeciales,
+      metrajeOriginal: metrajeOriginal ?? this.metrajeOriginal,
+      metrajeActual: metrajeActual ?? this.metrajeActual,
+      estado: estado ?? this.estado,
+      fechaIngresoStock: fechaIngresoStock ?? this.fechaIngresoStock,
     );
   }
 }

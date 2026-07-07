@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/core/providers/session_provider.dart';
+import 'package:inv_telas/models/ventas/stock_actual.dart';
+import 'package:inv_telas/moduloVentas/widgets/carrito_ventas_panel.dart';
 import 'package:inv_telas/moduloVentas/widgets/form_apertura_jornada.dart';
+import 'package:inv_telas/moduloVentas/widgets/resumen_jornada_card.dart';
+import 'package:inv_telas/moduloVentas/widgets/venta_grupo_card.dart';
 import 'package:inv_telas/providers/pos_autorizacion_provider.dart';
+import 'package:inv_telas/providers/stock_actual_provider.dart';
 import 'package:inv_telas/providers/ventas_provider.dart';
 import 'package:inv_telas/providers/ventas_sucursal_provider.dart';
 
@@ -192,44 +197,110 @@ class VentasPosScreen extends ConsumerWidget {
             }
 
             /// 🟢 POS NORMAL
+            final stockAsync = ref.watch(stockActualListProvider);
+
             return Scaffold(
               body: Column(
                 children: [
-                  Container(
-                    color: Colors.amber.shade700,
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(10),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            "TIPO DE CAMBIO: 1 USD = ${jornada.tipoCambio.toStringAsFixed(2)} Bs | Reaperturas ${jornada.reaperturas}/2",
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                          ),
-                          icon: const Icon(Icons.lock_clock),
-                          label: const Text('Cerrar Jornada'),
-                          onPressed: () =>
-                              _mostrarDialogoCierre(context, ref, sucursalId),
-                        ),
-                      ],
-                    ),
+                  ResumenJornadaCard(
+                    jornada: jornada,
+                    onCerrar: () =>
+                        _mostrarDialogoCierre(context, ref, sucursalId),
                   ),
+
                   Expanded(
-                    child: Center(
-                      child: Text(
-                        'POS ACTIVO\nSucursal: $sucursalId\nEmpresa: $empresaId\nJornada: ${jornada.id}',
-                        textAlign: TextAlign.center,
-                      ),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final esWeb = constraints.maxWidth > 850;
+
+                        final catalogoWidget = stockAsync.when(
+                          loading: () =>
+                              const Center(child: CircularProgressIndicator()),
+
+                          error: (e, _) =>
+                              Center(child: Text('Error stock: $e')),
+
+                          data: (lista) {
+                            final filtrado = lista
+                                .where((r) => r.sucursalActualId == sucursalId)
+                                .toList();
+
+                            final Map<String, List<StockActual>> grupos = {};
+
+                            for (final item in filtrado) {
+                              final key =
+                                  '${item.tipoTelaId}_${item.colorId ?? "std"}_${item.loteId}';
+
+                              grupos.putIfAbsent(key, () => []).add(item);
+                            }
+
+                            return ListView.builder(
+                              itemCount: grupos.length,
+                              itemBuilder: (context, index) {
+                                final key = grupos.keys.elementAt(index);
+                                final grupo = grupos[key]!;
+
+                                return VentaGrupoCard(
+                                  tipoTelaId: grupo.first.tipoTelaId,
+                                  colorId: grupo.first.colorId,
+                                  loteId: grupo.first.loteId,
+                                  rollosGrupo: grupo,
+                                  nombreTela:
+                                      'Tela Ref: ${grupo.first.tipoTelaId}',
+                                );
+                              },
+                            );
+                          },
+                        );
+
+                        final carritoWidget = CarritoVentasPanel(
+                          jornadaAbierta: jornada.abierta,
+                          onConfirmar: () {
+                            debugPrint('Procesar venta jornada ${jornada.id}');
+                          },
+                        );
+
+                        if (esWeb) {
+                          return Row(
+                            children: [
+                              Expanded(flex: 3, child: catalogoWidget),
+
+                              VerticalDivider(
+                                width: 1,
+                                color: Colors.grey.shade300,
+                              ),
+
+                              SizedBox(width: 360, child: carritoWidget),
+                            ],
+                          );
+                        }
+
+                        return Stack(
+                          children: [
+                            catalogoWidget,
+
+                            Positioned(
+                              bottom: 16,
+                              right: 16,
+                              child: FloatingActionButton(
+                                onPressed: () {
+                                  showModalBottomSheet(
+                                    context: context,
+                                    isScrollControlled: true,
+                                    builder: (_) => SizedBox(
+                                      height:
+                                          MediaQuery.of(context).size.height *
+                                          0.80,
+                                      child: carritoWidget,
+                                    ),
+                                  );
+                                },
+                                child: const Icon(Icons.shopping_cart),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ],
