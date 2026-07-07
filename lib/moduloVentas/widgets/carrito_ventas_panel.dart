@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/providers/carrito_provider.dart';
 import 'package:inv_telas/providers/registro_diario_provider.dart'; // Importante añadir tus nuevos providers
 import 'package:inv_telas/providers/registro_diario_state.dart';
+import 'package:inv_telas/providers/stock_actual_provider.dart';
 import 'package:inv_telas/widgets/confirm_action_dialog.dart';
 
 class CarritoVentasPanel extends ConsumerWidget {
@@ -140,6 +141,7 @@ class CarritoVentasPanel extends ConsumerWidget {
 
                           // 2. Si la transacción fue exitosa, disparamos el callback nativo heredado
                           if (exito) {
+                            ref.invalidate(stockActualListProvider);
                             onConfirmar();
                           }
                         },
