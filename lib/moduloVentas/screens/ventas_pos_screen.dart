@@ -8,6 +8,7 @@ import 'package:inv_telas/moduloVentas/widgets/resumen_jornada_card.dart';
 import 'package:inv_telas/moduloVentas/widgets/venta_grupo_card.dart';
 import 'package:inv_telas/providers/pos_autorizacion_provider.dart';
 import 'package:inv_telas/providers/stock_actual_provider.dart';
+import 'package:inv_telas/providers/venta_tipo_tela_provider.dart';
 import 'package:inv_telas/providers/ventas_provider.dart';
 import 'package:inv_telas/providers/ventas_sucursal_provider.dart';
 
@@ -197,7 +198,13 @@ class VentasPosScreen extends ConsumerWidget {
             }
 
             /// 🟢 POS NORMAL
-            final stockAsync = ref.watch(stockActualListProvider);
+            final tipoTelaSeleccionada = ref.watch(
+              tipoTelaSeleccionadaProvider,
+            );
+
+            final tiposDisponiblesAsync = ref.watch(
+              tiposTelaDisponiblesProvider(sucursalId),
+            );
 
             return Scaffold(
               body: Column(
@@ -208,51 +215,91 @@ class VentasPosScreen extends ConsumerWidget {
                         _mostrarDialogoCierre(context, ref, sucursalId),
                   ),
 
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: tiposDisponiblesAsync.when(
+                      loading: () => const LinearProgressIndicator(),
+
+                      error: (e, _) => Text('Error cargando tipos: $e'),
+
+                      data: (tipos) {
+                        return DropdownButtonFormField<String>(
+                          value: tipoTelaSeleccionada,
+                          decoration: const InputDecoration(
+                            labelText: 'Tipo de Tela',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: tipos.map((id) {
+                            return DropdownMenuItem(value: id, child: Text(id));
+                          }).toList(),
+                          onChanged: (value) {
+                            ref
+                                    .read(tipoTelaSeleccionadaProvider.notifier)
+                                    .state =
+                                value;
+                          },
+                        );
+                      },
+                    ),
+                  ),
                   Expanded(
                     child: LayoutBuilder(
                       builder: (context, constraints) {
                         final esWeb = constraints.maxWidth > 850;
 
-                        final catalogoWidget = stockAsync.when(
-                          loading: () =>
-                              const Center(child: CircularProgressIndicator()),
+                        final catalogoWidget = tipoTelaSeleccionada == null
+                            ? const Center(
+                                child: Text('Seleccione un tipo de tela'),
+                              )
+                            : ref
+                                  .watch(
+                                    stockPorTipoProvider((
+                                      sucursalId: sucursalId,
+                                      tipoTelaId: tipoTelaSeleccionada,
+                                    )),
+                                  )
+                                  .when(
+                                    loading: () => const Center(
+                                      child: CircularProgressIndicator(),
+                                    ),
 
-                          error: (e, _) =>
-                              Center(child: Text('Error stock: $e')),
+                                    error: (e, _) =>
+                                        Center(child: Text('Error stock: $e')),
 
-                          data: (lista) {
-                            final filtrado = lista
-                                .where((r) => r.sucursalActualId == sucursalId)
-                                .toList();
+                                    data: (lista) {
+                                      final Map<String, List<StockActual>>
+                                      grupos = {};
 
-                            final Map<String, List<StockActual>> grupos = {};
+                                      for (final item in lista) {
+                                        final key =
+                                            '${item.tipoTelaId}_${item.colorId ?? "std"}_${item.loteId}';
 
-                            for (final item in filtrado) {
-                              final key =
-                                  '${item.tipoTelaId}_${item.colorId ?? "std"}_${item.loteId}';
+                                        grupos
+                                            .putIfAbsent(key, () => [])
+                                            .add(item);
+                                      }
 
-                              grupos.putIfAbsent(key, () => []).add(item);
-                            }
+                                      return ListView.builder(
+                                        itemCount: grupos.length,
+                                        itemBuilder: (context, index) {
+                                          final key = grupos.keys.elementAt(
+                                            index,
+                                          );
 
-                            return ListView.builder(
-                              itemCount: grupos.length,
-                              itemBuilder: (context, index) {
-                                final key = grupos.keys.elementAt(index);
-                                final grupo = grupos[key]!;
+                                          final grupo = grupos[key]!;
 
-                                return VentaGrupoCard(
-                                  tipoTelaId: grupo.first.tipoTelaId,
-                                  colorId: grupo.first.colorId,
-                                  loteId: grupo.first.loteId,
-                                  rollosGrupo: grupo,
-                                  nombreTela:
-                                      'Tela Ref: ${grupo.first.tipoTelaId}',
-                                );
-                              },
-                            );
-                          },
-                        );
-
+                                          return VentaGrupoCard(
+                                            tipoTelaId: grupo.first.tipoTelaId,
+                                            colorId: grupo.first.colorId,
+                                            loteId: grupo.first.loteId,
+                                            rollosGrupo: grupo,
+                                            nombreTela:
+                                                'Tela Ref: ${grupo.first.tipoTelaId}',
+                                          );
+                                        },
+                                      );
+                                    },
+                                  );
                         final carritoWidget = CarritoVentasPanel(
                           jornadaAbierta: jornada.abierta,
                           onConfirmar: () {

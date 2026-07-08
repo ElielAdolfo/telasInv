@@ -12,3 +12,23 @@ final stockActualListProvider = FutureProvider<List<StockActual>>((ref) async {
   final service = ref.watch(stockActualServiceProvider);
   return service.obtenerStock();
 });
+
+final tiposTelaDisponiblesProvider =
+    FutureProvider.family<List<String>, String>((ref, sucursalId) async {
+      final service = ref.watch(stockActualServiceProvider);
+
+      return service.obtenerTiposTelaConStock(sucursalId);
+    });
+
+final stockPorTipoProvider =
+    FutureProvider.family<
+      List<StockActual>,
+      ({String sucursalId, String tipoTelaId})
+    >((ref, params) async {
+      final service = ref.watch(stockActualServiceProvider);
+
+      return service.obtenerStockPorSucursalYTipoTela(
+        params.sucursalId,
+        params.tipoTelaId,
+      );
+    });
