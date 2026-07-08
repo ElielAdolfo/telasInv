@@ -1,5 +1,3 @@
-//observaciones para mejorar
-//falta configuraciones especiales
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -180,7 +178,6 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
     final session = ref.watch(sessionProvider);
     final empresaId = session.empresaActual?.id ?? '';
 
-    // Consumo directo del nuevo provider reactivo optimizado por combinaciones
     final asyncColoresFiltrados = ref.watch(
       coloresFiltradosProvider((
         empresaId: empresaId,
@@ -237,7 +234,6 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
         error: (err, stack) =>
             Center(child: Text('Error al cargar colores: $err')),
         data: (coloresFiltrados) {
-          // Mapeamos los datos cruzados al formato esperado por el Widget de UI
           final coloresDisponibles = coloresFiltrados.map((c) {
             return DropdownColor(
               id: c.color.id,
@@ -289,7 +285,7 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
               ),
               const SizedBox(height: 10),
 
-              // ENCABEZADO TABLA
+              // ENCABEZADO TABLA CORREGIDO Y ALINEADO
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 12),
                 padding: const EdgeInsets.symmetric(
@@ -302,43 +298,79 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
                 ),
                 child: Row(
                   children: [
-                    const SizedBox(
-                      width: 40,
-                      child: Text('#', style: TextStyle(color: Colors.white)),
-                    ),
-
-                    // 👇 CAMPOS DINÁMICOS (AQUÍ ESTÁ LA CLAVE)
-                    ...camposEspeciales.map((campo) {
-                      return Expanded(
-                        flex: 2,
-                        child: Text(
-                          campo.nombre,
-                          style: const TextStyle(color: Colors.white),
+                    SizedBox(
+                      width: modoSeleccion ? 48 : 30,
+                      child: Text(
+                        modoSeleccion ? '' : '#',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
                         ),
-                      );
-                    }),
-
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      flex: 2,
+                      child: Text(
+                        'Metraje',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     const Expanded(
                       flex: 2,
                       child: Text(
                         'Color',
-                        style: TextStyle(color: Colors.white),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-
+                    const SizedBox(width: 8),
                     const Expanded(
                       flex: 2,
                       child: Text(
                         'Cantidad',
-                        style: TextStyle(color: Colors.white),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
+                    const SizedBox(width: 4),
+
+                    // CAMPOS DINÁMICOS EN EL ENFOQUE DE FLUJO CORRECTO
+                    ...camposEspeciales.map((campo) {
+                      return Expanded(
+                        flex: 2,
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 4.0),
+                          child: Text(
+                            campo.nombre,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      );
+                    }),
 
                     const SizedBox(
-                      width: 80,
+                      width:
+                          125, // Adaptado para absorber tiradores de Reorderable
                       child: Text(
                         'Acción',
-                        style: TextStyle(color: Colors.white),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
                     ),
                   ],
@@ -350,7 +382,6 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
                 child: ReorderableListView.builder(
                   scrollController: _scrollController,
                   itemCount: gruposRenderizados.length,
-
                   onReorder: (oldIndex, newIndex) {
                     setState(() {
                       if (newIndex > oldIndex) {
@@ -363,7 +394,6 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
                       _actualizarVistaPaginada();
                     });
                   },
-
                   itemBuilder: (_, index) {
                     final grupo = gruposRenderizados[index];
 
@@ -372,12 +402,10 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
                       child: ItemFilaRollo(
                         grupo: grupo,
                         colores: coloresDisponibles,
-
                         camposEspeciales: camposEspeciales,
                         modoSeleccion: modoSeleccion,
                         estaSeleccionado: seleccionados.contains(index),
                         index: index,
-
                         onSeleccionChanged: (v) {
                           setState(() {
                             if (v == true) {
@@ -387,7 +415,6 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
                             }
                           });
                         },
-
                         onEliminar: () {
                           if (todosLosGrupos.length == 1) return;
 
@@ -397,13 +424,13 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
                             _actualizarVistaPaginada();
                           });
                         },
-
                         onStatusChanged: () => setState(() {}),
                       ),
                     );
                   },
                 ),
               ),
+
               // BOTÓN GUARDAR CAMBIOS
               Container(
                 padding: const EdgeInsets.all(12),
@@ -512,13 +539,12 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
 
   Future<void> _guardarCambiosConConfirmacion() async {
     if (pendientes != 0) {
-      // ... (Mantienes tu validación de error intacta)
       return;
     }
 
     final notifier = ref.read(loteDetallesProvider(widget.lote.id).notifier);
 
-    final resultado = await showDialog<bool>(
+    await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
@@ -530,7 +556,6 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
           iconColor: Colors.blueGrey,
           confirmText: 'Guardar',
           onConfirm: () async {
-            // 1. Ya NO aplanamos a 88 registros. Guardamos la estructura agrupada.
             final List<RolloInfo> rollosAPersistir = todosLosGrupos
                 .asMap()
                 .entries
@@ -541,13 +566,10 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
                   return RolloInfo(
                     id: '',
                     loteDetalleId: widget.detalle.id,
-
                     orden: index,
-
                     metraje: grupo.metraje,
                     colorId: grupo.color,
                     cantidad: grupo.cantidad.toInt(),
-
                     sucursalActualId: widget.lote.sucursalId ?? '',
                     estado: 'DISPONIBLE',
                     atributosEspeciales: grupo.atributosEspeciales,
@@ -555,7 +577,6 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
                 })
                 .toList();
 
-            // 2. Ejecutamos la inserción atómica
             final exito = await notifier.guardarRollos(
               loteDetalleId: widget.detalle.id,
               rollos: rollosAPersistir,
@@ -568,8 +589,6 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
         );
       },
     );
-
-    // 3. ... (Mantienes tu snackbar de éxito y el pop del Navigator)
   }
 
   Future<void> _mostrarMenuAcciones(
@@ -605,7 +624,8 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
                       color: coloresFiltrados.isNotEmpty
                           ? coloresFiltrados.first.color.id
                           : '',
-                      cantidad: 0,
+                      cantidad:
+                          1.0, // 🔥 CORRECCIÓN: Ahora aparece automáticamente en 1
                       atributosEspeciales: {},
                       confirmado: false,
                     );
@@ -665,10 +685,10 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
   }
 }
 
-// --- ITEM FILA OPTIMIZADO ---
+// --- ITEM FILA CORREGIDO Y ALINEADO SIMÉTRICAMENTE ---
 class ItemFilaRollo extends StatefulWidget {
   final GrupoRollo grupo;
-  final List<DropdownColor> colores; // Cambiado a List<DropdownColor>
+  final List<DropdownColor> colores;
   final bool modoSeleccion;
   final bool estaSeleccionado;
   final int index;
@@ -734,7 +754,6 @@ class _ItemFilaRolloState extends State<ItemFilaRollo> {
     for (final c in atributosControllers.values) {
       c.dispose();
     }
-
     atributosControllers.clear();
   }
 
@@ -744,11 +763,66 @@ class _ItemFilaRolloState extends State<ItemFilaRollo> {
     super.dispose();
   }
 
+  Color _hexToColor(String hex) {
+    try {
+      final buffer = StringBuffer();
+      if (hex.length == 6 || hex.length == 7) buffer.write('ff');
+      buffer.write(hex.replaceFirst('#', ''));
+      return Color(int.parse(buffer.toString(), radix: 16));
+    } catch (_) {
+      return Colors.transparent;
+    }
+  }
+
+  TextInputType _keyboardForType(TipoCampo tipo) {
+    switch (tipo) {
+      case TipoCampo.entero:
+        return TextInputType.number;
+
+      case TipoCampo.decimal:
+        return const TextInputType.numberWithOptions(decimal: true);
+
+      case TipoCampo.booleano:
+        return TextInputType.text;
+
+      case TipoCampo.texto:
+        return TextInputType.text;
+    }
+  }
+
+  List<TextInputFormatter> _inputFormattersForType(TipoCampo tipo) {
+    switch (tipo) {
+      case TipoCampo.entero:
+        return [FilteringTextInputFormatter.digitsOnly];
+
+      case TipoCampo.decimal:
+        return [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))];
+
+      default:
+        return [];
+    }
+  }
+
+  dynamic _parseValue(String valor, TipoCampo tipo) {
+    switch (tipo) {
+      case TipoCampo.entero:
+        return int.tryParse(valor) ?? 0;
+
+      case TipoCampo.decimal:
+        return double.tryParse(valor) ?? 0.0;
+
+      case TipoCampo.booleano:
+        return valor.toLowerCase() == 'true';
+
+      case TipoCampo.texto:
+        return valor;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isConfirmado = widget.grupo.confirmado;
 
-    // Buscamos si hay un color seleccionado para mostrar su nombre o indicador en modo lectura
     final colorSeleccionado = widget.colores.firstWhere(
       (c) => c.id == widget.grupo.color,
       orElse: () =>
@@ -769,16 +843,20 @@ class _ItemFilaRolloState extends State<ItemFilaRollo> {
       ),
       child: Row(
         children: [
+          // 1. Selector / Numero (#)
           if (widget.modoSeleccion)
-            Checkbox(
-              value: widget.estaSeleccionado,
-              onChanged: widget.onSeleccionChanged,
+            SizedBox(
+              width: 48,
+              child: Checkbox(
+                value: widget.estaSeleccionado,
+                onChanged: widget.onSeleccionChanged,
+              ),
             )
           else
             SizedBox(width: 30, child: Text('${widget.index + 1}')),
+          const SizedBox(width: 8),
 
-          // METRAJE
-          // ⚠️ CAMPO BASE (NO CONFIGURABLE - SIEMPRE EXISTE EN GRUPO)
+          // 2. METRAJE
           Expanded(
             flex: 2,
             child: isConfirmado
@@ -808,7 +886,7 @@ class _ItemFilaRolloState extends State<ItemFilaRollo> {
           ),
           const SizedBox(width: 8),
 
-          // COLOR (CON CÓDIGO PROVEEDOR VISIBLE)
+          // 3. COLOR
           Expanded(
             flex: 2,
             child: isConfirmado
@@ -826,7 +904,7 @@ class _ItemFilaRolloState extends State<ItemFilaRollo> {
                   )
                 : DropdownButtonFormField<String>(
                     isExpanded: true,
-                    initialValue: widget.grupo.color.isEmpty
+                    value: widget.grupo.color.isEmpty
                         ? null
                         : widget.grupo.color,
                     items: widget.colores.map((c) {
@@ -870,7 +948,7 @@ class _ItemFilaRolloState extends State<ItemFilaRollo> {
           ),
           const SizedBox(width: 8),
 
-          // CANTIDAD
+          // 4. CANTIDAD
           Expanded(
             flex: 2,
             child: isConfirmado
@@ -894,38 +972,43 @@ class _ItemFilaRolloState extends State<ItemFilaRollo> {
           ),
           const SizedBox(width: 4),
 
-          // 👇 INSERTAR DESPUÉS DE CANTIDAD Y ANTES DE ACCIONES
+          // 5. CAMPOS ESPECIALES DINÁMICOS
           ...widget.camposEspeciales.map((campo) {
             final controller = atributosControllers[campo.id]!;
 
             return Expanded(
               flex: 2,
-              child: isConfirmado
-                  ? Text(
-                      widget.grupo.atributosEspeciales[campo.id]?.toString() ??
-                          '-',
-                      style: const TextStyle(fontWeight: FontWeight.w500),
-                    )
-                  : TextFormField(
-                      controller: controller,
-                      keyboardType: _keyboardForType(campo.tipo),
-                      inputFormatters: _inputFormattersForType(campo.tipo),
-                      decoration: InputDecoration(
-                        isDense: true,
-                        labelText: campo.nombre,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 4.0),
+                child: isConfirmado
+                    ? Text(
+                        widget.grupo.atributosEspeciales[campo.id]
+                                ?.toString() ??
+                            '-',
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                        overflow: TextOverflow.ellipsis,
+                      )
+                    : TextFormField(
+                        controller: controller,
+                        keyboardType: _keyboardForType(campo.tipo),
+                        inputFormatters: _inputFormattersForType(campo.tipo),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          labelText: campo.nombre,
+                        ),
+                        onChanged: (value) {
+                          widget.grupo.atributosEspeciales[campo.id] =
+                              _parseValue(value, campo.tipo);
+                          widget.onStatusChanged();
+                        },
                       ),
-                      onChanged: (value) {
-                        widget.grupo.atributosEspeciales[campo.id] =
-                            _parseValue(value, campo.tipo);
-
-                        widget.onStatusChanged();
-                      },
-                    ),
+              ),
             );
           }),
-          // ACCIONES
+
+          // 6. ACCIONES (Ancho blindado de 125 para soportar el Drag Handle del Reorderable List)
           SizedBox(
-            width: 85,
+            width: 125,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
@@ -950,71 +1033,24 @@ class _ItemFilaRolloState extends State<ItemFilaRollo> {
                     widget.onStatusChanged();
                   },
                 ),
-                const SizedBox(width: 4),
                 IconButton(
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
-                  icon: Icon(
+                  icon: const Icon(
                     Icons.delete,
-                    color: isConfirmado ? Colors.grey.shade300 : Colors.red,
+                    color: Colors.redAccent,
+                    size: 22,
                   ),
-                  onPressed: isConfirmado ? null : widget.onEliminar,
+                  onPressed: widget.onEliminar,
                 ),
+                const SizedBox(
+                  width: 24,
+                ), // Margen fantasma por seguridad del reordenador
               ],
             ),
           ),
         ],
       ),
     );
-  }
-
-  TextInputType _keyboardForType(TipoCampo tipo) {
-    switch (tipo) {
-      case TipoCampo.entero:
-        return TextInputType.number;
-      case TipoCampo.decimal:
-        return const TextInputType.numberWithOptions(decimal: true);
-      default:
-        return TextInputType.text;
-    }
-  }
-
-  List<TextInputFormatter>? _inputFormattersForType(TipoCampo tipo) {
-    switch (tipo) {
-      case TipoCampo.entero:
-        return [FilteringTextInputFormatter.digitsOnly];
-
-      case TipoCampo.decimal:
-        return [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))];
-
-      default:
-        return null;
-    }
-  }
-
-  dynamic _parseValue(String value, TipoCampo tipo) {
-    switch (tipo) {
-      case TipoCampo.entero:
-        return int.tryParse(value) ?? 0;
-
-      case TipoCampo.decimal:
-        return double.tryParse(value) ?? 0.0;
-
-      case TipoCampo.booleano:
-        return value.toLowerCase() == 'true';
-
-      case TipoCampo.texto:
-      default:
-        return value;
-    }
-  }
-
-  Color _hexToColor(String hex) {
-    if (hex.isEmpty) return Colors.transparent;
-    final String cleanHex = hex.replaceFirst('#', '');
-    if (cleanHex.length == 6) {
-      return Color(int.parse('0xff$cleanHex'));
-    }
-    return Color(int.parse('0x$cleanHex'));
   }
 }

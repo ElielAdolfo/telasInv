@@ -1,5 +1,7 @@
-lote detalle
-al momento de hacer una divicion en lotes y agrega un rollo este automaticamente deberia aparecer con 1
+lote detalle 
+deberia mostrarme al momento de modificar el coste por rollo y metro para saber cuanto se esta gastando
+al momento de poner en guardar 
+al avanzar se debe validar que este todos con un color
 costes y gastos de lote
 al registrar un gasto en tipo dolar los calculos de equivalente debe de calcularse automaticamente en por cada y equivalente en bs
 tambien dice por cada (factor) aunque se entiende para una mejor esperiencia de usarui se debve de poner 
