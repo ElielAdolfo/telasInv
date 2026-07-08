@@ -5,7 +5,6 @@ class CarritoItem {
   final String tipoTelaId;
   final String? colorId;
   final String loteId;
-  final String detalleAgrupacionNombre;
   final double cantidadMetros;
   final int cantidadRollos;
   final double precioUnitario;
@@ -17,7 +16,6 @@ class CarritoItem {
     required this.tipoTelaId,
     this.colorId,
     required this.loteId,
-    required this.detalleAgrupacionNombre,
     required this.cantidadMetros,
     required this.cantidadRollos,
     required this.precioUnitario,

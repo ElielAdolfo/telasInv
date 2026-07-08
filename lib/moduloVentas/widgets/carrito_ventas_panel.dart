@@ -77,7 +77,7 @@ class CarritoVentasPanel extends ConsumerWidget {
 
                     return ListTile(
                       title: Text(
-                        item.detalleAgrupacionNombre,
+                        item.tipoTelaId,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontSize: 13),

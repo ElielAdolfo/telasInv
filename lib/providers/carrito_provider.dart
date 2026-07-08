@@ -52,8 +52,6 @@ class CarritoNotifier extends StateNotifier<CarritoState> {
         tipoTelaId: rollo.tipoTelaId,
         colorId: rollo.colorId,
         loteId: rollo.loteId,
-        detalleAgrupacionNombre:
-            '$nombreTela (Lote: ${rollo.loteId}) - Rollo #${rollo.numeroFisico}',
         cantidadMetros: mts,
         cantidadRollos: 0,
         precioUnitario: precio,
@@ -87,8 +85,6 @@ class CarritoNotifier extends StateNotifier<CarritoState> {
         tipoTelaId: rollo.tipoTelaId,
         colorId: rollo.colorId,
         loteId: rollo.loteId,
-        detalleAgrupacionNombre:
-            '$nombre - Rollo Completo #${rollo.numeroFisico} (${rollo.metrajeActual}m)',
         cantidadMetros: 0,
         cantidadRollos: 1,
         precioUnitario: precio,
@@ -131,7 +127,6 @@ class CarritoNotifier extends StateNotifier<CarritoState> {
                 'tipoTelaId': item.tipoTelaId,
                 'colorId': item.colorId,
                 'loteId': item.loteId,
-                'detalleAgrupacionNombre': item.detalleAgrupacionNombre,
                 'cantidadMetros': item.cantidadMetros,
                 'cantidadRollos': item.cantidadRollos,
                 'precioUnitario': item.precioUnitario,

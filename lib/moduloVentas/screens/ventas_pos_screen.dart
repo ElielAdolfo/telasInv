@@ -10,7 +10,7 @@ import 'package:inv_telas/providers/pos_autorizacion_provider.dart';
 import 'package:inv_telas/providers/stock_actual_provider.dart';
 import 'package:inv_telas/providers/venta_tipo_tela_provider.dart';
 import 'package:inv_telas/providers/ventas_provider.dart';
-import 'package:inv_telas/providers/ventas_sucursal_provider.dart';
+import 'package:inv_telas/providers/ventas_tipo_tela_nombre_provider.dart';
 
 class VentasPosScreen extends ConsumerWidget {
   const VentasPosScreen({super.key});
@@ -206,6 +206,10 @@ class VentasPosScreen extends ConsumerWidget {
               tiposTelaDisponiblesProvider(sucursalId),
             );
 
+            final mapaTiposAsync = ref.watch(
+              ventasMapaTiposTelaProvider(empresaId),
+            );
+
             return Scaffold(
               body: Column(
                 children: [
@@ -223,20 +227,35 @@ class VentasPosScreen extends ConsumerWidget {
                       error: (e, _) => Text('Error cargando tipos: $e'),
 
                       data: (tipos) {
-                        return DropdownButtonFormField<String>(
-                          value: tipoTelaSeleccionada,
-                          decoration: const InputDecoration(
-                            labelText: 'Tipo de Tela',
-                            border: OutlineInputBorder(),
-                          ),
-                          items: tipos.map((id) {
-                            return DropdownMenuItem(value: id, child: Text(id));
-                          }).toList(),
-                          onChanged: (value) {
-                            ref
-                                    .read(tipoTelaSeleccionadaProvider.notifier)
-                                    .state =
-                                value;
+                        return mapaTiposAsync.when(
+                          loading: () => const LinearProgressIndicator(),
+
+                          error: (_, __) => const SizedBox(),
+
+                          data: (mapaTipos) {
+                            return DropdownButtonFormField<String>(
+                              value: tipoTelaSeleccionada,
+                              decoration: const InputDecoration(
+                                labelText: 'Tipo de Tela',
+                                border: OutlineInputBorder(),
+                              ),
+                              items: tipos.map((id) {
+                                final tela = mapaTipos[id];
+
+                                return DropdownMenuItem<String>(
+                                  value: id,
+                                  child: Text(tela?.nombre ?? id),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                ref
+                                        .read(
+                                          tipoTelaSeleccionadaProvider.notifier,
+                                        )
+                                        .state =
+                                    value;
+                              },
+                            );
                           },
                         );
                       },

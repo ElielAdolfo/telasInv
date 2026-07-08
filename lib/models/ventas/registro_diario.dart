@@ -41,7 +41,6 @@ class RegistroDiario {
               'tipoTelaId': item.tipoTelaId,
               'colorId': item.colorId,
               'loteId': item.loteId,
-              'detalleAgrupacionNombre': item.detalleAgrupacionNombre,
               'cantidadMetros': item.cantidadMetros,
               'cantidadRollos': item.cantidadRollos,
               'precioUnitario': item.precioUnitario,

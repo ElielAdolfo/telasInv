@@ -43,7 +43,7 @@ class RegistroDiarioService {
               stockActual.metrajeActual - rolloSel.metrosExtraidos;
           if (nuevoMetraje < 0) {
             throw Exception(
-              "Inventario insuficiente para la tela: ${item.detalleAgrupacionNombre}",
+              "Inventario insuficiente para la tela: ${item.tipoTelaId}",
             );
           }
 
