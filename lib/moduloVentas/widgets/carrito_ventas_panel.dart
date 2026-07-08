@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/models/abmTiposTelas/tipo_tela.dart';
 import 'package:inv_telas/providers/carrito_provider.dart';
 import 'package:inv_telas/providers/registro_diario_provider.dart'; // Importante añadir tus nuevos providers
 import 'package:inv_telas/providers/registro_diario_state.dart';
@@ -9,11 +10,13 @@ import 'package:inv_telas/widgets/confirm_action_dialog.dart';
 class CarritoVentasPanel extends ConsumerWidget {
   final bool jornadaAbierta;
   final VoidCallback onConfirmar;
+  final Map<String, TipoTela> mapaTiposTela;
 
   const CarritoVentasPanel({
     super.key,
     required this.jornadaAbierta,
     required this.onConfirmar,
+    required this.mapaTiposTela,
   });
 
   @override
@@ -74,10 +77,12 @@ class CarritoVentasPanel extends ConsumerWidget {
                   itemCount: cart.items.length,
                   itemBuilder: (context, idx) {
                     final item = cart.items[idx];
-
+                    final nombreTela =
+                        mapaTiposTela[item.tipoTelaId]?.nombre ??
+                        item.tipoTelaId;
                     return ListTile(
                       title: Text(
-                        item.tipoTelaId,
+                        nombreTela,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontSize: 13),

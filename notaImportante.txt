@@ -1,1 +1,7 @@
-revisar al crear una empresa que se le este dando el rol admin
+lote detalle
+al momento de hacer una divicion en lotes y agrega un rollo este automaticamente deberia aparecer con 1
+costes y gastos de lote
+al registrar un gasto en tipo dolar los calculos de equivalente debe de calcularse automaticamente en por cada y equivalente en bs
+tambien dice por cada (factor) aunque se entiende para una mejor esperiencia de usarui se debve de poner 
+por cada (moneda seleccionada en el select)
+

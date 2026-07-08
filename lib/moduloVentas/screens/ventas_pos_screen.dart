@@ -210,6 +210,8 @@ class VentasPosScreen extends ConsumerWidget {
               ventasMapaTiposTelaProvider(empresaId),
             );
 
+            final mapaTiposArray = mapaTiposAsync.value ?? {};
+
             return Scaffold(
               body: Column(
                 children: [
@@ -307,13 +309,18 @@ class VentasPosScreen extends ConsumerWidget {
 
                                           final grupo = grupos[key]!;
 
+                                          final nombreTela =
+                                              mapaTiposArray[grupo
+                                                      .first
+                                                      .tipoTelaId]
+                                                  ?.nombre ??
+                                              grupo.first.tipoTelaId;
                                           return VentaGrupoCard(
                                             tipoTelaId: grupo.first.tipoTelaId,
                                             colorId: grupo.first.colorId,
                                             loteId: grupo.first.loteId,
                                             rollosGrupo: grupo,
-                                            nombreTela:
-                                                'Tela Ref: ${grupo.first.tipoTelaId}',
+                                            nombreTela: nombreTela,
                                           );
                                         },
                                       );
@@ -321,6 +328,7 @@ class VentasPosScreen extends ConsumerWidget {
                                   );
                         final carritoWidget = CarritoVentasPanel(
                           jornadaAbierta: jornada.abierta,
+                          mapaTiposTela: mapaTiposArray,
                           onConfirmar: () {
                             debugPrint('Procesar venta jornada ${jornada.id}');
                           },
