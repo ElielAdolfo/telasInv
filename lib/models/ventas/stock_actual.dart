@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum StockRolloEstado { cerrado, abierto, sobra, vendido }
 

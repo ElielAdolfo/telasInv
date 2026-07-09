@@ -236,7 +236,7 @@ class VentasPosScreen extends ConsumerWidget {
 
                           data: (mapaTipos) {
                             return DropdownButtonFormField<String>(
-                              value: tipoTelaSeleccionada,
+                              initialValue: tipoTelaSeleccionada,
                               decoration: const InputDecoration(
                                 labelText: 'Tipo de Tela',
                                 border: OutlineInputBorder(),

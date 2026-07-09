@@ -361,7 +361,7 @@ class _SucursalCheckboxCard extends StatelessWidget {
                       ),
 
                       if ((sucursal.direccion ?? '').isNotEmpty)
-                        Text(sucursal.direccion!),
+                        Text(sucursal.direccion),
                     ],
                   ),
                 ),

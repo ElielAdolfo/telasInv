@@ -6,7 +6,6 @@ import 'package:inv_telas/models/abmTiposTelas/proveedor.dart';
 import 'package:inv_telas/models/abmTiposTelas/tipo_tela_variante.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../../core/providers/session_provider.dart';
 import '../../../providers/proveedores_provider.dart';
 import 'proveedores_selector_dialog.dart';
 

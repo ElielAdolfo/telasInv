@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/core/providers/session_provider.dart';
 import 'package:inv_telas/moduloVentas/widgets/apertura_jornada_dialog.dart';
 import 'package:inv_telas/providers/ventas_provider.dart';
-import 'package:inv_telas/providers/ventas_sucursal_provider.dart';
 
 class FormAperturaJornada extends ConsumerWidget {
   const FormAperturaJornada({super.key});

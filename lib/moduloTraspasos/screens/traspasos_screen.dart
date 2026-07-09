@@ -67,7 +67,7 @@ class _TraspasosPageState extends ConsumerState<TraspasosScreen> {
             color: Colors.grey.shade100,
             child: sucursalesAsync.when(
               data: (sucursales) => DropdownButtonFormField<String>(
-                value: _sucursalFiltro == 'INICIAL' ? null : _sucursalFiltro,
+                initialValue: _sucursalFiltro == 'INICIAL' ? null : _sucursalFiltro,
                 hint: const Text('SELECCIONAR SUCURSAL DE ORIGEN'),
                 decoration: const InputDecoration(
                   filled: true,
@@ -393,7 +393,7 @@ class _TraspasoGrupoCardState extends ConsumerState<TraspasoGrupoCard> {
                               color: Colors.grey.shade700,
                               fontSize: 13,
                             ),
-                            overflow: TextOverflow.ellipsis,
+                            overflow: TextOverflow.values.first,
                           ),
                         ),
                       ],

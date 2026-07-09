@@ -73,6 +73,8 @@ class LoteDetalleService {
         sucursalActualId: rollo.sucursalActualId,
         estado: rollo.estado,
         atributosEspeciales: rollo.atributosEspeciales,
+        costoMetroOrigen: rollo.costoMetroOrigen,
+        costoRolloOrigen: rollo.costoRolloOrigen,
       );
 
       batch.set(docRef, nuevoRollo.toMap(), SetOptions(merge: true));

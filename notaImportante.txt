@@ -1,5 +1,5 @@
 lote detalle 
-deberia mostrarme al momento de modificar el coste por rollo y metro para saber cuanto se esta gastando
+deberia mostrarme al momento de modificar el coste por rollo y metro para saber cuanto se esta gastando 
 al momento de poner en guardar 
 al avanzar se debe validar que este todos con un color
 costes y gastos de lote
@@ -7,3 +7,4 @@ al registrar un gasto en tipo dolar los calculos de equivalente debe de calcular
 tambien dice por cada (factor) aunque se entiende para una mejor esperiencia de usarui se debve de poner 
 por cada (moneda seleccionada en el select)
 
+al momento de editar el dato de lote detalle donde se pone el tipo de tela y mosntos me esta saliendo error

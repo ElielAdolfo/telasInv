@@ -17,6 +17,9 @@ class RolloInfo {
   /// Futuros atributos dinámicos
   final Map<String, dynamic> atributosEspeciales;
 
+  final double costoMetroOrigen;
+  final double costoRolloOrigen;
+
   const RolloInfo({
     required this.id,
     required this.loteDetalleId,
@@ -28,6 +31,8 @@ class RolloInfo {
     this.estado = 'disponible',
     this.fechaCreacion,
     this.atributosEspeciales = const {},
+    required this.costoMetroOrigen,
+    required this.costoRolloOrigen,
   });
 
   Map<String, dynamic> toMap() {
@@ -49,6 +54,8 @@ class RolloInfo {
           : FieldValue.serverTimestamp(),
 
       'atributosEspeciales': atributosEspeciales,
+      'costoMetroOrigen': costoMetroOrigen,
+      'costoRolloOrigen': costoRolloOrigen,
     };
   }
 
@@ -72,6 +79,8 @@ class RolloInfo {
       atributosEspeciales: Map<String, dynamic>.from(
         map['atributosEspeciales'] ?? {},
       ),
+      costoMetroOrigen: ((map['costoMetroOrigen'] ?? 0) as num).toDouble(),
+      costoRolloOrigen: ((map['costoRolloOrigen'] ?? 0) as num).toDouble(),
     );
   }
 
@@ -86,6 +95,8 @@ class RolloInfo {
     int? cantidad,
     DateTime? fechaCreacion,
     Map<String, dynamic>? atributosEspeciales,
+    double? costoMetroOrigen,
+    double? costoRolloOrigen,
   }) {
     return RolloInfo(
       id: id ?? this.id,
@@ -98,6 +109,8 @@ class RolloInfo {
       estado: estado ?? this.estado,
       fechaCreacion: fechaCreacion ?? this.fechaCreacion,
       atributosEspeciales: atributosEspeciales ?? this.atributosEspeciales,
+      costoMetroOrigen: costoMetroOrigen ?? this.costoMetroOrigen,
+      costoRolloOrigen: costoRolloOrigen ?? this.costoRolloOrigen,
     );
   }
 

@@ -54,7 +54,7 @@ class _TraspasarDialogState extends ConsumerState<TraspasarDialog> {
           }
 
           return DropdownButtonFormField<String>(
-            value: _sucursalDestinoId,
+            initialValue: _sucursalDestinoId,
             hint: const Text('Seleccionar sucursal destino'),
             items: opciones
                 .map(

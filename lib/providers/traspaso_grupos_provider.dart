@@ -105,7 +105,7 @@ final traspasoGruposProcesadosProvider =
         print('METRAJE: ${r.metrajeActual}');
         print('ATRIBUTOS:');
 
-        if (r.atributosEspeciales == null || r.atributosEspeciales.isEmpty) {
+        if (r.atributosEspeciales.isEmpty) {
           print('VACIO');
         } else {
           r.atributosEspeciales.forEach((k, v) {
@@ -130,12 +130,10 @@ final traspasoGruposProcesadosProvider =
       final Map<String, String> nombresCamposConfigurables = {};
 
       for (final tipoTela in listaTiposTela) {
-        if (tipoTela.camposConfigurables != null) {
-          for (final campo in tipoTela.camposConfigurables) {
-            nombresCamposConfigurables[campo.id] = campo.nombre;
-          }
+        for (final campo in tipoTela.camposConfigurables) {
+          nombresCamposConfigurables[campo.id] = campo.nombre;
         }
-      }
+            }
 
       /// =====================================================
       /// FASE 1: AGRUPACIÓN CON FILTRADO DE LLAVE DIRECTO
@@ -157,28 +155,24 @@ final traspasoGruposProcesadosProvider =
 
         final List<String> listaDifs = [];
 
-        if (tipoTelaItem != null && tipoTelaItem.camposConfigurables != null) {
+        if (tipoTelaItem != null) {
           for (final campo in tipoTelaItem.camposConfigurables) {
             if (campo.esDiferenciador == true) {
               // Caso 1: El valor diferenciador reside en atributosEspeciales del rollo (Milenium)
-              if (item.atributosEspeciales != null &&
-                  item.atributosEspeciales.containsKey(campo.id)) {
+              if (item.atributosEspeciales.containsKey(campo.id)) {
                 final valor = item.atributosEspeciales[campo.id];
                 listaDifs.add('${campo.id}:$valor');
               }
               // Caso 2: El valor viene directamente de las variantes del catálogo estructural (MAGITEX, Piel de Sirena)
-              else if (tipoTelaItem.variantes != null &&
-                  tipoTelaItem.variantes.isNotEmpty) {
+              else if (tipoTelaItem.variantes.isNotEmpty) {
                 final primeraVariante = tipoTelaItem.variantes.first;
-                if (primeraVariante.campos != null) {
-                  try {
-                    final campoVar = primeraVariante.campos.firstWhere(
-                      (c) => c.campoId == campo.id,
-                    );
-                    listaDifs.add('${campo.id}:${campoVar.valor}');
-                  } catch (_) {}
-                }
-              }
+                try {
+                  final campoVar = primeraVariante.campos.firstWhere(
+                    (c) => c.campoId == campo.id,
+                  );
+                  listaDifs.add('${campo.id}:${campoVar.valor}');
+                } catch (_) {}
+                            }
             }
           }
         }
@@ -190,7 +184,7 @@ final traspasoGruposProcesadosProvider =
         }
 
         final groupKey =
-            '${item.tipoTelaId}_${colorKey}$fragmentoDiferenciador';
+            '${item.tipoTelaId}_$colorKey$fragmentoDiferenciador';
         rollosAgrupados.putIfAbsent(groupKey, () => []).add(item);
       }
 
@@ -255,34 +249,32 @@ final traspasoGruposProcesadosProvider =
         /// =====================================================
         final Map<String, String> valoresDiferenciadoresGrupo = {};
 
-        if (tipoTelaMaestro.camposConfigurables != null) {
-          for (final campo in tipoTelaMaestro.camposConfigurables) {
-            if (campo.esDiferenciador == true) {
-              // Primero intentamos extraerlo desde atributosEspeciales
-              if (primerRollo.atributosEspeciales != null &&
-                  primerRollo.atributosEspeciales.containsKey(campo.id)) {
-                valoresDiferenciadoresGrupo[campo.nombre] = primerRollo
-                    .atributosEspeciales[campo.id]
-                    .toString();
-              }
-              // Fallback directo desde el catálogo de variantes de TipoTela
-              else if (tipoTelaMaestro.variantes != null &&
-                  tipoTelaMaestro.variantes.isNotEmpty) {
-                final primeraVariante = tipoTelaMaestro.variantes.first;
-                if (primeraVariante.campos != null) {
-                  try {
-                    final campoVar = primeraVariante.campos.firstWhere(
-                      (c) => c.campoId == campo.id,
-                    );
-                    valoresDiferenciadoresGrupo[campo.nombre] = campoVar.valor
-                        .toString();
-                  } catch (_) {}
-                }
+        for (final campo in tipoTelaMaestro.camposConfigurables) {
+          if (campo.esDiferenciador == true) {
+            // Primero intentamos extraerlo desde atributosEspeciales
+            if (primerRollo.atributosEspeciales != null &&
+                primerRollo.atributosEspeciales.containsKey(campo.id)) {
+              valoresDiferenciadoresGrupo[campo.nombre] = primerRollo
+                  .atributosEspeciales[campo.id]
+                  .toString();
+            }
+            // Fallback directo desde el catálogo de variantes de TipoTela
+            else if (tipoTelaMaestro.variantes != null &&
+                tipoTelaMaestro.variantes.isNotEmpty) {
+              final primeraVariante = tipoTelaMaestro.variantes.first;
+              if (primeraVariante.campos != null) {
+                try {
+                  final campoVar = primeraVariante.campos.firstWhere(
+                    (c) => c.campoId == campo.id,
+                  );
+                  valoresDiferenciadoresGrupo[campo.nombre] = campoVar.valor
+                      .toString();
+                } catch (_) {}
               }
             }
           }
         }
-
+      
         print('--- DIFERENCIADORES DESDE PROVIDER ---');
         if (valoresDiferenciadoresGrupo.isEmpty) {
           print('VACIO');
