@@ -24,6 +24,10 @@ class LoteGastosDialog extends ConsumerStatefulWidget {
 }
 
 class _LoteGastosDialogState extends ConsumerState<LoteGastosDialog> {
+  // --- VARIABLES PARA EL EFECTO DE PARPADEO INTERACTIVO ---
+  String? _loteDetalleResaltadoId;
+  bool _mostrarColorParpadeo = false;
+
   @override
   void initState() {
     super.initState();
@@ -40,6 +44,27 @@ class _LoteGastosDialogState extends ConsumerState<LoteGastosDialog> {
             ),
         ref.read(gastosLoteProvider(args).notifier).cargarGastos(),
       ]);
+    });
+  }
+
+  // FUNCIÓN ASÍNCRONA PARA DISPARAR EL PARPADEO 3 VECES (Alternando 6 veces el estado)
+  void _ejecutarParpadeo(String loteDetalleId) async {
+    setState(() {
+      _loteDetalleResaltadoId = loteDetalleId;
+      _mostrarColorParpadeo = true;
+    });
+
+    for (int i = 0; i < 6; i++) {
+      await Future.delayed(const Duration(milliseconds: 250));
+      if (!mounted) return;
+      setState(() {
+        _mostrarColorParpadeo = !_mostrarColorParpadeo;
+      });
+    }
+
+    setState(() {
+      _loteDetalleResaltadoId = null;
+      _mostrarColorParpadeo = false;
     });
   }
 
@@ -140,34 +165,38 @@ class _LoteGastosDialogState extends ConsumerState<LoteGastosDialog> {
   ) {
     return Row(
       children: [
-        // En Escritorio se mantiene la estructura original de dos paneles fijos uno al lado del otro
-        Expanded(flex: 2, child: _buildPanelCostos(costos, esCelular: false)),
+        Expanded(
+          flex: 2,
+          child: _buildPanelCostos(costos, gastos, esCelular: false),
+        ),
         const VerticalDivider(width: 20),
-        Expanded(child: _buildPanelGastos(gastos, esCelular: false)),
+        Expanded(child: _buildPanelGastos(costos, gastos, esCelular: false)),
       ],
     );
   }
 
-  // --- EL CAMBIO PRINCIPAL ESTÁ AQUÍ ---
   Widget _buildMobileLayout(
     LoteGastosState costos,
     AsyncValue<List<Gasto>> gastos,
   ) {
-    // Un solo scroll view para toda la pantalla de Android
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildPanelCostos(costos, esCelular: true),
+          _buildPanelCostos(costos, gastos, esCelular: true),
           const SizedBox(height: 16),
-          _buildPanelGastos(gastos, esCelular: true),
+          _buildPanelGastos(costos, gastos, esCelular: true),
         ],
       ),
     );
   }
 
-  Widget _buildPanelCostos(LoteGastosState state, {required bool esCelular}) {
+  Widget _buildPanelCostos(
+    LoteGastosState state,
+    AsyncValue<List<Gasto>> gastosState, {
+    required bool esCelular,
+  }) {
     final contenido = state.cargando
         ? const Center(
             child: Padding(
@@ -190,12 +219,65 @@ class _LoteGastosDialogState extends ConsumerState<LoteGastosDialog> {
             ),
           )
         : ListView.builder(
-            // Si es celular, se acopla al scroll padre. Si es web, mantiene su scroll independiente.
             shrinkWrap: esCelular,
             physics: esCelular ? const NeverScrollableScrollPhysics() : null,
             itemCount: state.agrupados.length,
             itemBuilder: (_, index) {
-              return LoteGastoAgrupadoCard(item: state.agrupados[index]);
+              final item = state.agrupados[index];
+
+              int cantidadGastosTransporte = 0;
+              gastosState.whenData((listaGastos) {
+                cantidadGastosTransporte = listaGastos
+                    .where((g) => g.loteDetalleId == item.loteDetalleId)
+                    .length;
+              });
+
+              return Stack(
+                children: [
+                  LoteGastoAgrupadoCard(item: item),
+                  if (cantidadGastosTransporte > 0)
+                    Positioned(
+                      top: 18,
+                      right: 14,
+                      child: InkWell(
+                        onTap: () => _ejecutarParpadeo(item.loteDetalleId),
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: Colors.amber.shade300,
+                              width: 1.2,
+                            ),
+                          ),
+                          child: cantidadGastosTransporte == 1
+                              ? Icon(
+                                  Icons.local_shipping,
+                                  color: Colors.amber.shade700,
+                                  size: 22,
+                                )
+                              : Badge(
+                                  backgroundColor: Colors.amber.shade800,
+                                  label: Text(
+                                    '$cantidadGastosTransporte',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    Icons.local_shipping,
+                                    color: Colors.amber.shade700,
+                                    size: 22,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
             },
           );
 
@@ -213,7 +295,6 @@ class _LoteGastosDialogState extends ConsumerState<LoteGastosDialog> {
             ),
           ),
           const Divider(height: 1),
-          // En móvil ya no usamos Expanded para que el Card crezca de forma natural según su contenido
           esCelular ? contenido : Expanded(child: contenido),
         ],
       ),
@@ -221,6 +302,7 @@ class _LoteGastosDialogState extends ConsumerState<LoteGastosDialog> {
   }
 
   Widget _buildPanelGastos(
+    LoteGastosState costos,
     AsyncValue<List<Gasto>> gastos, {
     required bool esCelular,
   }) {
@@ -263,8 +345,166 @@ class _LoteGastosDialogState extends ConsumerState<LoteGastosDialog> {
 
               final total = lista.fold<double>(0, (sum, g) => sum + g.totalBs);
 
+              // Construimos la lista internamente respetando el scroll dinámico según la plataforma
+              final listadoWidgets = ListView.builder(
+                shrinkWrap: esCelular,
+                physics: esCelular
+                    ? const NeverScrollableScrollPhysics()
+                    : const BouncingScrollPhysics(),
+                itemCount: lista.length,
+                itemBuilder: (_, i) {
+                  final gasto = lista[i];
+                  final tieneDetalleAsociado = gasto.loteDetalleId != null;
+
+                  final debeParpadear =
+                      tieneDetalleAsociado &&
+                      gasto.loteDetalleId == _loteDetalleResaltadoId &&
+                      _mostrarColorParpadeo;
+
+                  final telaEncontrada = tieneDetalleAsociado
+                      ? costos.agrupados.cast().firstWhere(
+                          (t) => t.loteDetalleId == gasto.loteDetalleId,
+                          orElse: () => null,
+                        )
+                      : null;
+
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: debeParpadear
+                          ? Colors.amber.shade300
+                          : tieneDetalleAsociado
+                          ? Colors.amber.withValues(alpha: 0.07)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: debeParpadear
+                            ? Colors.amber.shade800
+                            : tieneDetalleAsociado
+                            ? Colors.amber.withValues(alpha: 0.3)
+                            : Colors.transparent,
+                        width: debeParpadear ? 2.0 : 1.0,
+                      ),
+                    ),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: tieneDetalleAsociado
+                            ? Colors.amber.shade700
+                            : Colors.blue.shade700,
+                        foregroundColor: Colors.white,
+                        child: Icon(
+                          tieneDetalleAsociado
+                              ? Icons.local_shipping
+                              : Icons.restaurant_menu,
+                        ),
+                      ),
+                      title: Text(
+                        gasto.descripcion,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 4.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Moneda: ${gasto.monedaCodigo} • Orig: ${gasto.montoOrigen.toStringAsFixed(2)}",
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 12,
+                              ),
+                            ),
+                            if (tieneDetalleAsociado) ...[
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.shade50,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: Colors.blue.shade100,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.inventory_2,
+                                      size: 12,
+                                      color: Colors.blue.shade800,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Flexible(
+                                      child: Text(
+                                        telaEncontrada != null
+                                            ? "${telaEncontrada.tipoTela} - ${telaEncontrada.proveedor} (${telaEncontrada.cantidadRollos} R.)"
+                                            : "Tela enlazada (Detalle ID: ${gasto.loteDetalleId})",
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.blue.shade900,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            "Bs ${gasto.totalBs.toStringAsFixed(2)}",
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          IconButton(
+                            icon: const Icon(Icons.edit, size: 20),
+                            tooltip: 'Editar',
+                            onPressed: () async {
+                              final guardado = await showDialog<bool>(
+                                context: context,
+                                builder: (_) => NuevoGastoDialog(
+                                  empresaId: widget.empresaId,
+                                  loteId: widget.loteId,
+                                  gasto: gasto,
+                                ),
+                              );
+                              if (guardado == true) {
+                                await ref
+                                    .read(
+                                      gastosLoteProvider((
+                                        empresaId: widget.empresaId,
+                                        loteId: widget.loteId,
+                                      )).notifier,
+                                    )
+                                    .cargarGastos();
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+
+              // CORRECCIÓN: Separamos el contenedor del Total y hacemos que la lista use todo el espacio restante con scroll independiente en Desktop
               final cuerpoGastos = Column(
-                mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -280,60 +520,10 @@ class _LoteGastosDialogState extends ConsumerState<LoteGastosDialog> {
                     ),
                   ),
                   const Divider(),
-                  ListView.builder(
-                    shrinkWrap:
-                        true, // Crucial para integrarse al scroll unificado
-                    physics:
-                        const NeverScrollableScrollPhysics(), // Evita conflictos con el scroll de Android
-                    itemCount: lista.length,
-                    itemBuilder: (_, i) {
-                      final gasto = lista[i];
-                      return ListTile(
-                        leading: const CircleAvatar(child: Icon(Icons.money)),
-                        title: Text(gasto.descripcion),
-                        subtitle: Text(gasto.monedaCodigo),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              "Bs ${gasto.totalBs.toStringAsFixed(2)}",
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.edit),
-                              tooltip: 'Editar',
-                              onPressed: () async {
-                                final guardado = await showDialog<bool>(
-                                  context: context,
-                                  builder: (_) => NuevoGastoDialog(
-                                    empresaId: widget.empresaId,
-                                    loteId: widget.loteId,
-                                    gasto: gasto,
-                                  ),
-                                );
-                                if (guardado == true) {
-                                  await ref
-                                      .read(
-                                        gastosLoteProvider((
-                                          empresaId: widget.empresaId,
-                                          loteId: widget.loteId,
-                                        )).notifier,
-                                      )
-                                      .cargarGastos();
-                                }
-                              },
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                  esCelular ? listadoWidgets : Expanded(child: listadoWidgets),
                 ],
               );
 
-              // Al igual que con los costos, quitamos el Expanded en entornos móviles
               return esCelular ? cuerpoGastos : Expanded(child: cuerpoGastos);
             },
           ),

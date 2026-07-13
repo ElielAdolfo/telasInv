@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +13,7 @@ import 'package:inv_telas/providers/lote_detalle_provider.dart';
 import 'package:inv_telas/providers/moneda_provider.dart';
 import 'package:inv_telas/widgets/confirm_action_dialog.dart';
 import 'package:uuid/uuid.dart';
+import 'dart:convert';
 
 class GrupoRollo {
   final String uid;
@@ -122,9 +122,13 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
               costoMetroOrigen: r.costoMetroOrigen > 0
                   ? r.costoMetroOrigen
                   : widget.detalle.costoMetroOrigen,
+
               costoRolloOrigen: r.costoRolloOrigen > 0
                   ? r.costoRolloOrigen
-                  : widget.detalle.costoRolloOrigen,
+                  : (r.metraje *
+                        (r.costoMetroOrigen > 0
+                            ? r.costoMetroOrigen
+                            : widget.detalle.costoMetroOrigen)),
               atributosEspeciales: Map<String, dynamic>.from(
                 r.atributosEspeciales,
               ),
@@ -723,6 +727,10 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
               setState(() {
                 _capturarEstadoOriginal();
               });
+
+              if (context.mounted) {
+                Navigator.of(context).pop(true);
+              }
             } else {
               throw Exception("No se pudo guardar la distribución de rollos.");
             }
@@ -769,7 +777,9 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
                       atributosEspeciales: {},
                       confirmado: false,
                       costoMetroOrigen: widget.detalle.costoMetroOrigen,
-                      costoRolloOrigen: widget.detalle.costoRolloOrigen,
+                      costoRolloOrigen:
+                          widget.detalle.costoMetroOrigen *
+                          widget.detalle.metrosPorRollo,
                     );
 
                     todosLosGrupos.add(nuevoGrupo);
@@ -816,7 +826,8 @@ class _ModificarRollosScreenState extends ConsumerState<ModificarRollosScreen> {
           cantidad: 1,
           confirmado: false,
           costoMetroOrigen: widget.detalle.costoMetroOrigen,
-          costoRolloOrigen: widget.detalle.costoRolloOrigen,
+          costoRolloOrigen:
+              widget.detalle.costoMetroOrigen * widget.detalle.metrosPorRollo,
         ),
       );
       gruposRenderizados.clear();
@@ -867,6 +878,20 @@ class _ItemFilaRolloState extends State<ItemFilaRollo> {
   void initState() {
     super.initState();
     _inicializarControllers();
+  }
+
+  @override
+  void didUpdateWidget(covariant ItemFilaRollo oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    for (final campo in widget.camposEspeciales) {
+      atributosControllers.putIfAbsent(
+        campo.id,
+        () => TextEditingController(
+          text: widget.grupo.atributosEspeciales[campo.id]?.toString() ?? '',
+        ),
+      );
+    }
   }
 
   void _inicializarControllers() {
@@ -1209,7 +1234,14 @@ class _ItemFilaRolloState extends State<ItemFilaRollo> {
           const SizedBox(width: 4),
 
           ...widget.camposEspeciales.map((campo) {
-            final controller = atributosControllers[campo.id]!;
+            final controller = atributosControllers.putIfAbsent(
+              campo.id,
+              () => TextEditingController(
+                text:
+                    widget.grupo.atributosEspeciales[campo.id]?.toString() ??
+                    '',
+              ),
+            );
 
             return Expanded(
               flex: 2,
@@ -1260,7 +1292,7 @@ class _ItemFilaRolloState extends State<ItemFilaRollo> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'Mtr: ${widget.detalle.costoMetroOrigen.toStringAsFixed(2)} ${widget.simboloMoneda}',
+                      'Mtr: ${widget.grupo.costoMetroOrigen.toStringAsFixed(2)} ${widget.simboloMoneda}',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,

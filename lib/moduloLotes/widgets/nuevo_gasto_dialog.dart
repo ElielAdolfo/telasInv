@@ -4,6 +4,8 @@ import 'package:inv_telas/models/lotes/gastos.dart';
 import 'package:inv_telas/models/moneda.dart';
 import 'package:inv_telas/providers/moneda_provider.dart';
 import 'package:inv_telas/providers/gasto_provider.dart';
+// Importamos el provider que contiene la lista de detalles agrupados
+import '../../providers/lote_gastos_provider.dart';
 
 class NuevoGastoDialog extends ConsumerStatefulWidget {
   final String empresaId;
@@ -34,6 +36,10 @@ class _NuevoGastoDialogState extends ConsumerState<NuevoGastoDialog> {
   double _totalCalculadoBs = 0.0;
   bool _estaGuardando = false;
 
+  // Nuevas variables de estado para el tipo de gasto y el lote detalle
+  String _tipoGasto = "COMUN"; // "COMUN" o "TRANSPORTE"
+  String? _loteDetalleSeleccionadoId;
+
   @override
   void initState() {
     super.initState();
@@ -46,6 +52,16 @@ class _NuevoGastoDialogState extends ConsumerState<NuevoGastoDialog> {
       _factorConversionCtrl.text = gasto.factor.toString();
       _tipoCambioCtrl.text = gasto.tipoCambio.toString();
       _totalCalculadoBs = gasto.totalBs;
+
+      // Si el gasto ya venía con un loteDetalleId, lo marcamos como transporte
+      if (gasto.loteDetalleId != null) {
+        _tipoGasto = "TRANSPORTE";
+        _loteDetalleSeleccionadoId = gasto.loteDetalleId;
+      }
+    } else if (widget.loteDetalleId != null) {
+      // Por si se abre el diálogo pre-seleccionando un detalle desde fuera
+      _tipoGasto = "TRANSPORTE";
+      _loteDetalleSeleccionadoId = widget.loteDetalleId;
     }
   }
 
@@ -95,7 +111,10 @@ class _NuevoGastoDialogState extends ConsumerState<NuevoGastoDialog> {
         fechaModificacion: widget.gasto?.fechaModificacion,
         empresaId: widget.empresaId,
         loteId: widget.loteId,
-        loteDetalleId: widget.loteDetalleId,
+        // Si es común, se guarda como null. Si es transporte, su ID respectivo
+        loteDetalleId: _tipoGasto == "TRANSPORTE"
+            ? _loteDetalleSeleccionadoId
+            : null,
         descripcion: _descripcionCtrl.text.trim(),
         monedaId: _monedaSeleccionada!.id,
         monedaCodigo: _monedaSeleccionada!.codigo,
@@ -115,7 +134,6 @@ class _NuevoGastoDialogState extends ConsumerState<NuevoGastoDialog> {
       if (!mounted) return;
       Navigator.pop(context, true);
     } catch (e, stack) {
-      // Imprime el error y la línea exacta del fallo en la consola de depuración
       debugPrint("================ ERROR AL GUARDAR GASTO ================");
       debugPrint("Error: $e");
       debugPrint("Stacktrace:\n$stack");
@@ -136,6 +154,8 @@ class _NuevoGastoDialogState extends ConsumerState<NuevoGastoDialog> {
   @override
   Widget build(BuildContext context) {
     final monedasAsync = ref.watch(monedasProvider(widget.empresaId));
+    // Obtenemos los detalles agrupados del lote para llenar el select condicional
+    final loteGastosState = ref.watch(loteGastosProvider);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -212,11 +232,75 @@ class _NuevoGastoDialogState extends ConsumerState<NuevoGastoDialog> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          // 1. Selector de Tipo de Gasto
+                          DropdownButtonFormField<String>(
+                            value: _tipoGasto,
+                            decoration: const InputDecoration(
+                              labelText: "Clasificación del Gasto",
+                              border: OutlineInputBorder(),
+                              prefixIcon: Icon(Icons.layers),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: "COMUN",
+                                child: Text(
+                                  "Gastos Comunes (Comida, Pasajes, etc.)",
+                                ),
+                              ),
+                              DropdownMenuItem(
+                                value: "TRANSPORTE",
+                                child: Text("Gastos de Transporte / Traslado"),
+                              ),
+                            ],
+                            onChanged: (nuevoTipo) {
+                              if (nuevoTipo == null) return;
+                              setState(() {
+                                _tipoGasto = nuevoTipo;
+                                // Resetear el detalle si vuelve a común
+                                if (_tipoGasto == "COMUN") {
+                                  _loteDetalleSeleccionadoId = null;
+                                }
+                              });
+                            },
+                          ),
+                          const SizedBox(height: 15),
+
+                          // 2. Selector condicional de Lote Detalle (Solo si es transporte)
+                          if (_tipoGasto == "TRANSPORTE") ...[
+                            DropdownButtonFormField<String>(
+                              value: _loteDetalleSeleccionadoId,
+                              decoration: const InputDecoration(
+                                labelText: "Asociar a Detalle de Lote",
+                                border: OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.inventory_2),
+                              ),
+                              items: loteGastosState.agrupados.map((detalle) {
+                                return DropdownMenuItem<String>(
+                                  value: detalle.loteDetalleId,
+                                  child: Text(
+                                    "${detalle.tipoTela} - ${detalle.proveedor} (${detalle.cantidadRollos} Rollos)",
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (String? nuevoDetalleId) {
+                                setState(() {
+                                  _loteDetalleSeleccionadoId = nuevoDetalleId;
+                                });
+                              },
+                              validator: (v) =>
+                                  _tipoGasto == "TRANSPORTE" && v == null
+                                  ? "Debe seleccionar un lote detalle"
+                                  : null,
+                            ),
+                            const SizedBox(height: 15),
+                          ],
+
                           TextFormField(
                             controller: _descripcionCtrl,
                             decoration: const InputDecoration(
                               labelText: "Descripción del Gasto",
-                              hintText: "Ej: Pasajes ida / Comida",
+                              hintText: "Ej: Flete de rollos / Almuerzo equipo",
                               border: OutlineInputBorder(),
                               prefixIcon: Icon(Icons.description),
                             ),
@@ -295,7 +379,6 @@ class _NuevoGastoDialogState extends ConsumerState<NuevoGastoDialog> {
                                 ),
                                 if (esCelular)
                                   const SizedBox(height: 15)
-                                // Usamos palabras seguras en lugar de símbolos HTML que puedan confundir al compilador
                                 else
                                   const SizedBox(width: 10),
                                 Expanded(
