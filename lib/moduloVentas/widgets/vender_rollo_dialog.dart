@@ -1,7 +1,9 @@
+// lib/moduloVentas/widgets/vender_rollo_dialog.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inv_telas/models/ventas/stock_actual.dart';
 import 'package:inv_telas/providers/carrito_provider.dart';
+import 'package:inv_telas/providers/precio_venta_provider.dart'; // Importante para leer el precio de la sucursal
 
 class VenderRolloDialog extends ConsumerStatefulWidget {
   final StockActual rollo;
@@ -19,8 +21,12 @@ class VenderRolloDialog extends ConsumerStatefulWidget {
 
 class __VenderRolloDialogState extends ConsumerState<VenderRolloDialog> {
   final _metrosVentaCtrl = TextEditingController();
+  final _precioManualCtrl =
+      TextEditingController(); // Controlador para modificar el precio libremente[cite: 8]
   final _realAjusteCtrl = TextEditingController();
   bool _finalizarRollo = false;
+  bool _precioModificadoManualmente =
+      false; // Bandera para respetar el input del usuario[cite: 8]
 
   @override
   void initState() {
@@ -31,16 +37,19 @@ class __VenderRolloDialogState extends ConsumerState<VenderRolloDialog> {
   @override
   void dispose() {
     _metrosVentaCtrl.dispose();
+    _precioManualCtrl.dispose();
     _realAjusteCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // 1. Calculamos dinámicamente si ya hay metros de este rollo en el carrito
     final cartState = ref.watch(carritoVentasProvider);
-    double metrosEnCarrito = 0.0;
+    final precioConfig = ref.watch(
+      precioPorTipoTelaProvider(widget.rollo.tipoTelaId),
+    ); //[cite: 8]
 
+    double metrosEnCarrito = 0.0;
     for (var item in cartState.items) {
       for (var sel in item.rollosSeleccionados) {
         if (sel.rolloId == widget.rollo.id) {
@@ -49,8 +58,27 @@ class __VenderRolloDialogState extends ConsumerState<VenderRolloDialog> {
       }
     }
 
-    // 2. Metraje libre disponible real
     final metrosDisponibles = widget.rollo.metrajeActual - metrosEnCarrito;
+
+    // Obtener metros ingresados actualmente
+    final metrosIngresados = double.tryParse(_metrosVentaCtrl.text) ?? 0.0;
+
+    // Lógica de cálculo dinámico de precio sugerido
+    double precioSugerido = precioConfig?.precioVentaMetro ?? 0.0;
+    if (precioConfig != null && metrosIngresados > 0) {
+      precioSugerido = ref
+          .read(carritoVentasProvider.notifier)
+          .calcularPrecioSugerido(precioConfig, metrosIngresados);
+    }
+
+    // Si el usuario no ha editado el precio manualmente, autollenamos el campo
+    if (!_precioModificadoManualmente && precioConfig != null) {
+      _precioManualCtrl.text = precioSugerido.toStringAsFixed(2);
+    }
+
+    final precioFinal =
+        double.tryParse(_precioManualCtrl.text) ?? precioSugerido;
+    final totalEstimado = metrosIngresados * precioFinal;
 
     return AlertDialog(
       title: Text('Vender de Rollo #${widget.rollo.numeroFisico}'),
@@ -65,7 +93,6 @@ class __VenderRolloDialogState extends ConsumerState<VenderRolloDialog> {
             ),
             const SizedBox(height: 8),
 
-            // 🟢 Visualización Híbrida Inteligente para pantallas móviles
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
@@ -87,22 +114,12 @@ class __VenderRolloDialogState extends ConsumerState<VenderRolloDialog> {
                           : Colors.black87,
                     ),
                   ),
-                  if (metrosEnCarrito > 0) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      '(Stock total: ${widget.rollo.metrajeActual.toStringAsFixed(2)}m | En carrito: ${metrosEnCarrito.toStringAsFixed(2)}m)',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.blue.shade700,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
             const Divider(height: 24),
 
+            // INPUT: Metros a Vender
             TextFormField(
               controller: _metrosVentaCtrl,
               keyboardType: const TextInputType.numberWithOptions(
@@ -116,7 +133,60 @@ class __VenderRolloDialogState extends ConsumerState<VenderRolloDialog> {
                 border: const OutlineInputBorder(),
                 prefixIcon: const Icon(Icons.shopping_basket_outlined),
               ),
+              onChanged: (value) {
+                // Al cambiar los metros, se gatilla el setState para recalcular el precio sugerido
+                setState(() {});
+              },
             ),
+            const SizedBox(height: 16),
+
+            // INPUT NUEVO: Precio Unitario Modificable
+            TextFormField(
+              controller: _precioManualCtrl,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: InputDecoration(
+                labelText: 'Precio de Venta (Unitario)',
+                suffixText: 'Bs',
+                helperText: precioConfig != null
+                    ? 'Precio base sugerido: Bs ${precioSugerido.toStringAsFixed(2)}'
+                    : 'Sin precio configurado',
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.monetization_on_outlined),
+              ),
+              onChanged: (value) {
+                // Si el usuario edita este campo, activamos la bandera para detener la sobreescritura automática
+                setState(() {
+                  _precioModificadoManualmente = true;
+                });
+              },
+            ),
+
+            if (metrosIngresados > 0) ...[
+              const SizedBox(height: 12),
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green.shade200),
+                  ),
+                  child: Text(
+                    'Subtotal: Bs ${totalEstimado.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green.shade900,
+                    ),
+                  ),
+                ),
+              ),
+            ],
 
             const SizedBox(height: 16),
             const Divider(),
@@ -172,7 +242,6 @@ class __VenderRolloDialogState extends ConsumerState<VenderRolloDialog> {
               return;
             }
 
-            // 🟢 CORREGIDO: Compara dinámicamente contra el remanente libre, no contra el stock estático
             if (metrosAVender > metrosDisponibles) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -184,14 +253,15 @@ class __VenderRolloDialogState extends ConsumerState<VenderRolloDialog> {
               return;
             }
 
+            // Usamos el precio ingresado en el input para la transacción
             final exito = ref
                 .read(carritoVentasProvider.notifier)
                 .agregarMetrosEspecificoDeRollo(
                   rollo: widget.rollo,
                   nombreTela: widget.nombreTela,
-                  // Si ya había metros previos en el carrito, se los sumamos para actualizar la línea existente
                   mts: metrosAVender + metrosEnCarrito,
-                  precio: 12.5,
+                  precio:
+                      precioFinal, // Pasamos el valor editado por pantalla[cite: 8]
                 );
 
             if (exito) {

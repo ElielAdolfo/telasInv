@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:inv_telas/config/env.dart';
 import 'package:inv_telas/models/ventas/carrito_item.dart';
+import 'package:inv_telas/models/ventas/precio_venta_sucursal.dart.dart';
 import 'package:inv_telas/models/ventas/venta_rollo_seleccion.dart';
 import 'package:inv_telas/models/ventas/stock_actual.dart';
 import 'package:inv_telas/providers/carrito_state.dart';
@@ -152,6 +153,37 @@ class CarritoNotifier extends StateNotifier<CarritoState> {
         tieneErrorSincronizacion: true,
       );
     }
+  }
+
+  // Método auxiliar para calcular el precio correspondiente según el metraje
+  double calcularPrecioSugerido(
+    PrecioVentaSucursal precioConfig,
+    double metros,
+  ) {
+    if (precioConfig.metrosMinimoSuperMayor != null &&
+        precioConfig.precioVentaSuperMayor != null &&
+        metros >= precioConfig.metrosMinimoSuperMayor!) {
+      return precioConfig.precioVentaSuperMayor!;
+    }
+    if (precioConfig.metrosMinimoXMayor != null &&
+        precioConfig.precioVentaXMayor != null &&
+        metros >= precioConfig.metrosMinimoXMayor!) {
+      return precioConfig.precioVentaXMayor!;
+    }
+    return precioConfig.precioVentaMetro;
+  }
+
+  // Permite modificar el precio unitario de forma manual desde el carrito
+  void actualizarPrecioItem(String itemId, double nuevoPrecio) {
+    state = state.copyWith(
+      items: state.items.map((item) {
+        if (item.id == itemId) {
+          return item.copyWith(precioUnitario: nuevoPrecio);
+        }
+        return item;
+      }).toList(),
+    );
+    _sincronizarCarritoConBaseDeDatos();
   }
 }
 

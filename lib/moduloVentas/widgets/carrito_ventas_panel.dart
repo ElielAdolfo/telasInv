@@ -80,26 +80,94 @@ class CarritoVentasPanel extends ConsumerWidget {
                     final nombreTela =
                         mapaTiposTela[item.tipoTelaId]?.nombre ??
                         item.tipoTelaId;
-                    return ListTile(
-                      title: Text(
-                        nombreTela,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 13),
+
+                    final metros = item.cantidadMetros;
+                    final esMetraje = metros > 0;
+                    final cantidadLabel = esMetraje
+                        ? "${metros.toStringAsFixed(2)} m"
+                        : "${item.cantidadRollos} u";
+
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
                       ),
-                      subtitle: Text(
-                        'Bs ${item.precioUnitario} × ${item.cantidadMetros > 0 ? "${item.cantidadMetros.toStringAsFixed(2)} m" : "${item.cantidadRollos} u"}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: registroState.procesando
-                            ? null // Bloquea remover ítems si ya se está procesando la venta
-                            : () {
-                                ref
-                                    .read(carritoVentasProvider.notifier)
-                                    .eliminarItem(item.id);
-                              },
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    nombreTela,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Cantidad: $cantidadLabel',
+                                    style: TextStyle(
+                                      color: Colors.grey.shade600,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // Campo editable interactivo en línea para cambiar el precio unitario
+                            SizedBox(
+                              width: 80,
+                              child: TextFormField(
+                                initialValue: item.precioUnitario
+                                    .toStringAsFixed(2),
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
+                                decoration: const InputDecoration(
+                                  labelText: 'Precio (Bs)',
+                                  isDense: true,
+                                  border: OutlineInputBorder(),
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 8,
+                                  ),
+                                ),
+                                style: const TextStyle(fontSize: 13),
+                                onChanged: (val) {
+                                  final nuevoPrecio =
+                                      double.tryParse(val) ?? 0.0;
+                                  if (nuevoPrecio >= 0) {
+                                    ref
+                                        .read(carritoVentasProvider.notifier)
+                                        .actualizarPrecioItem(
+                                          item.id,
+                                          nuevoPrecio,
+                                        );
+                                  }
+                                },
+                              ),
+                            ),
+
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: registroState.procesando
+                                  ? null
+                                  : () {
+                                      ref
+                                          .read(carritoVentasProvider.notifier)
+                                          .eliminarItem(item.id);
+                                    },
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   },
