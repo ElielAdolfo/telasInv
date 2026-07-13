@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:inv_telas/core/providers/session_provider.dart';
 import 'package:inv_telas/models/ventas/stock_actual.dart';
 import 'package:inv_telas/moduloVentas/widgets/carrito_ventas_panel.dart';
@@ -11,6 +12,12 @@ import 'package:inv_telas/providers/stock_actual_provider.dart';
 import 'package:inv_telas/providers/venta_tipo_tela_provider.dart';
 import 'package:inv_telas/providers/ventas_provider.dart';
 import 'package:inv_telas/providers/ventas_tipo_tela_nombre_provider.dart';
+
+enum FiltroRolloEstado { todos, cerrado, abierto }
+
+final filtroEstadoProvider = StateProvider<FiltroRolloEstado>(
+  (ref) => FiltroRolloEstado.todos,
+);
 
 class VentasPosScreen extends ConsumerWidget {
   const VentasPosScreen({super.key});
@@ -212,6 +219,9 @@ class VentasPosScreen extends ConsumerWidget {
 
             final mapaTiposArray = mapaTiposAsync.value ?? {};
 
+            // ESCUCHAMOS EL FILTRO EN LA PANTALLA PRINCIPAL
+            final filtroActual = ref.watch(filtroEstadoProvider);
+
             return Scaffold(
               body: Column(
                 children: [
@@ -223,44 +233,92 @@ class VentasPosScreen extends ConsumerWidget {
 
                   Padding(
                     padding: const EdgeInsets.all(12),
-                    child: tiposDisponiblesAsync.when(
-                      loading: () => const LinearProgressIndicator(),
-
-                      error: (e, _) => Text('Error cargando tipos: $e'),
-
-                      data: (tipos) {
-                        return mapaTiposAsync.when(
+                    child: Column(
+                      children: [
+                        tiposDisponiblesAsync.when(
                           loading: () => const LinearProgressIndicator(),
 
-                          error: (_, __) => const SizedBox(),
+                          error: (e, _) => Text('Error cargando tipos: $e'),
 
-                          data: (mapaTipos) {
-                            return DropdownButtonFormField<String>(
-                              initialValue: tipoTelaSeleccionada,
-                              decoration: const InputDecoration(
-                                labelText: 'Tipo de Tela',
-                                border: OutlineInputBorder(),
-                              ),
-                              items: tipos.map((id) {
-                                final tela = mapaTipos[id];
+                          data: (tipos) {
+                            return mapaTiposAsync.when(
+                              loading: () => const LinearProgressIndicator(),
 
-                                return DropdownMenuItem<String>(
-                                  value: id,
-                                  child: Text(tela?.nombre ?? id),
+                              error: (_, __) => const SizedBox(),
+
+                              data: (mapaTipos) {
+                                return DropdownButtonFormField<String>(
+                                  initialValue: tipoTelaSeleccionada,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Tipo de Tela',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  items: tipos.map((id) {
+                                    final tela = mapaTipos[id];
+
+                                    return DropdownMenuItem<String>(
+                                      value: id,
+                                      child: Text(tela?.nombre ?? id),
+                                    );
+                                  }).toList(),
+                                  onChanged: (value) {
+                                    ref
+                                            .read(
+                                              tipoTelaSeleccionadaProvider
+                                                  .notifier,
+                                            )
+                                            .state =
+                                        value;
+                                  },
                                 );
-                              }).toList(),
-                              onChanged: (value) {
-                                ref
-                                        .read(
-                                          tipoTelaSeleccionadaProvider.notifier,
-                                        )
-                                        .state =
-                                    value;
                               },
                             );
                           },
-                        );
-                      },
+                        ),
+
+                        // =========================================================================
+                        // NUEVO: EL SELECTOR ÚNICO SE QUEDA AQUÍ (AFUERA DE LAS TARJETAS REPETITIVAS)
+                        // =========================================================================
+                        const SizedBox(height: 12),
+                        Center(
+                          child: SegmentedButton<FiltroRolloEstado>(
+                            segments: const [
+                              ButtonSegment(
+                                value: FiltroRolloEstado.todos,
+                                label: Text('Todos'),
+                                icon: Icon(Icons.list_alt, size: 16),
+                              ),
+                              ButtonSegment(
+                                value: FiltroRolloEstado.cerrado,
+                                label: Text('Cerrados'),
+                                icon: Icon(
+                                  Icons.inventory_2_outlined,
+                                  size: 16,
+                                ),
+                              ),
+                              ButtonSegment(
+                                value: FiltroRolloEstado.abierto,
+                                label: Text('Abiertos'),
+                                icon: Icon(Icons.mode_edit_outline, size: 16),
+                              ),
+                            ],
+                            selected: {filtroActual},
+                            onSelectionChanged:
+                                (Set<FiltroRolloEstado> nuevoFiltro) {
+                                  ref
+                                          .read(filtroEstadoProvider.notifier)
+                                          .state =
+                                      nuevoFiltro.first;
+                                },
+                            style: SegmentedButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              selectedForegroundColor: Colors.white,
+                              selectedBackgroundColor: Colors.blue.shade700,
+                            ),
+                          ),
+                        ),
+                        // =========================================================================
+                      ],
                     ),
                   ),
                   Expanded(
@@ -288,13 +346,85 @@ class VentasPosScreen extends ConsumerWidget {
                                         Center(child: Text('Error stock: $e')),
 
                                     data: (lista) {
+                                      // 1. FILTRADO GLOBAL PREVIO DE SEGURIDAD
+                                      final listaFiltradaGlobal = lista.where((
+                                        item,
+                                      ) {
+                                        if (item.estado ==
+                                            StockRolloEstado.vendido)
+                                          return false;
+                                        if (filtroActual ==
+                                            FiltroRolloEstado.cerrado)
+                                          return item.estado ==
+                                              StockRolloEstado.cerrado;
+                                        if (filtroActual ==
+                                            FiltroRolloEstado.abierto)
+                                          return item.estado ==
+                                              StockRolloEstado.abierto;
+                                        return true;
+                                      }).toList();
+
+                                      // 2. CONTROL DINÁMICO DE MENSAJES DE ESTADO VACÍO
+                                      if (listaFiltradaGlobal.isEmpty) {
+                                        String mensajeInformativo;
+
+                                        // Si la lista original de la DB ya vino vacía, significa que no hay nada en la sucursal
+                                        if (lista.isEmpty) {
+                                          mensajeInformativo =
+                                              'No hay rollos asignados a esta sucursal.';
+                                        } else {
+                                          // Si la lista tiene datos pero el filtro la dejó en 0
+                                          switch (filtroActual) {
+                                            case FiltroRolloEstado.cerrado:
+                                              mensajeInformativo =
+                                                  'No hay rollos cerrados disponibles.';
+                                              break;
+                                            case FiltroRolloEstado.abierto:
+                                              mensajeInformativo =
+                                                  'No hay rollos abiertos en disponibles.';
+                                              break;
+                                            case FiltroRolloEstado.todos:
+                                            default:
+                                              mensajeInformativo =
+                                                  'No hay rollos registrados.';
+                                              break;
+                                          }
+                                        }
+
+                                        return Center(
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(40.0),
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(
+                                                  Icons.inventory_2_outlined,
+                                                  size: 48,
+                                                  color: Colors.grey.shade400,
+                                                ),
+                                                const SizedBox(height: 12),
+                                                Text(
+                                                  mensajeInformativo,
+                                                  textAlign: TextAlign.center,
+                                                  style: TextStyle(
+                                                    fontStyle: FontStyle.italic,
+                                                    fontSize: 15,
+                                                    color: Colors.grey.shade600,
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      }
+
+                                      // 3. SI HAY COMPONENTES, AGRUPAMOS COMO YA LO HACÍAS NORMALMENTE
                                       final Map<String, List<StockActual>>
                                       grupos = {};
-
-                                      for (final item in lista) {
+                                      for (final item in listaFiltradaGlobal) {
                                         final key =
                                             '${item.tipoTelaId}_${item.colorId ?? "std"}_${item.loteId}';
-
                                         grupos
                                             .putIfAbsent(key, () => [])
                                             .add(item);
@@ -306,15 +436,14 @@ class VentasPosScreen extends ConsumerWidget {
                                           final key = grupos.keys.elementAt(
                                             index,
                                           );
-
                                           final grupo = grupos[key]!;
-
                                           final nombreTela =
                                               mapaTiposArray[grupo
                                                       .first
                                                       .tipoTelaId]
                                                   ?.nombre ??
                                               grupo.first.tipoTelaId;
+
                                           return VentaGrupoCard(
                                             tipoTelaId: grupo.first.tipoTelaId,
                                             colorId: grupo.first.colorId,
