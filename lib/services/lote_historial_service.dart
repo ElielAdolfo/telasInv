@@ -37,10 +37,15 @@ class LoteHistorialService {
     List<StockActual> nuevosItemsStock = [];
     DateTime fechaActual = DateTime.now();
 
-    // 2. Por cada detalle, recuperar sus rollos e integrarlos al JSON del Snapshot
-    for (var detalleDoc in detallesSnapshot.docs) {
-      final detalleData = detalleDoc.data();
+    // ====================================================================================
+    // PRE-PROCESAMIENTO MATEMÁTICO DE PRORRATEO (SOLO SI PASA A FINALIZADO)
+    // ====================================================================================
+    Map<String, List<Map<String, dynamic>>> rollosCachadosPorDetalle = {};
+    double metrosTotalesDelLoteCompleto = 0.0;
+    Map<String, double> metrosTotalesPorDetalleId = {};
 
+    // Primero leemos los rollos de la base de datos para mapear el metraje real exacto del lote entero
+    for (var detalleDoc in detallesSnapshot.docs) {
       final rollosSnapshot = await _detalleRef
           .doc(detalleDoc.id)
           .collection('rollos')
@@ -48,17 +53,76 @@ class LoteHistorialService {
           .get();
 
       final rollosList = rollosSnapshot.docs.map((r) => r.data()).toList();
+      rollosCachadosPorDetalle[detalleDoc.id] = rollosList;
+
+      double metrosDeEsteDetalle = 0.0;
+      for (var rMap in rollosList) {
+        int cant = rMap['cantidad'] ?? 1;
+        double m = (rMap['metraje'] ?? 0.0).toDouble();
+        metrosDeEsteDetalle += (m * cant);
+      }
+
+      metrosTotalesPorDetalleId[detalleDoc.id] = metrosDeEsteDetalle;
+      metrosTotalesDelLoteCompleto += metrosDeEsteDetalle;
+    }
+
+    // Traemos todos los gastos activos cargados para este lote
+    double totalGastosComunesLote = 0.0;
+    Map<String, double> totalGastosEnlazadosPorDetalleId = {};
+
+    if (nuevoEstado == LoteEstado.finalizado) {
+      final gastosSnapshot = await _db
+          .collection(Env.col('gastos'))
+          .where('loteId', isEqualTo: lote.id)
+          .where('eliminado', isEqualTo: false)
+          .get();
+
+      for (var gastoDoc in gastosSnapshot.docs) {
+        final gData = gastoDoc.data();
+        double totalBs = (gData['totalBs'] ?? 0.0).toDouble();
+        String? linkedDetalleId = gData['loteDetalleId'];
+
+        if (linkedDetalleId == null || linkedDetalleId.isEmpty) {
+          // Gasto común total (Pasajes, comida, etc.)
+          totalGastosComunesLote += totalBs;
+        } else {
+          // Gasto específico enlazado a una tela (Transporte de tela x)
+          totalGastosEnlazadosPorDetalleId[linkedDetalleId] =
+              (totalGastosEnlazadosPorDetalleId[linkedDetalleId] ?? 0.0) +
+              totalBs;
+        }
+      }
+    }
+    // ====================================================================================
+
+    // 2. Construcción de registros y snapshots
+    for (var detalleDoc in detallesSnapshot.docs) {
+      final detalleData = detalleDoc.data();
+      final rollosList = rollosCachadosPorDetalle[detalleDoc.id] ?? [];
+
       detalleData['rollosSnapshot'] = rollosList;
       detallesConRollosList.add(detalleData);
 
-      // =================================================================
-      // GENERACIÓN DE STOCK ACTUAL (SOLO SI PASA A FINALIZADO)
-      // =================================================================
       if (nuevoEstado == LoteEstado.finalizado) {
+        double costoMetroOrigen = (detalleData['costoMetroOrigen'] ?? 0.0)
+            .toDouble();
+
+        // Factores unitarios por metro para este loteDetalle
+        double metrosDeEsteDetalle =
+            metrosTotalesPorDetalleId[detalleDoc.id] ?? 0.0;
+        double gastoEnlazadoPorMetro = metrosDeEsteDetalle > 0
+            ? (totalGastosEnlazadosPorDetalleId[detalleDoc.id] ?? 0.0) /
+                  metrosDeEsteDetalle
+            : 0.0;
+
+        double gastoComunPorMetro = metrosTotalesDelLoteCompleto > 0
+            ? totalGastosComunesLote / metrosTotalesDelLoteCompleto
+            : 0.0;
+
         for (var rolloMap in rollosList) {
           int cantidadRollosAgrupados = rolloMap['cantidad'] ?? 1;
           String idRollo = rolloMap['id'] ?? '';
-          double metraje = (rolloMap['metraje'] ?? 0.0).toDouble();
+          double metrajeRolloReal = (rolloMap['metraje'] ?? 0.0).toDouble();
           String colorId = rolloMap['colorId'] ?? '';
           String sucursalId = lote.sucursalId ?? '';
           Map<String, dynamic> atributos =
@@ -66,7 +130,16 @@ class LoteHistorialService {
               ? Map<String, dynamic>.from(rolloMap['atributosEspeciales'])
               : {};
 
-          // Si la cantidad agrupada es por ejemplo 10 (caso stock_007), creamos 10 registros
+          // Cálculo individual por rollo respetando variaciones de metraje arbitrarias
+          double individualGastoComun = metrajeRolloReal * gastoComunPorMetro;
+          double individualGastoEnlazado =
+              metrajeRolloReal * gastoEnlazadoPorMetro;
+          double individualPrecioCompra = metrajeRolloReal * costoMetroOrigen;
+          double individualPrecioTotal =
+              individualPrecioCompra +
+              individualGastoComun +
+              individualGastoEnlazado;
+
           for (int i = 1; i <= cantidadRollosAgrupados; i++) {
             final String nuevoStockId = _stockRef.doc().id;
 
@@ -77,15 +150,19 @@ class LoteHistorialService {
                 loteDetalleId: detalleDoc.id,
                 tipoTelaId: detalleData['tipoTelaId'] ?? '',
                 idRollo: idRollo,
-                numeroFisico: i, // Multi-índice físico solicitado (1, 2, 3...)
+                numeroFisico: i,
                 sucursalActualId: sucursalId,
                 colorId: colorId.isEmpty ? null : colorId,
                 atributosEspeciales: atributos,
-                metrajeOriginal: metraje,
-                metrajeActual: metraje,
-                estado: StockRolloEstado
-                    .cerrado, // Estado por defecto en almacén físico
+                metrajeOriginal: metrajeRolloReal,
+                metrajeActual: metrajeRolloReal,
+                estado: StockRolloEstado.cerrado,
                 fechaIngresoStock: fechaActual,
+                // INYECCIÓN ASIGNADA CON ÉXITO
+                gastosComunes: individualGastoComun,
+                gastosEnlazado: individualGastoEnlazado,
+                precioCompraRollo: individualPrecioCompra,
+                precioTotal: individualPrecioTotal,
               ),
             );
           }
@@ -130,7 +207,7 @@ class LoteHistorialService {
 
     batch.update(_lotesRef.doc(lote.id), updateLoteData);
 
-    // Escribir los elementos de stock si aplica
+    // Escribir los elementos de stock calculados al céntimo
     for (var stockItem in nuevosItemsStock) {
       batch.set(_stockRef.doc(stockItem.id), stockItem.toMap());
     }

@@ -1,4 +1,3 @@
-
 enum StockRolloEstado { cerrado, abierto, sobra, vendido }
 
 extension StockRolloEstadoExtension on StockRolloEstado {
@@ -38,6 +37,14 @@ class StockActual {
   final StockRolloEstado estado;
   final DateTime fechaIngresoStock;
 
+  final double gastosComunes; // Prorrateo general (Pasajes, comida, viáticos)
+  final double
+  gastosEnlazado; // Prorrateo específico (Transporte específico del tipo de tela)
+  final double
+  precioCompraRollo; // total metros del rollo * precio de compra del metro (costoMetroOrigen)
+  final double
+  precioTotal; // precioCompraRollo + gastosComunes + gastosEnlazado
+
   const StockActual({
     required this.id,
     required this.loteId,
@@ -52,6 +59,10 @@ class StockActual {
     required this.metrajeActual,
     required this.estado,
     required this.fechaIngresoStock,
+    required this.gastosComunes,
+    required this.gastosEnlazado,
+    required this.precioCompraRollo,
+    required this.precioTotal,
   });
 
   String obtenerDiferenciador() {
@@ -74,6 +85,10 @@ class StockActual {
       'metrajeActual': metrajeActual,
       'estado': estado.nombre,
       'fechaIngresoStock': fechaIngresoStock.toIso8601String(),
+      'gastosComunes': gastosComunes,
+      'gastosEnlazado': gastosEnlazado,
+      'precioCompraRollo': precioCompraRollo,
+      'precioTotal': precioTotal,
     };
   }
 
@@ -103,6 +118,10 @@ class StockActual {
       fechaIngresoStock:
           DateTime.tryParse(json['fechaIngresoStock']?.toString() ?? '') ??
           DateTime.now(),
+      gastosComunes: ((json['gastosComunes'] ?? 0.0) as num).toDouble(),
+      gastosEnlazado: ((json['gastosEnlazado'] ?? 0.0) as num).toDouble(),
+      precioCompraRollo: ((json['precioCompraRollo'] ?? 0.0) as num).toDouble(),
+      precioTotal: ((json['precioTotal'] ?? 0.0) as num).toDouble(),
     );
   }
 
@@ -120,6 +139,10 @@ class StockActual {
     double? metrajeActual,
     StockRolloEstado? estado,
     DateTime? fechaIngresoStock,
+    double? gastosComunes,
+    double? gastosEnlazado,
+    double? precioCompraRollo,
+    double? precioTotal,
   }) {
     return StockActual(
       id: id ?? this.id,
@@ -135,6 +158,10 @@ class StockActual {
       metrajeActual: metrajeActual ?? this.metrajeActual,
       estado: estado ?? this.estado,
       fechaIngresoStock: fechaIngresoStock ?? this.fechaIngresoStock,
+      gastosComunes: gastosComunes ?? this.gastosComunes,
+      gastosEnlazado: gastosEnlazado ?? this.gastosEnlazado,
+      precioCompraRollo: precioCompraRollo ?? this.precioCompraRollo,
+      precioTotal: precioTotal ?? this.precioTotal,
     );
   }
 }
