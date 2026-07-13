@@ -12,6 +12,7 @@ import 'package:inv_telas/moduloAbms/sucursal/screens/sucursales_abm_screen.dart
 import 'package:inv_telas/moduloAbms/tipos_tela/screens/tipos_tela_abm_screen.dart';
 import 'package:inv_telas/moduloAsignacion/screens/usuarios_empresa_screen.dart';
 import 'package:inv_telas/moduloLotes/screens/lotes_abm_screen.dart';
+import 'package:inv_telas/moduloPrecios/screens/precios_sucursal_screen.dart';
 import 'package:inv_telas/moduloTraspasos/screens/traspasos_screen.dart';
 import 'package:inv_telas/moduloVentas/screens/ventas_pos_screen.dart';
 import 'package:inv_telas/modulo_json/screens/json_view_screen.dart';
@@ -43,7 +44,6 @@ class _PrincipalShellState extends ConsumerState<PrincipalShell> {
     /// Temporales
     '/inventario': const Center(child: Text('Pantalla Inventario')),
     '/lotes': const Center(child: Text('Pantalla Lotes')),
-    '/precios': const Center(child: Text('Pantalla Precios')),
     '/relaciones': const Center(child: Text('Pantalla Relaciones')),
     '/ventas': const VentasPosScreen(),
     '/usuarios': const Center(child: Text('Pantalla Usuarios')),
@@ -57,6 +57,7 @@ class _PrincipalShellState extends ConsumerState<PrincipalShell> {
     '/moneda': const MonedasAbmScreen(),
     '/lote': const LotesAbmScreen(),
     '/traspaso': const TraspasosScreen(),
+    '/precios': const PreciosSucursalScreen(),
   };
 
   /// Navegación
