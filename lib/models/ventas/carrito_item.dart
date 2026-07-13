@@ -22,6 +22,29 @@ class CarritoItem {
     required this.esContinuo,
     required this.rollosSeleccionados,
   });
+  CarritoItem copyWith({
+    String? id,
+    String? tipoTelaId,
+    String? colorId,
+    String? loteId,
+    double? cantidadMetros,
+    int? cantidadRollos,
+    double? precioUnitario,
+    bool? esContinuo,
+    List<VentaRolloSeleccion>? rollosSeleccionados,
+  }) {
+    return CarritoItem(
+      id: id ?? this.id,
+      tipoTelaId: tipoTelaId ?? this.tipoTelaId,
+      colorId: colorId ?? this.colorId,
+      loteId: loteId ?? this.loteId,
+      cantidadMetros: cantidadMetros ?? this.cantidadMetros,
+      cantidadRollos: cantidadRollos ?? this.cantidadRollos,
+      precioUnitario: precioUnitario ?? this.precioUnitario,
+      esContinuo: esContinuo ?? this.esContinuo,
+      rollosSeleccionados: rollosSeleccionados ?? this.rollosSeleccionados,
+    );
+  }
 
   double get subtotal =>
       (cantidadMetros > 0 ? cantidadMetros : cantidadRollos.toDouble()) *

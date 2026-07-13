@@ -8,6 +8,7 @@ import 'package:inv_telas/moduloVentas/widgets/form_apertura_jornada.dart';
 import 'package:inv_telas/moduloVentas/widgets/resumen_jornada_card.dart';
 import 'package:inv_telas/moduloVentas/widgets/venta_grupo_card.dart';
 import 'package:inv_telas/providers/pos_autorizacion_provider.dart';
+import 'package:inv_telas/providers/precio_venta_provider.dart';
 import 'package:inv_telas/providers/stock_actual_provider.dart';
 import 'package:inv_telas/providers/venta_tipo_tela_provider.dart';
 import 'package:inv_telas/providers/ventas_provider.dart';
@@ -237,15 +238,11 @@ class VentasPosScreen extends ConsumerWidget {
                       children: [
                         tiposDisponiblesAsync.when(
                           loading: () => const LinearProgressIndicator(),
-
                           error: (e, _) => Text('Error cargando tipos: $e'),
-
                           data: (tipos) {
                             return mapaTiposAsync.when(
                               loading: () => const LinearProgressIndicator(),
-
                               error: (_, __) => const SizedBox(),
-
                               data: (mapaTipos) {
                                 return DropdownButtonFormField<String>(
                                   initialValue: tipoTelaSeleccionada,
@@ -255,10 +252,40 @@ class VentasPosScreen extends ConsumerWidget {
                                   ),
                                   items: tipos.map((id) {
                                     final tela = mapaTipos[id];
+                                    final nombreBase = tela?.nombre ?? id;
+
+                                    // Obtenemos el precio usando el provider familiar que ya declaraste
+                                    final precioConfig = ref.watch(
+                                      precioPorTipoTelaProvider(id),
+                                    );
+                                    final tienePrecio = precioConfig != null;
 
                                     return DropdownMenuItem<String>(
                                       value: id,
-                                      child: Text(tela?.nombre ?? id),
+                                      child: tienePrecio
+                                          ? Text(nombreBase)
+                                          : RichText(
+                                              text: TextSpan(
+                                                style: const TextStyle(
+                                                  color: Colors.black,
+                                                  fontSize: 15,
+                                                ),
+                                                children: [
+                                                  TextSpan(
+                                                    text: '$nombreBase ',
+                                                  ),
+                                                  const TextSpan(
+                                                    text:
+                                                        '(sin precio asignado)',
+                                                    style: TextStyle(
+                                                      color: Colors.red,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
                                     );
                                   }).toList(),
                                   onChanged: (value) {
@@ -275,7 +302,6 @@ class VentasPosScreen extends ConsumerWidget {
                             );
                           },
                         ),
-
                         // =========================================================================
                         // NUEVO: EL SELECTOR ÚNICO SE QUEDA AQUÍ (AFUERA DE LAS TARJETAS REPETITIVAS)
                         // =========================================================================
