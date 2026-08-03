@@ -37,13 +37,14 @@ class StockActual {
   final StockRolloEstado estado;
   final DateTime fechaIngresoStock;
 
-  final double gastosComunes; // Prorrateo general (Pasajes, comida, viáticos)
-  final double
-  gastosEnlazado; // Prorrateo específico (Transporte específico del tipo de tela)
-  final double
-  precioCompraRollo; // total metros del rollo * precio de compra del metro (costoMetroOrigen)
-  final double
-  precioTotal; // precioCompraRollo + gastosComunes + gastosEnlazado
+  final double gastosComunes;
+  final double gastosEnlazado;
+  final double precioCompraRollo;
+  final double precioTotal;
+
+  // NUEVAS VARIABLES INTEGRADAS
+  final String codigoTelaProveedorId;
+  final String proveedorId;
 
   const StockActual({
     required this.id,
@@ -63,6 +64,9 @@ class StockActual {
     required this.gastosEnlazado,
     required this.precioCompraRollo,
     required this.precioTotal,
+    // Argumentos requeridos en constructor
+    required this.proveedorId,
+    required this.codigoTelaProveedorId,
   });
 
   String obtenerDiferenciador() {
@@ -89,6 +93,9 @@ class StockActual {
       'gastosEnlazado': gastosEnlazado,
       'precioCompraRollo': precioCompraRollo,
       'precioTotal': precioTotal,
+      // Serialización nueva
+      'proveedorId': proveedorId,
+      'codigoTelaProveedorId': codigoTelaProveedorId,
     };
   }
 
@@ -122,6 +129,9 @@ class StockActual {
       gastosEnlazado: ((json['gastosEnlazado'] ?? 0.0) as num).toDouble(),
       precioCompraRollo: ((json['precioCompraRollo'] ?? 0.0) as num).toDouble(),
       precioTotal: ((json['precioTotal'] ?? 0.0) as num).toDouble(),
+      // Deserialización de los nuevos campos
+      proveedorId: json['proveedorId'] ?? '',
+      codigoTelaProveedorId: json['codigoTelaProveedorId'],
     );
   }
 
@@ -143,6 +153,8 @@ class StockActual {
     double? gastosEnlazado,
     double? precioCompraRollo,
     double? precioTotal,
+    String? proveedorId,
+    String? codigoTelaProveedorId,
   }) {
     return StockActual(
       id: id ?? this.id,
@@ -162,6 +174,9 @@ class StockActual {
       gastosEnlazado: gastosEnlazado ?? this.gastosEnlazado,
       precioCompraRollo: precioCompraRollo ?? this.precioCompraRollo,
       precioTotal: precioTotal ?? this.precioTotal,
+      proveedorId: proveedorId ?? this.proveedorId,
+      codigoTelaProveedorId:
+          codigoTelaProveedorId ?? this.codigoTelaProveedorId,
     );
   }
 }

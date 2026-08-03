@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:inv_telas/core/providers/session_provider.dart';
 import 'package:inv_telas/models/lotes/gastos.dart';
 import 'package:inv_telas/models/moneda.dart';
 import 'package:inv_telas/providers/moneda_provider.dart';
@@ -98,9 +99,9 @@ class _NuevoGastoDialogState extends ConsumerState<NuevoGastoDialog> {
 
     setState(() => _estaGuardando = true);
 
+    final session = ref.watch(sessionProvider);
+    final usuarioActualId = session.usuario?.id ?? '';
     try {
-      const usuarioActualId = "usuario_sistema_id";
-
       final gastoGuardar = Gasto(
         id: widget.gasto?.id ?? '',
         activo: widget.gasto?.activo ?? true,
@@ -156,6 +157,9 @@ class _NuevoGastoDialogState extends ConsumerState<NuevoGastoDialog> {
     final monedasAsync = ref.watch(monedasProvider(widget.empresaId));
     // Obtenemos los detalles agrupados del lote para llenar el select condicional
     final loteGastosState = ref.watch(loteGastosProvider);
+
+    final session = ref.watch(sessionProvider);
+    final usuarioId = session.usuario?.id ?? '';
 
     return LayoutBuilder(
       builder: (context, constraints) {

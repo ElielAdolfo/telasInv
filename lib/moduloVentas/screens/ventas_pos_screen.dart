@@ -484,6 +484,7 @@ class VentasPosScreen extends ConsumerWidget {
                         final carritoWidget = CarritoVentasPanel(
                           jornadaAbierta: jornada.abierta,
                           mapaTiposTela: mapaTiposArray,
+                          sucursalId: sucursalId,
                           onConfirmar: () {
                             debugPrint('Procesar venta jornada ${jornada.id}');
                           },

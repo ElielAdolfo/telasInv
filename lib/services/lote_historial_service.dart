@@ -2,6 +2,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:inv_telas/models/ventas/stock_actual.dart';
+import 'package:inv_telas/services/codigo_tela_proveedor_service.dart';
 import '../config/env.dart';
 import '../models/lotes/lote.dart';
 import '../models/lotes/lote_estado.dart';
@@ -19,6 +20,8 @@ class LoteHistorialService {
   CollectionReference<Map<String, dynamic>> get _stockRef =>
       _db.collection(Env.col('stock_actual'));
 
+  final CodigoTelaProveedorService _codigoTelaService =
+      CodigoTelaProveedorService();
   Future<void> registrarCambioEstado({
     required Lote lote,
     required LoteEstado nuevoEstado,
@@ -142,7 +145,18 @@ class LoteHistorialService {
 
           for (int i = 1; i <= cantidadRollosAgrupados; i++) {
             final String nuevoStockId = _stockRef.doc().id;
+            String proveedorId = '';
 
+            final codigoTelaProveedorId =
+                detalleData['codigoTelaProveedorId'] ?? '';
+
+            if (codigoTelaProveedorId.isNotEmpty) {
+              final codigoTelaProveedor = await _codigoTelaService.getById(
+                codigoTelaProveedorId,
+              );
+
+              proveedorId = codigoTelaProveedor?.proveedorId ?? '';
+            }
             nuevosItemsStock.add(
               StockActual(
                 id: nuevoStockId,
@@ -163,6 +177,9 @@ class LoteHistorialService {
                 gastosEnlazado: individualGastoEnlazado,
                 precioCompraRollo: individualPrecioCompra,
                 precioTotal: individualPrecioTotal,
+                proveedorId: proveedorId,
+                codigoTelaProveedorId:
+                    detalleData['codigoTelaProveedorId'] ?? '',
               ),
             );
           }
