@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:inv_telas/config/env.dart';
 import 'package:inv_telas/models/ventas/precio_venta_sucursal.dart.dart';
 import '../core/providers/session_provider.dart';
 import 'package:collection/collection.dart';
@@ -16,7 +17,8 @@ final preciosVentaSucursalProvider = StreamProvider<List<PrecioVentaSucursal>>((
   if (sucursalId.isEmpty) return Stream.value([]);
 
   return FirebaseFirestore.instance
-      .collection('precios_venta_sucursal')
+      //.collection(Env.col('precios_venta_sucursal'))
+      .collection(('precios_venta_sucursal'))
       .where('sucursalId', isEqualTo: sucursalId)
       .where('eliminado', isEqualTo: false)
       .where('activo', isEqualTo: true)
